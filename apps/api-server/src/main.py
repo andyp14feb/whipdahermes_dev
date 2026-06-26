@@ -17,6 +17,12 @@ from modules.session_state.adapters.persistence.session_repo import (
     SQLSessionRepo,
     create_session_engine,
 )
+from modules.command_router.adapters.persistence.command_repo import (
+    SQLCommandRepo,
+    create_command_engine,
+)
+from modules.command_router.application.command_service import CommandService
+from modules.command_router.command_router import create_command_router_module
 from modules.session_state.session_state import create_session_state_module
 
 
@@ -37,6 +43,11 @@ register_ingest_module(
     session_upserter=session_service,
 )
 create_machine_registry_module(machine_service)
+
+command_engine = create_command_engine()
+command_repo = SQLCommandRepo(command_engine)
+command_service = CommandService(command_repo, session_result_updater=session_service)
+app.include_router(create_command_router_module(command_service))
 
 query_service = QueryService(machine_reader=machine_repo, session_reader=session_repo)
 app.include_router(create_query_api_router(query_service))
