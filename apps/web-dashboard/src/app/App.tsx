@@ -6,6 +6,7 @@ import {
 } from "@tanstack/react-query";
 import { MachineList } from "../features/machine-list/MachineList";
 import { SessionPreview } from "../features/session-preview/SessionPreview";
+import { CommandPanel } from "../features/command-panel/CommandPanel";
 import { useAppStore } from "../shared/state/appStore";
 import { Button } from "../shared/ui/Button";
 import { formatErrorMessage } from "../shared/api-client/errorEnvelope";
@@ -81,6 +82,9 @@ function ConnectionBanner() {
 }
 
 function Dashboard() {
+  const selectedMachineId = useAppStore((s) => s.selectedMachineId);
+  const selectedSessionId = useAppStore((s) => s.selectedSessionId);
+
   return (
     <main className="min-h-screen bg-gray-100 p-6">
       <div className="mx-auto max-w-7xl">
@@ -100,6 +104,10 @@ function Dashboard() {
             </aside>
             <section className="min-h-[32rem]">
               <SessionPreview />
+              <CommandPanel
+                machineId={selectedMachineId}
+                sessionId={selectedSessionId}
+              />
             </section>
           </div>
         </ErrorBoundary>

@@ -212,6 +212,65 @@ describe("Polling refresh behavior", () => {
   );
 });
 
+describe("CommandPanel integration", () => {
+  it("shows CommandPanel when session is selected", async () => {
+    useAppStore.setState({
+      selectedMachineId: "machine-1",
+      selectedSessionId: "session-1",
+      connectionError: null,
+    });
+
+    server.use(
+      http.post("/command", () =>
+        HttpResponse.json({
+          command_id: "cmd-1",
+          state: "accepted",
+          target: "machine-1/session-1",
+        }),
+      ),
+      http.get("/commands/cmd-1", () =>
+        HttpResponse.json({
+          command_id: "cmd-1",
+          state: "delivered",
+          target: "machine-1/session-1",
+          payload: "yes",
+        }),
+      ),
+    );
+
+    render(<App />);
+
+    expect(await screen.findByText("Template Actions")).toBeInTheDocument();
+  });
+
+  it("sends POST /command and shows pending state on template click", async () => {
+    const user = userEvent.setup();
+    useAppStore.setState({
+      selectedMachineId: "machine-1",
+      selectedSessionId: "session-1",
+      connectionError: null,
+    });
+
+    server.use(
+      http.post("/command", () =>
+        HttpResponse.json({
+          command_id: "cmd-1",
+          state: "accepted",
+          target: "machine-1/session-1",
+        }),
+      ),
+    );
+
+    render(<App />);
+
+    expect(await screen.findByText("Template Actions")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "yes" }));
+
+    expect(await screen.findByText("pending")).toBeInTheDocument();
+  });
+});
+
 describe("App", () => {
   it(
     "shows a connection error banner when the backend is unreachable",

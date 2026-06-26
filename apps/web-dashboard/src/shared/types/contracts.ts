@@ -33,3 +33,15 @@ export interface SessionDetail {
   cwd: string;
   last_seen_at: string;
 }
+
+export type CommandStatus = "pending" | "accepted" | "delivered" | "failed";
+
+export interface CommandResponse {
+  command_id: string;
+  state: CommandStatus;
+  target: string;
+  payload?: string;
+  accepted_at?: string;
+  delivered_at?: string | null;
+  failure_reason?: string | null;
+}
