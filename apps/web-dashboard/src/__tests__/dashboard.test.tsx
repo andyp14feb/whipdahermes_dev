@@ -240,7 +240,7 @@ describe("CommandPanel integration", () => {
 
     render(<App />);
 
-    expect(await screen.findByText("Template Actions")).toBeInTheDocument();
+    expect(await screen.findByText("Command Actions")).toBeInTheDocument();
   });
 
   it("sends POST /command and shows pending state on template click", async () => {
@@ -263,7 +263,7 @@ describe("CommandPanel integration", () => {
 
     render(<App />);
 
-    expect(await screen.findByText("Template Actions")).toBeInTheDocument();
+    expect(await screen.findByText("Command Actions")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "yes" }));
 

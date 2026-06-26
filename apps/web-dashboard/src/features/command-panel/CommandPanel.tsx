@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { FreeFormInput } from "./FreeFormInput";
 import { TemplateActions } from "./TemplateActions";
 import { Card } from "../../shared/ui/Card";
 import { getCommandStatus } from "./commandPanel.api";
@@ -101,13 +102,20 @@ export function CommandPanel({ machineId, sessionId }: CommandPanelProps) {
   return (
     <Card className="p-4">
       <h2 className="mb-3 text-lg font-semibold text-gray-900">
-        Template Actions
+        Command Actions
       </h2>
-      <TemplateActions
+      <FreeFormInput
         machineId={machineId}
         sessionId={sessionId}
         onCommandSent={handleCommandSent}
       />
+      <div className="mt-4">
+        <TemplateActions
+          machineId={machineId}
+          sessionId={sessionId}
+          onCommandSent={handleCommandSent}
+        />
+      </div>
 
       {commands.length > 0 && (
         <div className="mt-4 space-y-2">
