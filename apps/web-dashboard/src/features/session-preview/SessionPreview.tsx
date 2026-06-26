@@ -32,7 +32,7 @@ export function SessionPreview() {
     );
   }
 
-  if (query.error) {
+  if (query.error && !query.data) {
     return (
       <Card className="flex h-full items-center justify-center p-8">
         <p className="text-sm text-red-600">Failed to load session details.</p>

@@ -138,33 +138,103 @@ describe("SessionPreview", () => {
   });
 });
 
+describe("Polling refresh behavior", () => {
+  it(
+    "keeps cached data visible and shows stale indicator after polling failure",
+    async () => {
+      render(<App />);
+
+      expect(await screen.findByText("Alpha")).toBeInTheDocument();
+      expect(screen.getByText("Frontend Agent")).toBeInTheDocument();
+
+      server.use(
+        http.get("/machines", () =>
+          HttpResponse.json(
+            { error: { code: "UNAVAILABLE", message: "Backend unavailable" } },
+            { status: 503 },
+          ),
+        ),
+        http.get("/sessions", () =>
+          HttpResponse.json(
+            { error: { code: "UNAVAILABLE", message: "Backend unavailable" } },
+            { status: 503 },
+          ),
+        ),
+      );
+
+      expect(await screen.findByText(/connection lost/i, {}, { timeout: 10000 })).toBeInTheDocument();
+      expect(screen.getByText("Alpha")).toBeInTheDocument();
+      expect(screen.getByText("Frontend Agent")).toBeInTheDocument();
+    },
+    20000,
+  );
+
+  it(
+    "keeps cached SessionPreview data visible after polling failure",
+    async () => {
+      useAppStore.setState({
+        selectedMachineId: "machine-1",
+        selectedSessionId: "session-1",
+        connectionError: null,
+      });
+
+      render(<App />);
+
+      expect(await screen.findByText("Frontend Agent")).toBeInTheDocument();
+      expect(await screen.findByText("/workspace/frontend")).toBeInTheDocument();
+
+      server.use(
+        http.get("/sessions/:machineId/:sessionId", () =>
+          HttpResponse.json(
+            { error: { code: "UNAVAILABLE", message: "Backend unavailable" } },
+            { status: 503 },
+          ),
+        ),
+        http.get("/machines", () =>
+          HttpResponse.json(
+            { error: { code: "UNAVAILABLE", message: "Backend unavailable" } },
+            { status: 503 },
+          ),
+        ),
+        http.get("/sessions", () =>
+          HttpResponse.json(
+            { error: { code: "UNAVAILABLE", message: "Backend unavailable" } },
+            { status: 503 },
+          ),
+        ),
+      );
+
+      expect(await screen.findByText(/connection lost/i, {}, { timeout: 10000 })).toBeInTheDocument();
+      expect(screen.getAllByText("Frontend Agent")).toHaveLength(2);
+      expect(screen.getByText("/workspace/frontend")).toBeInTheDocument();
+    },
+    15000,
+  );
+});
+
 describe("App", () => {
-  it("shows a connection error banner when the backend is unreachable", async () => {
-    server.use(
-      http.get("/machines", () =>
-        HttpResponse.json(
-          { error: { code: "UNAVAILABLE", message: "Unable to reach backend server" } },
-          { status: 503 },
+  it(
+    "shows a connection error banner when the backend is unreachable",
+    async () => {
+      server.use(
+        http.get("/machines", () =>
+          HttpResponse.json(
+            { error: { code: "UNAVAILABLE", message: "Unable to reach backend server" } },
+            { status: 503 },
+          ),
         ),
-      ),
-      http.get("/sessions", () =>
-        HttpResponse.json(
-          { error: { code: "UNAVAILABLE", message: "Unable to reach backend server" } },
-          { status: 503 },
+        http.get("/sessions", () =>
+          HttpResponse.json(
+            { error: { code: "UNAVAILABLE", message: "Unable to reach backend server" } },
+            { status: 503 },
+          ),
         ),
-      ),
-    );
+      );
 
-    render(<App />);
+      render(<App />);
 
-    // queries retry 2 times before error surfaces; give enough time
-    await waitFor(
-      () => {
-        expect(
-          screen.getByText(/connection lost/i),
-        ).toBeInTheDocument();
-      },
-      { timeout: 10000 },
-    );
-  });
+      expect(await screen.findByText(/connection lost/i, {}, { timeout: 10000 })).toBeInTheDocument();
+    },
+    15000,
+  );
 });

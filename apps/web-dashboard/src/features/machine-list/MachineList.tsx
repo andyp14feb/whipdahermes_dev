@@ -18,22 +18,11 @@ export function MachineList() {
   });
 
   const isLoading = machinesQuery.isLoading || sessionsQuery.isLoading;
-  const error = machinesQuery.error || sessionsQuery.error;
 
   if (isLoading) {
     return (
       <Card className="p-4">
         <p className="text-sm text-gray-500">Loading machines...</p>
-      </Card>
-    );
-  }
-
-  if (error) {
-    return (
-      <Card className="p-4">
-        <p className="text-sm text-red-600">
-          Failed to load machines. Will retry...
-        </p>
       </Card>
     );
   }
