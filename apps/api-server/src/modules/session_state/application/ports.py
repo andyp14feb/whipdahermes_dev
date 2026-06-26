@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+from enum import Enum
 from typing import Protocol
 
 from modules.session_state.domain.session import Session
 from modules.session_state.domain.snapshot import Snapshot
+
+
+class IDetectionClassifier(Protocol):
+    def classify_session(self, session: Session, snapshot: Snapshot | None) -> Enum: ...
 
 
 class ISessionRepo(Protocol):

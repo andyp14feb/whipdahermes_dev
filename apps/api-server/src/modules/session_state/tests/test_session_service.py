@@ -278,3 +278,35 @@ class TestSessionService:
 
         assert repo.status_updates == [("s-1", "active")]
         assert repo.sessions["s-1"].status == "active"
+
+    def test_upsert_from_heartbeat_classifies_with_detection_service(self) -> None:
+        class FakeClassifier:
+            def __init__(self) -> None:
+                self.calls: list[tuple[str, str]] = []
+
+            def classify_session(self, session: Session, snapshot: Snapshot | None):
+                self.calls.append((session.session_id, snapshot.session_id if snapshot else ""))
+                return type("EnumLike", (), {"value": "active"})()
+
+        repo = FakeSessionRepo()
+        classifier = FakeClassifier()
+        service = SessionService(repo, classifier)
+
+        service.upsert_from_heartbeat(
+            MachineId("vm-1"),
+            [
+                SessionSnapshot(
+                    session_id="s-1",
+                    label="test",
+                    preview="building",
+                    seconds_since_change=5,
+                    diff_pct=0.0,
+                    stable_counter=1,
+                    cwd="/home/user",
+                    captured_at="2026-06-26T12:00:00Z",
+                )
+            ],
+        )
+
+        assert classifier.calls == [("s-1", "s-1")]
+        assert repo.sessions["s-1"].status == "active"

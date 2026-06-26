@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from modules.ingest.domain.heartbeat_payload import SessionSnapshot
-from modules.session_state.application.ports import ISessionRepo
+from modules.session_state.application.ports import IDetectionClassifier, ISessionRepo
 from modules.session_state.domain.session import Session
 from modules.session_state.domain.snapshot import Snapshot
 from modules.shared_kernel.ids import MachineId
@@ -9,8 +9,13 @@ from modules.shared_kernel.time_utils import now_utc, parse_iso
 
 
 class SessionService:
-    def __init__(self, repo: ISessionRepo) -> None:
+    def __init__(
+        self,
+        repo: ISessionRepo,
+        classifier: IDetectionClassifier | None = None,
+    ) -> None:
         self.repo = repo
+        self.classifier = classifier
 
     def upsert_from_heartbeat(
         self, machine_id: MachineId, sessions: list[SessionSnapshot]
@@ -33,17 +38,20 @@ class SessionService:
             )
             self.repo.upsert(session)
 
-            self.repo.append_snapshot(
-                Snapshot(
-                    session_id=snap.session_id,
-                    machine_id=str(machine_id),
-                    preview=snap.preview or "",
-                    diff_pct=snap.diff_pct,
-                    stable_counter=snap.stable_counter,
-                    cwd=snap.cwd or "",
-                    captured_at=snap.captured_at,
-                )
+            snapshot_record = Snapshot(
+                session_id=snap.session_id,
+                machine_id=str(machine_id),
+                preview=snap.preview or "",
+                diff_pct=snap.diff_pct,
+                stable_counter=snap.stable_counter,
+                cwd=snap.cwd or "",
+                captured_at=snap.captured_at,
             )
+            self.repo.append_snapshot(snapshot_record)
+
+            if self.classifier:
+                status = self.classifier.classify_session(session, snapshot_record)
+                self.repo.update_status(snap.session_id, status.value)
 
     def upsert_from_command_result(
         self,

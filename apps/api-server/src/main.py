@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 import uvicorn
 
+from modules.detection.detection import create_detection_module
 from modules.ingest.ingest import register_ingest_module
 from modules.machine_registry.adapters.persistence.machine_repo import (
     SQLMachineRepo,
@@ -25,7 +26,8 @@ machine_service = MachineService(machine_repo)
 
 session_engine = create_session_engine()
 session_repo = SQLSessionRepo(session_engine)
-session_service = create_session_state_module(session_repo)
+detection_service = create_detection_module()
+session_service = create_session_state_module(session_repo, detection_service)
 
 register_ingest_module(
     app,
