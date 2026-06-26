@@ -3,30 +3,35 @@ from __future__ import annotations
 from fastapi import FastAPI
 import uvicorn
 
-from modules.shared_kernel.ids import MachineId
 from modules.ingest.domain.heartbeat_payload import SessionSnapshot
 from modules.ingest.ingest import register_ingest_module
-
-
-class _PlaceholderMachineRegistry:
-    def upsert_machine(self, machine_id: MachineId, last_seen_at: str) -> None:
-        pass
+from modules.machine_registry.adapters.persistence.machine_repo import (
+    SQLMachineRepo,
+    create_machine_engine,
+)
+from modules.machine_registry.application.machine_service import MachineService
+from modules.machine_registry.machine_registry import create_machine_registry_module
 
 
 class _PlaceholderSessionUpserter:
     def upsert_from_heartbeat(
-        self, machine_id: MachineId, sessions: list[SessionSnapshot]
+        self, machine_id, sessions: list[SessionSnapshot]
     ) -> None:
         pass
 
 
 app = FastAPI(title="WhipAI API Server", version="0.1.0")
 
+machine_engine = create_machine_engine()
+machine_repo = SQLMachineRepo(machine_engine)
+machine_service = MachineService(machine_repo)
+
 register_ingest_module(
     app,
-    machine_registry_upserter=_PlaceholderMachineRegistry(),
+    machine_registry_upserter=machine_service,
     session_upserter=_PlaceholderSessionUpserter(),
 )
+app.include_router(create_machine_registry_module(machine_service))
 
 
 @app.get("/health")
