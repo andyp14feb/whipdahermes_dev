@@ -144,3 +144,38 @@ class TestSQLSessionRepo:
         repo = self.create_repo()
 
         repo.update_status("non-existent", "active")  # should not raise
+
+    def test_get_latest_snapshot_returns_most_recent(self) -> None:
+        repo = self.create_repo()
+        s1 = Snapshot(
+            session_id="miniwa",
+            machine_id="vm-1",
+            preview="first",
+            diff_pct=0.0,
+            stable_counter=1,
+            cwd="/home",
+            captured_at="2026-06-26T12:00:00Z",
+        )
+        s2 = Snapshot(
+            session_id="miniwa",
+            machine_id="vm-1",
+            preview="second",
+            diff_pct=0.5,
+            stable_counter=2,
+            cwd="/home/user",
+            captured_at="2026-06-26T12:05:00Z",
+        )
+        repo.append_snapshot(s1)
+        repo.append_snapshot(s2)
+
+        result = repo.get_latest_snapshot("miniwa")
+
+        assert result is not None
+        assert result.preview == "second"
+
+    def test_get_latest_snapshot_returns_none_when_no_snapshots(self) -> None:
+        repo = self.create_repo()
+
+        result = repo.get_latest_snapshot("nonexistent")
+
+        assert result is None

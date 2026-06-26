@@ -43,6 +43,16 @@ class SQLSessionRepo(ISessionRepo):
             db.flush()
             db.commit()
 
+    def get_latest_snapshot(self, session_id: str) -> Snapshot | None:
+        with SQLSession(self.engine) as db:
+            statement = (
+                select(SnapshotModel)
+                .where(SnapshotModel.session_id == session_id)
+                .order_by(SnapshotModel.snapshot_id.desc())
+                .limit(1)
+            )
+            return db.exec(statement).first()
+
     def update_status(self, session_id: str, status: str) -> None:
         with SQLSession(self.engine) as db:
             session = db.get(SessionModel, session_id)

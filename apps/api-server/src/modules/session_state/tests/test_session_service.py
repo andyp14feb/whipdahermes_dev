@@ -32,6 +32,10 @@ class FakeSessionRepo:
     def append_snapshot(self, snapshot: Snapshot) -> None:
         self.snapshots.append(snapshot)
 
+    def get_latest_snapshot(self, session_id: str) -> Snapshot | None:
+        matching = [s for s in self.snapshots if s.session_id == session_id]
+        return matching[-1] if matching else None
+
     def update_status(self, session_id: str, status: str) -> None:
         self.status_updates.append((session_id, status))
         if session_id in self.sessions:
