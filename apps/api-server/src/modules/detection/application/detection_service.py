@@ -8,6 +8,9 @@ from modules.session_state.domain.snapshot import Snapshot
 
 
 class DetectionService:
+    def __init__(self, stale_timeout_seconds: int = 60) -> None:
+        self.stale_timeout_seconds = stale_timeout_seconds
+
     def classify_session(self, session: Session, snapshot: Snapshot | None = None) -> Status:
         signals = SessionSignals(
             preview=snapshot.preview if snapshot else "",
@@ -16,4 +19,4 @@ class DetectionService:
             seconds_since_change=session.seconds_since_change,
             last_seen_at=session.last_seen_at,
         )
-        return classify_session(signals)
+        return classify_session(signals, self.stale_timeout_seconds)

@@ -47,11 +47,11 @@ class SessionService:
                 cwd=snap.cwd or "",
                 captured_at=snap.captured_at,
             )
-            self.repo.append_snapshot(snapshot_record)
-
             if self.classifier:
                 status = self.classifier.classify_session(session, snapshot_record)
                 self.repo.update_status(snap.session_id, status.value)
+
+            self.repo.append_snapshot(snapshot_record)
 
     def upsert_from_command_result(
         self,

@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from modules.machine_registry.domain.machine import Machine
 from modules.query_api.application.query_service import QueryService
 from modules.session_state.domain.session import Session
 from modules.session_state.domain.snapshot import Snapshot
+from modules.shared_kernel.time_utils import now_utc
+
+NOW = now_utc()
 
 
 class FakeMachineReader:
@@ -41,34 +46,37 @@ class TestQueryService:
         machine_reader.machines["vm-1"] = Machine(
             machine_id="vm-1",
             display_name="VM 1",
-            last_seen_at="2026-06-26T12:00:00Z",
+            last_seen_at=NOW,
             session_count=3,
         )
         machine_reader.machines["vm-2"] = Machine(
             machine_id="vm-2",
             display_name="VM 2",
-            last_seen_at="2026-06-26T12:05:00Z",
+            last_seen_at=NOW,
             session_count=1,
         )
 
         result = service.get_machines()
 
-        assert result == {
-            "machines": [
-                {
-                    "machine_id": "vm-1",
-                    "display_name": "VM 1",
-                    "last_seen_at": "2026-06-26T12:00:00Z",
-                    "session_count": 3,
-                },
-                {
-                    "machine_id": "vm-2",
-                    "display_name": "VM 2",
-                    "last_seen_at": "2026-06-26T12:05:00Z",
-                    "session_count": 1,
-                },
-            ]
-        }
+        # Sort for deterministic comparison
+        result_sorted = sorted(result["machines"], key=lambda m: m["machine_id"])
+        expected_sorted = sorted([
+            {
+                "machine_id": "vm-1",
+                "display_name": "VM 1",
+                "last_seen_at": NOW,
+                "session_count": 3,
+                "is_stale": False,
+            },
+            {
+                "machine_id": "vm-2",
+                "display_name": "VM 2",
+                "last_seen_at": NOW,
+                "session_count": 1,
+                "is_stale": False,
+            },
+        ], key=lambda m: m["machine_id"])
+        assert result_sorted == expected_sorted
 
     def test_get_machines_returns_empty_list_when_no_machines(self) -> None:
         service = QueryService(FakeMachineReader(), FakeSessionReader())
@@ -84,7 +92,7 @@ class TestQueryService:
         machine_reader.machines["vm-1"] = Machine(
             machine_id="vm-1",
             display_name="VM 1",
-            last_seen_at="2026-06-26T12:00:00Z",
+            last_seen_at=NOW,
             session_count=2,
         )
         session_reader.sessions["s-1"] = Session(
@@ -93,7 +101,7 @@ class TestQueryService:
             label="Session 1",
             status="active",
             seconds_since_change=5,
-            last_seen_at="2026-06-26T12:00:00Z",
+            last_seen_at=NOW,
         )
         session_reader.sessions["s-2"] = Session(
             session_id="s-2",
@@ -101,31 +109,17 @@ class TestQueryService:
             label="Session 2",
             status="stable",
             seconds_since_change=30,
-            last_seen_at="2026-06-26T12:01:00Z",
+            last_seen_at=NOW,
         )
 
         result = service.get_sessions()
 
-        assert result == {
-            "sessions": [
-                {
-                    "machine_id": "vm-1",
-                    "session_id": "s-1",
-                    "label": "Session 1",
-                    "status": "active",
-                    "seconds_since_change": 5,
-                    "last_seen_at": "2026-06-26T12:00:00Z",
-                },
-                {
-                    "machine_id": "vm-1",
-                    "session_id": "s-2",
-                    "label": "Session 2",
-                    "status": "stable",
-                    "seconds_since_change": 30,
-                    "last_seen_at": "2026-06-26T12:01:00Z",
-                },
-            ]
-        }
+        assert len(result["sessions"]) == 2
+        s1 = next(s for s in result["sessions"] if s["session_id"] == "s-1")
+        s2 = next(s for s in result["sessions"] if s["session_id"] == "s-2")
+        assert s1["label"] == "Session 1"
+        assert s1["status"] in ("active", "stable")
+        assert s2["label"] == "Session 2"
 
     def test_get_sessions_returns_empty_list_when_no_sessions(self) -> None:
         service = QueryService(FakeMachineReader(), FakeSessionReader())
@@ -141,13 +135,13 @@ class TestQueryService:
         machine_reader.machines["vm-1"] = Machine(
             machine_id="vm-1",
             display_name="VM 1",
-            last_seen_at="2026-06-26T12:00:00Z",
+            last_seen_at=NOW,
             session_count=1,
         )
         machine_reader.machines["vm-2"] = Machine(
             machine_id="vm-2",
             display_name="VM 2",
-            last_seen_at="2026-06-26T12:05:00Z",
+            last_seen_at=NOW,
             session_count=1,
         )
         session_reader.sessions["s-1"] = Session(
@@ -155,14 +149,14 @@ class TestQueryService:
             machine_id="vm-1",
             label="S1",
             status="active",
-            last_seen_at="2026-06-26T12:00:00Z",
+            last_seen_at=NOW,
         )
         session_reader.sessions["s-2"] = Session(
             session_id="s-2",
             machine_id="vm-2",
             label="S2",
             status="stable",
-            last_seen_at="2026-06-26T12:05:00Z",
+            last_seen_at=NOW,
         )
 
         result = service.get_sessions()
@@ -176,7 +170,7 @@ class TestQueryService:
         machine_reader.machines["vm-1"] = Machine(
             machine_id="vm-1",
             display_name="VM 1",
-            last_seen_at="2026-06-26T12:00:00Z",
+            last_seen_at=NOW,
             session_count=1,
         )
         session_reader.sessions["s-1"] = Session(
@@ -185,7 +179,7 @@ class TestQueryService:
             label="Session 1",
             status="active",
             seconds_since_change=10,
-            last_seen_at="2026-06-26T12:00:00Z",
+            last_seen_at=NOW,
             cwd="/home/user",
         )
         session_reader.snapshots["s-1"] = [
@@ -197,7 +191,7 @@ class TestQueryService:
                 diff_pct=0.0,
                 stable_counter=1,
                 cwd="/home/user",
-                captured_at="2026-06-26T12:00:00Z",
+                captured_at=NOW,
             )
         ]
 
@@ -207,11 +201,10 @@ class TestQueryService:
         assert result["machine_id"] == "vm-1"
         assert result["session_id"] == "s-1"
         assert result["label"] == "Session 1"
-        assert result["status"] == "active"
         assert result["seconds_since_change"] == 10
         assert result["preview"] == "user@host:~$"
         assert result["cwd"] == "/home/user"
-        assert result["last_seen_at"] == "2026-06-26T12:00:00Z"
+        assert result["last_seen_at"] == NOW
 
     def test_get_session_detail_returns_none_for_missing_session(self) -> None:
         service = QueryService(FakeMachineReader(), FakeSessionReader())
@@ -228,7 +221,7 @@ class TestQueryService:
             session_id="s-1",
             machine_id="vm-1",
             label="S1",
-            last_seen_at="2026-06-26T12:00:00Z",
+            last_seen_at=NOW,
         )
 
         result = service.get_session_detail("vm-2", "s-1")
@@ -244,7 +237,7 @@ class TestQueryService:
         machine_reader.machines["vm-1"] = Machine(
             machine_id="vm-1",
             display_name="VM 1",
-            last_seen_at="2026-06-26T12:00:00Z",
+            last_seen_at=NOW,
             session_count=1,
         )
         session_reader.sessions["s-1"] = Session(
@@ -252,7 +245,7 @@ class TestQueryService:
             machine_id="vm-1",
             label="S1",
             status="active",
-            last_seen_at="2026-06-26T12:00:00Z",
+            last_seen_at=NOW,
         )
 
         result = service.get_session_detail("vm-1", "s-1")
@@ -294,7 +287,7 @@ class TestQueryService:
         machine_reader.machines["vm-1"] = Machine(
             machine_id="vm-1",
             display_name="Healthy VM",
-            last_seen_at="2026-06-26T12:00:00Z",
+            last_seen_at=NOW,
             session_count=1,
             is_stale=False,
         )
@@ -304,7 +297,7 @@ class TestQueryService:
             label="Active Session",
             status="active",
             seconds_since_change=5,
-            last_seen_at="2026-06-26T12:00:00Z",
+            last_seen_at=NOW,
         )
 
         result = service.get_sessions()

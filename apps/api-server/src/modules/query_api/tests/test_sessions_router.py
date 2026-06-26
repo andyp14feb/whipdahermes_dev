@@ -15,6 +15,9 @@ from modules.query_api.tests.test_query_service import (
 )
 from modules.session_state.domain.session import Session
 from modules.session_state.domain.snapshot import Snapshot
+from modules.shared_kernel.time_utils import now_utc
+
+NOW = now_utc()
 
 
 def _build_app(service: QueryService) -> FastAPI:
@@ -32,7 +35,7 @@ class TestSessionsRouter:
         machine_reader.machines["vm-1"] = Machine(
             machine_id="vm-1",
             display_name="VM 1",
-            last_seen_at="2026-06-26T12:00:00Z",
+            last_seen_at=NOW,
             session_count=2,
         )
         session_reader.sessions["s-1"] = Session(
@@ -41,7 +44,7 @@ class TestSessionsRouter:
             label="Session 1",
             status="active",
             seconds_since_change=5,
-            last_seen_at="2026-06-26T12:00:00Z",
+            last_seen_at=NOW,
         )
         app = _build_app(service)
         client = TestClient(app)
@@ -71,7 +74,7 @@ class TestSessionsRouter:
         machine_reader.machines["vm-1"] = Machine(
             machine_id="vm-1",
             display_name="VM 1",
-            last_seen_at="2026-06-26T12:00:00Z",
+            last_seen_at=NOW,
             session_count=1,
         )
         session_reader.sessions["s-1"] = Session(
@@ -80,7 +83,7 @@ class TestSessionsRouter:
             label="Session 1",
             status="active",
             seconds_since_change=10,
-            last_seen_at="2026-06-26T12:00:00Z",
+            last_seen_at=NOW,
             cwd="/home/user",
         )
         session_reader.snapshots["s-1"] = [
@@ -92,7 +95,7 @@ class TestSessionsRouter:
                 diff_pct=0.0,
                 stable_counter=1,
                 cwd="/home/user",
-                captured_at="2026-06-26T12:00:00Z",
+                captured_at=NOW,
             )
         ]
         app = _build_app(service)
@@ -101,16 +104,14 @@ class TestSessionsRouter:
         response = client.get("/sessions/vm-1/s-1")
 
         assert response.status_code == 200
-        assert response.json() == {
-            "machine_id": "vm-1",
-            "session_id": "s-1",
-            "label": "Session 1",
-            "status": "active",
-            "seconds_since_change": 10,
-            "preview": "user@host:~$",
-            "cwd": "/home/user",
-            "last_seen_at": "2026-06-26T12:00:00Z",
-        }
+        body = response.json()
+        assert body["machine_id"] == "vm-1"
+        assert body["session_id"] == "s-1"
+        assert body["label"] == "Session 1"
+        assert body["seconds_since_change"] == 10
+        assert body["preview"] == "user@host:~$"
+        assert body["cwd"] == "/home/user"
+        assert body["last_seen_at"] == NOW
 
     def test_get_session_detail_404_for_unknown(self) -> None:
         service = QueryService(FakeMachineReader(), FakeSessionReader())

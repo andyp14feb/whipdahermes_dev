@@ -1,14 +1,25 @@
 from __future__ import annotations
 
 from modules.query_api.application.ports import IMachineReader, ISessionReader
+from modules.shared_kernel.time_utils import now_utc, parse_iso
 
 
 class QueryService:
     def __init__(
-        self, machine_reader: IMachineReader, session_reader: ISessionReader
+        self,
+        machine_reader: IMachineReader,
+        session_reader: ISessionReader,
+        stale_timeout_seconds: int = 60,
     ) -> None:
         self.machine_reader = machine_reader
         self.session_reader = session_reader
+        self.stale_timeout_seconds = stale_timeout_seconds
+
+    def _is_machine_stale(self, last_seen_at: str) -> bool:
+        try:
+            return int((parse_iso(now_utc()) - parse_iso(last_seen_at)).total_seconds()) > self.stale_timeout_seconds
+        except (ValueError, TypeError):
+            return False
 
     def get_machines(self) -> dict[str, list[dict[str, object]]]:
         machines = self.machine_reader.list_all()
@@ -19,6 +30,7 @@ class QueryService:
                     "display_name": machine.display_name,
                     "last_seen_at": machine.last_seen_at,
                     "session_count": machine.session_count,
+                    "is_stale": self._is_machine_stale(machine.last_seen_at),
                 }
                 for machine in machines
             ]
@@ -30,7 +42,7 @@ class QueryService:
         for session in sessions:
             machine = self.machine_reader.get(session.machine_id)
             status = session.status
-            if machine is not None and machine.is_stale:
+            if machine is not None and self._is_machine_stale(machine.last_seen_at):
                 status = "stale"
             result.append(
                 {
@@ -53,7 +65,7 @@ class QueryService:
         snapshot = self.session_reader.get_latest_snapshot(session_id)
         machine = self.machine_reader.get(machine_id)
         status = session.status
-        if machine is not None and machine.is_stale:
+        if machine is not None and self._is_machine_stale(machine.last_seen_at):
             status = "stale"
         return {
             "machine_id": session.machine_id,

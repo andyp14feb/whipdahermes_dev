@@ -14,12 +14,15 @@ WAITING_INPUT_PATTERNS = [
 ]
 
 
-def classify_session(signals: SessionSignals) -> Status:
+def classify_session(
+    signals: SessionSignals,
+    stale_timeout_seconds: int = 60,
+) -> Status:
     try:
         last_seen_dt = parse_iso(signals.last_seen_at)
         now_dt = parse_iso(now_utc())
         seconds_stale = int((now_dt - last_seen_dt).total_seconds())
-        if seconds_stale > 60:
+        if seconds_stale > stale_timeout_seconds:
             return Status.STALE
     except (ValueError, TypeError):
         pass
