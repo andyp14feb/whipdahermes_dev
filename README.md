@@ -298,6 +298,190 @@ Use a different `MACHINE_ID` per machine, such as:
 
 The dashboard groups sessions by machine.
 
+## Step-by-step: running machine-agent on a remote machine
+
+This section covers everything needed to deploy a machine-agent on a separate machine and connect it to your central dashboard.
+
+### Step 1: find the server IP address
+
+On the machine running the API server, find its LAN IP:
+
+```bash
+ip addr show | grep "inet "
+```
+
+Example output: `192.168.1.100`. Use this IP in the `API_URL` value on the remote agent machine.
+
+### Step 2: open network access (if needed)
+
+The API server must be reachable from the remote agent machine on port 8000.
+
+- If both machines are on the same LAN, this usually works out of the box.
+- If behind a firewall, open port 8000 or use a reverse proxy / VPN / SSH tunnel.
+- The docker-compose setup already binds `API_HOST: 0.0.0.0`, so the server listens on all interfaces.
+
+Quick check from the remote machine:
+
+```bash
+curl http://192.168.1.100:8000/health
+```
+
+Expected response: `{"status":"ok"}`
+
+### Step 3: install dependencies on the remote machine
+
+**Option A: Docker (recommended)**
+
+Install Docker on the remote machine:
+
+```bash
+# Debian/Ubuntu
+curl -fsSL https://get.docker.com | sh
+sudo usermod -aG docker $USER
+# log out and back in, or run: newgrp docker
+```
+
+**Option B: manual install**
+
+```bash
+# Debian/Ubuntu
+sudo apt update
+sudo apt install -y tmux python3.12 python3.12-venv git curl
+```
+
+### Step 4: run the machine-agent
+
+**Option A: Docker**
+
+```bash
+# copy apps/machine-agent to the remote machine, then:
+cd apps/machine-agent
+docker build -t machine-agent .
+docker run -d \
+  --name machine-agent \
+  --restart unless-stopped \
+  -e MACHINE_ID="worker-01" \
+  -e API_URL="http://192.168.1.100:8000" \
+  -e INTERVAL=2 \
+  -e COMMAND_POLL_INTERVAL=5 \
+  machine-agent
+```
+
+**Option B: manual (without Docker)**
+
+```bash
+# clone or copy the repo
+git clone <REPO_URL> whipdahermes_dev
+cd whipdahermes_dev/apps/machine-agent
+
+# create virtual environment
+python3.12 -m venv .venv
+source .venv/bin/activate
+pip install -e .
+
+# set environment variables
+export MACHINE_ID="worker-01"
+export API_URL="http://192.168.1.100:8000"
+export INTERVAL=2
+export COMMAND_POLL_INTERVAL=5
+
+# start the agent
+python3 src/main.py
+```
+
+To run in the background with auto-restart, use a systemd service or `tmux`/`screen`:
+
+```bash
+# quick background with nohup
+nohup python3 src/main.py > /var/log/machine-agent.log 2>&1 &
+
+# or use tmux
+tmux new -d -s agent "cd apps/machine-agent && source .venv/bin/activate && python3 src/main.py"
+```
+
+### Step 5: verify the connection
+
+From the remote machine:
+
+```bash
+# check that the API server is reachable
+curl http://192.168.1.100:8000/health
+
+# list registered machines (should include your MACHINE_ID)
+curl http://192.168.1.100:8000/machines
+```
+
+On the dashboard (`http://localhost:3000`), the remote machine should appear in the sidebar with its tmux sessions.
+
+### Step 6: monitor logs
+
+**Docker:**
+
+```bash
+docker logs -f machine-agent
+```
+
+**Manual / systemd:**
+
+```bash
+# if using nohup
+tail -f /var/log/machine-agent.log
+
+# if using systemd
+journalctl -u machine-agent -f
+```
+
+### Step 7: set up auto-start (optional)
+
+To auto-start the agent on boot, create a systemd service:
+
+```bash
+sudo tee /etc/systemd/system/machine-agent.service << 'EOF'
+[Unit]
+Description=WhipAI Machine Agent
+After=network.target
+
+[Service]
+Type=simple
+User=andy
+WorkingDirectory=/home/andy/whipdahermes_dev/apps/machine-agent
+Environment=MACHINE_ID=worker-01
+Environment=API_URL=http://192.168.1.100:8000
+Environment=INTERVAL=2
+Environment=COMMAND_POLL_INTERVAL=5
+ExecStart=/home/andy/whipdahermes_dev/apps/machine-agent/.venv/bin/python src/main.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl enable --now machine-agent
+```
+
+Adjust paths, user, and environment variables to match your setup.
+
+### Environment variables reference
+
+| Variable | Required | Default | Description |
+| --- | --- | --- | --- |
+| `MACHINE_ID` | yes | (none) | Unique identifier for this machine, shown in dashboard |
+| `API_URL` | yes | (none) | Base URL of the central API server, e.g. `http://192.168.1.100:8000` |
+| `INTERVAL` | no | `2` | Seconds between heartbeat sends |
+| `COMMAND_POLL_INTERVAL` | no | `5` | Seconds between command poll requests |
+
+### Troubleshooting
+
+| Problem | Solution |
+| --- | --- |
+| `MACHINE_ID and API_URL must be set` | Export both environment variables before starting |
+| Heartbeat fails with connection error | Verify `API_URL` is correct and port 8000 is reachable (`curl` test) |
+| No sessions appear on dashboard | Ensure tmux sessions exist on the remote machine (`tmux ls`) |
+| Machine shows as stale on dashboard | Check the agent is running and heartbeats are not blocked by firewall |
+| Agent crashes with `ModuleNotFoundError` | Activate the virtualenv or ensure `PYTHONPATH=src` is set |
+
 ## How to use the dashboard
 
 1. Start the API server.
