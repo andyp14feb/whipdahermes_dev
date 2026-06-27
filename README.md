@@ -501,15 +501,43 @@ Common operator actions:
 
 ## Session states
 
-WhipAI uses idle time and output signals to classify sessions.
+WhipAI uses idle time, recent screen change, and prompt-like text to classify sessions. The rules below match the API server classifier in `apps/api-server/src/modules/detection/domain/classify.py`.
 
 | State | Meaning |
 | --- | --- |
-| `ACTIVE` | Output is changing or recent activity was detected |
-| `STABLE` | Session is quiet but not yet suspicious |
-| `WAITING` | Session has been idle long enough to need attention |
-| `WAITING_INPUT` | Output appears to contain a prompt or confirmation request |
-| `STUCK` | Session has been idle past the stuck threshold |
+| `ACTIVE` | Output is changing significantly, or a long-idle session still shows progress |
+| `STABLE` | Session changed recently and is currently quiet |
+| `WAITING` | Session has been quiet for a while, but not long enough to be considered stuck |
+| `WAITING_INPUT` | Session output looks like it is asking the operator for input |
+| `STUCK` | Session has been quiet for too long and shows no progress |
+| `STALE` | The machine itself has not been seen recently |
+| `UNKNOWN` | Fallback when the classifier cannot decide |
+
+### Exact classification rules
+
+The classifier checks conditions in this order:
+
+1. **`STALE`** — if the machine heartbeat is older than `STALE_TIMEOUT_SECONDS` (default `60`).
+2. **`WAITING_INPUT`** — if the captured preview contains prompt/confirmation text such as:
+   - `continue?`
+   - `y/n`
+   - `confirm`
+   - `press enter`
+3. **`ACTIVE`** — if the screen diff is large enough: `diff_pct > 10.0`.
+4. **`STABLE`** — if the session last changed less than `60` seconds ago.
+5. **`WAITING`** — if the session last changed between `60` and `180` seconds ago.
+6. **`ACTIVE` again** — if the session has been idle for more than `180` seconds, but the classifier still sees progress (`stable_counter == 0` or `diff_pct > 0.0`).
+7. **`STUCK`** — if the session has been idle for more than `180` seconds and shows no progress (`stable_counter > 0` and `diff_pct == 0.0`).
+8. **`UNKNOWN`** — fallback when none of the above applies.
+
+### Practical interpretation
+
+- `ACTIVE` usually means the agent is actively producing new output.
+- `STABLE` usually means the session just finished a burst of activity and is cooling down.
+- `WAITING` usually means the agent may be thinking, waiting on I/O, or paused briefly.
+- `WAITING_INPUT` means the agent likely needs a human response before it can continue.
+- `STUCK` means the session has likely stopped making progress and needs intervention.
+- `STALE` means the machine agent itself has stopped sending heartbeats, so all sessions on that machine should be treated as unavailable until the machine returns.
 
 The goal is not perfect monitoring. The goal is to help the operator decide where to look next.
 
