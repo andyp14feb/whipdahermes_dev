@@ -2,13 +2,15 @@ services:
   api-server:
     build:
       context: ./apps/api-server
+    init: true
+    restart: unless-stopped
     ports:
       - "8000:8000"
     environment:
       API_HOST: 0.0.0.0
       API_PORT: 8000
       DATABASE_URL: sqlite:////data/hcp.db
-      STALE_TIMEOUT_SECONDS: 5
+      STALE_TIMEOUT_SECONDS: 60
     volumes:
       - ./data:/data
     healthcheck:
@@ -20,6 +22,8 @@ services:
   web-dashboard:
     build:
       context: ./apps/web-dashboard
+    init: true
+    restart: unless-stopped
     ports:
       - "3000:3000"
     environment:
@@ -31,6 +35,8 @@ services:
   machine-agent:
     build:
       context: ./apps/machine-agent
+    init: true
+    restart: unless-stopped
     environment:
       MACHINE_ID: vm-local
       API_URL: http://api-server:8000
