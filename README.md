@@ -164,6 +164,8 @@ Available variables:
 | `MACHINE_ID` | Machine agent | Unique machine name shown in dashboard | `agent-01` |
 | `INTERVAL` | Machine agent | Heartbeat interval in seconds | `2` |
 | `COMMAND_POLL_INTERVAL` | Machine agent | Command polling interval in seconds | `5` |
+| `STALE_TIMEOUT_SECONDS` | API server | Stale machine sweep interval threshold | `60` |
+| `CLEANUP_TIMEOUT_SECONDS` | API server | Remove long-gone stale machines after this many seconds | `86400` |
 
 `MACHINE_ID` and `API_URL` are required for the machine agent.
 
@@ -265,7 +267,7 @@ The compose stack starts:
 - `web-dashboard` on `http://localhost:3000`
 - `machine-agent` with `MACHINE_ID=vm-local` and `API_URL=http://api-server:8000`
 
-SQLite data is persisted under `./data/hcp.db`.
+SQLite data is persisted under `./data/hcp.db`. The API server marks machines stale after `STALE_TIMEOUT_SECONDS` without a heartbeat and removes long-gone stale records after `CLEANUP_TIMEOUT_SECONDS`.
 
 The machine-agent image includes tmux. In minimal Docker-only testing it may report no sessions unless tmux sessions are available inside the container or a host tmux socket is mounted for local experimentation.
 

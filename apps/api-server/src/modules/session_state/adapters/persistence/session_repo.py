@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from sqlalchemy import delete as sa_delete
 from sqlalchemy.pool import StaticPool
 from sqlmodel import Session as SQLSession, SQLModel, create_engine, select
 
@@ -60,6 +61,12 @@ class SQLSessionRepo(ISessionRepo):
                 return
             session.status = status
             db.add(session)
+            db.commit()
+
+    def delete_all_by_machine(self, machine_id: str) -> None:
+        with SQLSession(self.engine) as db:
+            db.exec(sa_delete(SnapshotModel).where(SnapshotModel.machine_id == machine_id))
+            db.exec(sa_delete(SessionModel).where(SessionModel.machine_id == machine_id))
             db.commit()
 
 

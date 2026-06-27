@@ -179,3 +179,31 @@ class TestSQLSessionRepo:
         result = repo.get_latest_snapshot("nonexistent")
 
         assert result is None
+
+    def test_delete_all_by_machine_removes_sessions_and_snapshots(self) -> None:
+        repo = self.create_repo()
+        session = Session(
+            session_id="s-1",
+            machine_id="vm-1",
+            label="s1",
+            last_seen_at="2026-06-26T12:00:00Z",
+        )
+        repo.upsert(session)
+        repo.append_snapshot(
+            Snapshot(
+                session_id="s-1",
+                machine_id="vm-1",
+                preview="first",
+                diff_pct=0.0,
+                stable_counter=1,
+                cwd="/home",
+                captured_at="2026-06-26T12:00:00Z",
+            )
+        )
+
+        repo.delete_all_by_machine("vm-1")
+
+        assert repo.get("s-1") is None
+        assert repo.list_by_machine("vm-1") == []
+        with SQLSession(repo.engine) as db:
+            assert list(db.exec(select(Snapshot)).all()) == []

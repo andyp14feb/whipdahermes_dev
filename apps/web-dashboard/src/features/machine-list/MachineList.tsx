@@ -53,12 +53,20 @@ export function MachineList() {
   return (
     <div className="space-y-3">
       {machineGroups.map((machine) => (
-        <Card key={machine.machine_id} className="p-3">
+        <Card
+          key={machine.machine_id}
+          className={`p-3 ${machine.is_stale ? "opacity-60" : ""}`}
+        >
           <h3 className="mb-2 text-sm font-semibold text-gray-700">
             {machine.display_name}
             <span className="ml-1 font-normal text-gray-400">
               ({machine.sessions.length})
             </span>
+            {machine.is_stale && (
+              <span className="ml-2 inline-flex items-center rounded bg-gray-200 px-1.5 py-0.5 text-xs font-medium text-gray-600">
+                stale
+              </span>
+            )}
           </h3>
           <div className="space-y-1">
             {machine.sessions.map((session) => (

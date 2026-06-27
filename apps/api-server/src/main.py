@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import asyncio
+from contextlib import suppress
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
@@ -11,6 +14,7 @@ from modules.machine_registry.adapters.persistence.machine_repo import (
     create_machine_engine,
 )
 from modules.machine_registry.application.machine_service import MachineService
+from modules.machine_registry.application.stale_detector import StaleDetector
 from modules.machine_registry.machine_registry import create_machine_registry_module
 from modules.query_api.application.query_service import QueryService
 from modules.query_api.query_api import create_query_api_router
@@ -60,8 +64,45 @@ command_repo = SQLCommandRepo(command_engine)
 command_service = CommandService(command_repo, session_result_updater=session_service)
 app.include_router(create_command_router_module(command_service))
 
-query_service = QueryService(machine_reader=machine_repo, session_reader=session_repo)
+query_service = QueryService(
+    machine_reader=machine_repo,
+    session_reader=session_repo,
+    stale_timeout_seconds=settings.stale_timeout_seconds,
+)
 app.include_router(create_query_api_router(query_service))
+
+stale_detector = StaleDetector(
+    machine_service=machine_service,
+    session_repo=session_repo,
+    stale_timeout_seconds=settings.stale_timeout_seconds,
+    cleanup_timeout_seconds=settings.cleanup_timeout_seconds,
+)
+_sweep_task: asyncio.Task[None] | None = None
+
+
+@app.on_event("startup")
+async def start_stale_sweeper() -> None:
+    global _sweep_task
+
+    async def sweep_loop() -> None:
+        interval = max(1, settings.stale_timeout_seconds // 2)
+        while True:
+            stale_detector.sweep()
+            await asyncio.sleep(interval)
+
+    _sweep_task = asyncio.create_task(sweep_loop())
+
+
+@app.on_event("shutdown")
+async def stop_stale_sweeper() -> None:
+    global _sweep_task
+
+    if _sweep_task is None:
+        return
+    _sweep_task.cancel()
+    with suppress(asyncio.CancelledError):
+        await _sweep_task
+    _sweep_task = None
 
 
 @app.get("/health")
@@ -70,4 +111,4 @@ def health():
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run(app, host="0.0.0.0", port=8000)

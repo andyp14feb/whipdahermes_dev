@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from sqlalchemy import delete as sa_delete
 from sqlmodel import Session, SQLModel, create_engine, select
 from sqlalchemy.pool import StaticPool
 
@@ -46,6 +47,12 @@ class SQLMachineRepo(IMachineRepo):
                 return
             machine.is_stale = True
             session.add(machine)
+            session.commit()
+
+    def delete(self, machine_id: MachineId) -> None:
+        with Session(self.engine) as session:
+            stmt = sa_delete(MachineModel).where(MachineModel.machine_id == str(machine_id))
+            session.exec(stmt)
             session.commit()
 
 

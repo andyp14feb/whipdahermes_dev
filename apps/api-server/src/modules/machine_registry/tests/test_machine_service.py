@@ -98,3 +98,34 @@ class TestMachineService:
         service = MachineService(FakeMachineRepo())
 
         assert service.get_machine(MachineId("missing")) is None
+
+    def test_mark_stale_sets_is_stale_true(self) -> None:
+        machine = Machine(
+            machine_id="vm-1",
+            display_name="VM 1",
+            last_seen_at="2026-06-26T12:00:00Z",
+            session_count=1,
+            is_stale=False,
+        )
+        repo = FakeMachineRepo(machine)
+        service = MachineService(repo)
+
+        service.mark_stale(MachineId("vm-1"))
+
+        assert MachineId("vm-1") in repo.mark_stale_calls
+        assert machine.is_stale is True
+
+    def test_upsert_from_heartbeat_resets_is_stale(self) -> None:
+        machine = Machine(
+            machine_id="vm-1",
+            display_name="VM 1",
+            last_seen_at="2026-06-24T08:00:00Z",
+            session_count=1,
+            is_stale=True,
+        )
+        repo = FakeMachineRepo(machine)
+        service = MachineService(repo)
+
+        service.upsert_from_heartbeat(MachineId("vm-1"), "2026-06-26T12:00:00Z", 2)
+
+        assert machine.is_stale is False

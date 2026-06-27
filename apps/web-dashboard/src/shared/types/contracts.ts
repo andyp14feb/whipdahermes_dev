@@ -12,6 +12,7 @@ export interface Machine {
   display_name: string;
   last_seen_at: string;
   session_count: number;
+  is_stale: boolean;
 }
 
 export interface SessionListItem {

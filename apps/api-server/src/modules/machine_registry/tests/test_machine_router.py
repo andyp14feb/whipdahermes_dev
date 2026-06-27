@@ -47,6 +47,7 @@ class TestMachineRouter:
                     "display_name": "VM 1",
                     "last_seen_at": "2026-06-24T08:15:00Z",
                     "session_count": 3,
+                    "is_stale": False,
                 }
             ]
         }

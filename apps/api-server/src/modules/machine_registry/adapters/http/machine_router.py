@@ -18,6 +18,7 @@ def create_machine_router(service: MachineService) -> APIRouter:
                     "display_name": machine.display_name,
                     "last_seen_at": machine.last_seen_at,
                     "session_count": machine.session_count,
+                    "is_stale": machine.is_stale,
                 }
                 for machine in machines
             ]

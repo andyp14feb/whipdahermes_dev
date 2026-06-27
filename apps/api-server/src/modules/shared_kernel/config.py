@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     api_token: SecretStr = Field(default="", alias="API_TOKEN")
     heartbeat_interval_seconds: int = Field(default=30, alias="HEARTBEAT_INTERVAL_SECONDS")
     stale_timeout_seconds: int = Field(default=60, alias="STALE_TIMEOUT_SECONDS")
+    cleanup_timeout_seconds: int = Field(default=86400, alias="CLEANUP_TIMEOUT_SECONDS")
     database_url: SecretStr = Field(default="sqlite:///whipai.db", alias="DATABASE_URL")
 
     @classmethod
