@@ -251,6 +251,30 @@ python3 src/main.py
 
 The agent machine must have tmux sessions available for useful capture data.
 
+## Run with Docker Compose
+
+From this repository root:
+
+```bash
+docker compose up --build
+```
+
+The compose stack starts:
+
+- `api-server` on `http://localhost:8000`
+- `web-dashboard` on `http://localhost:3000`
+- `machine-agent` with `MACHINE_ID=vm-local` and `API_URL=http://api-server:8000`
+
+SQLite data is persisted under `./data/hcp.db`.
+
+The machine-agent image includes tmux. In minimal Docker-only testing it may report no sessions unless tmux sessions are available inside the container or a host tmux socket is mounted for local experimentation.
+
+To stop the stack:
+
+```bash
+docker compose down
+```
+
 ## Multi-machine usage
 
 Run the API server and web dashboard on a central machine. On each worker machine:

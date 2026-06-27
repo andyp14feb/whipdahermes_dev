@@ -1,0 +1,41 @@
+services:
+  api-server:
+    build:
+      context: ./apps/api-server
+    ports:
+      - "8000:8000"
+    environment:
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+      DATABASE_URL: sqlite:////data/hcp.db
+      STALE_TIMEOUT_SECONDS: 5
+    volumes:
+      - ./data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  web-dashboard:
+    build:
+      context: ./apps/web-dashboard
+    ports:
+      - "3000:3000"
+    environment:
+      VITE_API_BASE_URL: http://localhost:8000
+    depends_on:
+      api-server:
+        condition: service_healthy
+
+  machine-agent:
+    build:
+      context: ./apps/machine-agent
+    environment:
+      MACHINE_ID: vm-local
+      API_URL: http://api-server:8000
+      INTERVAL: 2
+      COMMAND_POLL_INTERVAL: 5
+    depends_on:
+      api-server:
+        condition: service_healthy
