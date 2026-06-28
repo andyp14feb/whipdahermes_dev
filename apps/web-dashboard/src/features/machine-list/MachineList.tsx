@@ -3,18 +3,21 @@ import { fetchMachines, fetchSessions } from "./machineList.api";
 import type { MachineWithSessions } from "./machineList.types";
 import { MachineListItem } from "./MachineListItem";
 import { Card } from "../../shared/ui/Card";
+import { useSettingsStore } from "../../shared/state/settingsStore";
 
 export function MachineList() {
+  const refreshIntervalMs = useSettingsStore((s) => s.refreshIntervalMs);
+
   const machinesQuery = useQuery({
     queryKey: ["machines"],
     queryFn: fetchMachines,
-    refetchInterval: 2000,
+    refetchInterval: refreshIntervalMs,
   });
 
   const sessionsQuery = useQuery({
     queryKey: ["sessions"],
     queryFn: fetchSessions,
-    refetchInterval: 2000,
+    refetchInterval: refreshIntervalMs,
   });
 
   const isLoading = machinesQuery.isLoading || sessionsQuery.isLoading;

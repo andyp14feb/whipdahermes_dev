@@ -41,6 +41,37 @@ class FakeSessionRepo:
         if session_id in self.sessions:
             self.sessions[session_id].status = status
 
+    def delete_all_by_machine(self, machine_id: str) -> None:
+        stale_session_ids = [
+            session_id
+            for session_id, session in self.sessions.items()
+            if session.machine_id == machine_id
+        ]
+        for session_id in stale_session_ids:
+            del self.sessions[session_id]
+        self.snapshots = [
+            snapshot
+            for snapshot in self.snapshots
+            if snapshot.machine_id != machine_id
+        ]
+
+    def delete_missing_by_machine(self, machine_id: str, session_ids: set[str]) -> None:
+        if not session_ids:
+            self.delete_all_by_machine(machine_id)
+            return
+        stale_session_ids = [
+            session_id
+            for session_id, session in self.sessions.items()
+            if session.machine_id == machine_id and session_id not in session_ids
+        ]
+        for session_id in stale_session_ids:
+            del self.sessions[session_id]
+        self.snapshots = [
+            snapshot
+            for snapshot in self.snapshots
+            if snapshot.machine_id != machine_id or snapshot.session_id in session_ids
+        ]
+
 
 class TestSessionService:
     def test_upsert_creates_new_session_for_unknown_session_id(self) -> None:
@@ -113,7 +144,7 @@ class TestSessionService:
         assert s.cwd == "/home/user/projects"
         assert len(repo.upsert_calls) == 2
 
-    def test_seconds_since_change_is_computed_from_captured_at(self) -> None:
+    def test_seconds_since_change_comes_from_agent_snapshot(self) -> None:
         repo = FakeSessionRepo()
         service = SessionService(repo)
 
@@ -124,7 +155,7 @@ class TestSessionService:
                     session_id="miniwa",
                     label="miniwa",
                     preview="",
-                    seconds_since_change=0,
+                    seconds_since_change=6,
                     diff_pct=0.0,
                     stable_counter=1,
                     cwd="",
@@ -134,8 +165,225 @@ class TestSessionService:
         )
 
         s = repo.sessions["miniwa"]
-        assert s.seconds_since_change >= 0
+        assert s.seconds_since_change == 6
         assert isinstance(s.seconds_since_change, int)
+
+    def test_different_sessions_get_different_stable_counters(self) -> None:
+        """Per-session stable counter: two sessions in the same heartbeat must not
+        share the same seconds_since_change when their agent-reported values differ."""
+        repo = FakeSessionRepo()
+        service = SessionService(repo)
+
+        service.upsert_from_heartbeat(
+            MachineId("vm-1"),
+            [
+                SessionSnapshot(
+                    session_id="session-a",
+                    label="session-a",
+                    preview="",
+                    seconds_since_change=9,
+                    diff_pct=0.0,
+                    stable_counter=3,
+                    cwd="",
+                    captured_at="2026-06-26T12:00:00Z",
+                ),
+                SessionSnapshot(
+                    session_id="session-b",
+                    label="session-b",
+                    preview="",
+                    seconds_since_change=0,
+                    diff_pct=5.0,
+                    stable_counter=0,
+                    cwd="",
+                    captured_at="2026-06-26T12:00:00Z",
+                ),
+            ],
+        )
+
+        sa = repo.sessions["session-a"]
+        sb = repo.sessions["session-b"]
+        assert sa.seconds_since_change == 9
+        assert sb.seconds_since_change == 0
+
+    def test_stable_counter_resets_to_zero_on_activity(self) -> None:
+        """When a session has new activity (diff above threshold), stable_counter
+        resets to 0 and seconds_since_change must be 0 for that session."""
+        repo = FakeSessionRepo()
+        service = SessionService(repo)
+
+        service.upsert_from_heartbeat(
+            MachineId("vm-1"),
+            [
+                SessionSnapshot(
+                    session_id="s-active",
+                    label="s-active",
+                    preview="",
+                    seconds_since_change=0,
+                    diff_pct=12.5,
+                    stable_counter=0,
+                    cwd="",
+                    captured_at="2026-06-26T12:00:00Z",
+                )
+            ],
+        )
+
+        s = repo.sessions["s-active"]
+        assert s.seconds_since_change == 0
+
+    def test_stable_counter_resets_on_change_then_counts_up(self) -> None:
+        """After activity resets the counter, subsequent stable heartbeats
+        increase seconds_since_change from the per-session baseline."""
+        repo = FakeSessionRepo()
+        service = SessionService(repo)
+
+        # Heartbeat 1: session just changed (stable_counter=0, seconds=0)
+        service.upsert_from_heartbeat(
+            MachineId("vm-1"),
+            [
+                SessionSnapshot(
+                    session_id="s-1",
+                    label="s-1",
+                    preview="output A",
+                    seconds_since_change=0,
+                    diff_pct=8.0,
+                    stable_counter=0,
+                    cwd="",
+                    captured_at="2026-06-26T12:00:00Z",
+                )
+            ],
+        )
+        assert repo.sessions["s-1"].seconds_since_change == 0
+
+        # Heartbeat 2: session stable for 1 tick (stable_counter=1, seconds=3)
+        service.upsert_from_heartbeat(
+            MachineId("vm-1"),
+            [
+                SessionSnapshot(
+                    session_id="s-1",
+                    label="s-1",
+                    preview="output A",
+                    seconds_since_change=3,
+                    diff_pct=0.0,
+                    stable_counter=1,
+                    cwd="",
+                    captured_at="2026-06-26T12:00:03Z",
+                )
+            ],
+        )
+        assert repo.sessions["s-1"].seconds_since_change == 3
+
+        # Heartbeat 3: session stable for 2 ticks (stable_counter=2, seconds=6)
+        service.upsert_from_heartbeat(
+            MachineId("vm-1"),
+            [
+                SessionSnapshot(
+                    session_id="s-1",
+                    label="s-1",
+                    preview="output A",
+                    seconds_since_change=6,
+                    diff_pct=0.0,
+                    stable_counter=2,
+                    cwd="",
+                    captured_at="2026-06-26T12:00:06Z",
+                )
+            ],
+        )
+        assert repo.sessions["s-1"].seconds_since_change == 6
+
+    def test_multi_session_heartbeat_preserves_per_session_stable_counts(self) -> None:
+        """Multiple sessions in the same heartbeat each maintain independent
+        stable counters. One session's counter does not affect another."""
+        repo = FakeSessionRepo()
+        service = SessionService(repo)
+
+        service.upsert_from_heartbeat(
+            MachineId("vm-1"),
+            [
+                SessionSnapshot(
+                    session_id="s-active",
+                    label="s-active",
+                    preview="",
+                    seconds_since_change=0,
+                    diff_pct=10.0,
+                    stable_counter=0,
+                    cwd="",
+                    captured_at="2026-06-26T12:00:00Z",
+                ),
+                SessionSnapshot(
+                    session_id="s-stable-3s",
+                    label="s-stable-3s",
+                    preview="",
+                    seconds_since_change=3,
+                    diff_pct=0.0,
+                    stable_counter=1,
+                    cwd="",
+                    captured_at="2026-06-26T12:00:00Z",
+                ),
+                SessionSnapshot(
+                    session_id="s-stable-15s",
+                    label="s-stable-15s",
+                    preview="",
+                    seconds_since_change=15,
+                    diff_pct=0.0,
+                    stable_counter=5,
+                    cwd="",
+                    captured_at="2026-06-26T12:00:00Z",
+                ),
+            ],
+        )
+
+        assert repo.sessions["s-active"].seconds_since_change == 0
+        assert repo.sessions["s-stable-3s"].seconds_since_change == 3
+        assert repo.sessions["s-stable-15s"].seconds_since_change == 15
+
+    def test_upsert_removes_stale_sessions_missing_from_next_heartbeat(self) -> None:
+        repo = FakeSessionRepo()
+        service = SessionService(repo)
+
+        service.upsert_from_heartbeat(
+            MachineId("vm-1"),
+            [
+                SessionSnapshot(
+                    session_id="session-a",
+                    label="session-a",
+                    preview="",
+                    seconds_since_change=3,
+                    diff_pct=0.0,
+                    stable_counter=1,
+                    cwd="",
+                    captured_at="2026-06-26T12:00:00Z",
+                ),
+                SessionSnapshot(
+                    session_id="session-b",
+                    label="session-b",
+                    preview="",
+                    seconds_since_change=3,
+                    diff_pct=0.0,
+                    stable_counter=1,
+                    cwd="",
+                    captured_at="2026-06-26T12:00:00Z",
+                ),
+            ],
+        )
+
+        service.upsert_from_heartbeat(
+            MachineId("vm-1"),
+            [
+                SessionSnapshot(
+                    session_id="session-b",
+                    label="session-b",
+                    preview="",
+                    seconds_since_change=6,
+                    diff_pct=0.0,
+                    stable_counter=2,
+                    cwd="",
+                    captured_at="2026-06-26T12:00:03Z",
+                )
+            ],
+        )
+
+        assert "session-a" not in repo.sessions
+        assert "session-b" in repo.sessions
 
     def test_upsert_appends_a_snapshot_record(self) -> None:
         repo = FakeSessionRepo()

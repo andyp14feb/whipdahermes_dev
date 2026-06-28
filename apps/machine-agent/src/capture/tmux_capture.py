@@ -40,7 +40,7 @@ def capture_panes() -> list[dict]:
             )
         except (FileNotFoundError, subprocess.CalledProcessError) as exc:
             logger.error("Failed to capture pane %s: %s", target, exc)
-            return []
+            continue
 
         panes.append({"target": target, "text": capture.stdout, "cwd": cwd.strip() or None})
 

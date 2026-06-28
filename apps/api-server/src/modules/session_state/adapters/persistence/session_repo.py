@@ -69,6 +69,24 @@ class SQLSessionRepo(ISessionRepo):
             db.exec(sa_delete(SessionModel).where(SessionModel.machine_id == machine_id))
             db.commit()
 
+    def delete_missing_by_machine(self, machine_id: str, session_ids: set[str]) -> None:
+        if not session_ids:
+            self.delete_all_by_machine(machine_id)
+            return
+
+        with SQLSession(self.engine) as db:
+            stale_sessions = select(SessionModel.session_id).where(
+                SessionModel.machine_id == machine_id,
+                SessionModel.session_id.not_in(session_ids),
+            )
+            stale_session_ids = list(db.exec(stale_sessions).all())
+            if not stale_session_ids:
+                return
+
+            db.exec(sa_delete(SnapshotModel).where(SnapshotModel.session_id.in_(stale_session_ids)))
+            db.exec(sa_delete(SessionModel).where(SessionModel.session_id.in_(stale_session_ids)))
+            db.commit()
+
 
 def create_session_engine(url: str = "sqlite:///./whipai.db", **engine_kwargs):
     if url == "sqlite://":

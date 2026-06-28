@@ -9,6 +9,7 @@ interface InputProps {
   onChange: (
     event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => void;
+  onKeyDown?: (event: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
   placeholder?: string;
   disabled?: boolean;
   className?: string;
@@ -22,6 +23,7 @@ const baseClasses =
 export function Input({
   value,
   onChange,
+  onKeyDown,
   placeholder,
   disabled,
   className = "",
@@ -35,6 +37,7 @@ export function Input({
       <textarea
         value={value}
         onChange={onChange}
+        onKeyDown={onKeyDown}
         placeholder={placeholder}
         disabled={disabled}
         className={classes}
@@ -48,6 +51,7 @@ export function Input({
       type={type}
       value={value}
       onChange={onChange}
+      onKeyDown={onKeyDown}
       placeholder={placeholder}
       disabled={disabled}
       className={classes}

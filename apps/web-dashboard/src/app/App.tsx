@@ -1,4 +1,4 @@
-import { Component, type ReactNode } from "react";
+import { Component, type ReactNode, useState } from "react";
 import {
   QueryCache,
   QueryClient,
@@ -7,6 +7,7 @@ import {
 import { MachineList } from "../features/machine-list/MachineList";
 import { SessionPreview } from "../features/session-preview/SessionPreview";
 import { CommandPanel } from "../features/command-panel/CommandPanel";
+import { SettingsPage } from "../features/settings/SettingsPage";
 import { useAppStore } from "../shared/state/appStore";
 import { Button } from "../shared/ui/Button";
 import { formatErrorMessage } from "../shared/api-client/errorEnvelope";
@@ -16,10 +17,10 @@ const queryClient = new QueryClient({
     onError: (error) => {
       useAppStore
         .getState()
-        .setConnectionError(formatErrorMessage(error) || "Unable to reach backend server");
+        .recordConnectionFailure(formatErrorMessage(error) || "Unable to reach backend server");
     },
     onSuccess: () => {
-      useAppStore.getState().setConnectionError(null);
+      useAppStore.getState().recordConnectionSuccess();
     },
   }),
   defaultOptions: {
@@ -81,45 +82,82 @@ function ConnectionBanner() {
   );
 }
 
+function NavBar({ current, onNavigate }: { current: "dashboard" | "settings"; onNavigate: (view: "dashboard" | "settings") => void }) {
+  return (
+    <nav className="mb-6 flex items-center gap-4 border-b border-gray-200 pb-4">
+      <h1 className="mr-auto text-2xl font-bold text-gray-900">WhipAI</h1>
+      <button
+        type="button"
+        className={`text-sm font-medium ${
+          current === "dashboard"
+            ? "text-blue-600 underline underline-offset-4"
+            : "text-gray-600 hover:text-gray-900"
+        }`}
+        onClick={() => onNavigate("dashboard")}
+      >
+        Dashboard
+      </button>
+      <button
+        type="button"
+        className={`text-sm font-medium ${
+          current === "settings"
+            ? "text-blue-600 underline underline-offset-4"
+            : "text-gray-600 hover:text-gray-900"
+        }`}
+        onClick={() => onNavigate("settings")}
+      >
+        Settings
+      </button>
+    </nav>
+  );
+}
+
 function Dashboard() {
   const selectedMachineId = useAppStore((s) => s.selectedMachineId);
   const selectedSessionId = useAppStore((s) => s.selectedSessionId);
 
   return (
-    <main className="min-h-screen bg-gray-100 p-6">
-      <div className="mx-auto max-w-7xl">
-        <header className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">WhipAI Dashboard</h1>
-          <p className="text-sm text-gray-500">
-            Monitor machines and tmux sessions from one live view.
-          </p>
-        </header>
+    <>
+      <header className="mb-6">
+        <p className="text-sm text-gray-500">
+          Monitor machines and tmux sessions from one live view.
+        </p>
+      </header>
 
-        <ConnectionBanner />
+      <ConnectionBanner />
 
-        <ErrorBoundary>
-          <div className="grid gap-4 lg:grid-cols-[360px_1fr]">
-            <aside className="min-h-[32rem]">
-              <MachineList />
-            </aside>
-            <section className="min-h-[32rem]">
-              <SessionPreview />
-              <CommandPanel
-                machineId={selectedMachineId}
-                sessionId={selectedSessionId}
-              />
-            </section>
-          </div>
-        </ErrorBoundary>
-      </div>
-    </main>
+      <ErrorBoundary>
+        <div className="grid gap-4 lg:grid-cols-[360px_1fr]">
+          <aside className="min-h-[32rem]">
+            <MachineList />
+          </aside>
+          <section className="min-h-[32rem]">
+            <SessionPreview />
+            <CommandPanel
+              machineId={selectedMachineId}
+              sessionId={selectedSessionId}
+            />
+          </section>
+        </div>
+      </ErrorBoundary>
+    </>
   );
 }
 
 export function App() {
+  const [view, setView] = useState<"dashboard" | "settings">("dashboard");
+
   return (
     <QueryClientProvider client={queryClient}>
-      <Dashboard />
+      <main className="min-h-screen bg-gray-100 p-6">
+        <div className="mx-auto max-w-7xl">
+          <NavBar current={view} onNavigate={setView} />
+          {view === "dashboard" && <Dashboard />}
+          {view === "settings" && (
+            <SettingsPage onClose={() => setView("dashboard")} />
+          )}
+        </div>
+      </main>
     </QueryClientProvider>
   );
 }

@@ -5,7 +5,7 @@ from modules.session_state.application.ports import IDetectionClassifier, ISessi
 from modules.session_state.domain.session import Session
 from modules.session_state.domain.snapshot import Snapshot
 from modules.shared_kernel.ids import MachineId
-from modules.shared_kernel.time_utils import now_utc, parse_iso
+from modules.shared_kernel.time_utils import now_utc
 
 
 class SessionService:
@@ -21,18 +21,14 @@ class SessionService:
         self, machine_id: MachineId, sessions: list[SessionSnapshot]
     ) -> None:
         now = now_utc()
+        self.repo.delete_missing_by_machine(str(machine_id), {snap.session_id for snap in sessions})
         for snap in sessions:
-            captured_dt = parse_iso(snap.captured_at)
-            now_dt = parse_iso(now)
-            seconds_since = int((now_dt - captured_dt).total_seconds())
-            seconds_since = max(0, seconds_since)
-
             session = Session(
                 session_id=snap.session_id,
                 machine_id=str(machine_id),
                 label=snap.label,
                 status="unknown",
-                seconds_since_change=seconds_since,
+                seconds_since_change=snap.seconds_since_change,
                 last_seen_at=now,
                 cwd=snap.cwd or "",
             )

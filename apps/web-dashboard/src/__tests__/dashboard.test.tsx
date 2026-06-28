@@ -3,12 +3,13 @@ import { render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "../app/App";
 import { MachineList } from "../features/machine-list/MachineList";
 import { SessionPreview } from "../features/session-preview/SessionPreview";
 import { StatusBadge } from "../features/status-summary/StatusBadge";
 import { useAppStore } from "../shared/state/appStore";
+import { useSettingsStore } from "../shared/state/settingsStore";
 import { server } from "./setup";
 
 const machinesResponse = {
@@ -74,7 +75,10 @@ beforeEach(() => {
     selectedMachineId: null,
     selectedSessionId: null,
     connectionError: null,
+    connectionFailureCount: 0,
   });
+  localStorage.removeItem("whipai-settings");
+  vi.restoreAllMocks();
 
   server.use(
     http.get("/machines", () => HttpResponse.json(machinesResponse)),
@@ -241,6 +245,25 @@ describe("CommandPanel integration", () => {
     render(<App />);
 
     expect(await screen.findByText("Command Actions")).toBeInTheDocument();
+  });
+
+  it("navigates to settings and shows a worker script using the saved API URL", async () => {
+    useSettingsStore.setState({
+      workerApiUrl: "http://192.168.18.68:8000",
+      refreshIntervalMs: 2500,
+      staleTimeoutSeconds: 90,
+    });
+
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "Settings" }));
+    expect(screen.getByText("Worker Machine Script")).toBeInTheDocument();
+    expect(screen.getAllByText(/http:\/\/192\.168\.18\.68:8000/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText(/git clone/)).toBeInTheDocument();
+    expect(screen.getByText(/API_URL="http:\/\/192\.168\.18\.68:8000"/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Copy Script" })).toBeInTheDocument();
+    expect(screen.getByText(/dashboard data fetching/i)).toBeInTheDocument();
   });
 
   it("sends POST /command and shows pending state on template click", async () => {

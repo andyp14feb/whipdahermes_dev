@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useAppStore } from "../../shared/state/appStore";
+import { useSettingsStore } from "../../shared/state/settingsStore";
 import { fetchSessionDetail } from "./sessionPreview.api";
 import { PreviewPanel } from "./PreviewPanel";
 import { Card } from "../../shared/ui/Card";
@@ -7,13 +8,14 @@ import { Card } from "../../shared/ui/Card";
 export function SessionPreview() {
   const selectedMachineId = useAppStore((s) => s.selectedMachineId);
   const selectedSessionId = useAppStore((s) => s.selectedSessionId);
+  const refreshIntervalMs = useSettingsStore((s) => s.refreshIntervalMs);
 
   const query = useQuery({
     queryKey: ["session-detail", selectedMachineId, selectedSessionId],
     queryFn: () =>
       fetchSessionDetail(selectedMachineId!, selectedSessionId!),
     enabled: !!selectedMachineId && !!selectedSessionId,
-    refetchInterval: 2000,
+    refetchInterval: refreshIntervalMs,
   });
 
   if (!selectedMachineId || !selectedSessionId) {

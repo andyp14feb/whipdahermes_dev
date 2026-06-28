@@ -182,7 +182,7 @@ describe("FreeFormInput", () => {
     });
   });
 
-  it("sends on Enter key press", async () => {
+  it("plain Enter inserts newline, Ctrl+Enter sends", async () => {
     const user = userEvent.setup();
     let postedBody: unknown;
     server.use(
@@ -192,17 +192,29 @@ describe("FreeFormInput", () => {
       }),
     );
 
+    const onCommandSent = vi.fn();
     renderWithProviders(
-      <FreeFormInput machineId="m-1" sessionId="s-1" />,
+      <FreeFormInput
+        machineId="m-1"
+        sessionId="s-1"
+        onCommandSent={onCommandSent}
+      />,
     );
 
     const input = screen.getByPlaceholderText("Type a custom command...");
-    await user.type(input, "enter command{Enter}");
+    await user.type(input, "line one{Enter}line two");
+
+    expect(input).toHaveValue("line one\nline two");
+    expect(postedBody).toBeUndefined();
+    expect(onCommandSent).not.toHaveBeenCalled();
+
+    await user.keyboard("{Control>}{Enter}{/Control}");
 
     expect(postedBody).toEqual({
       machine_id: "m-1",
       session_id: "s-1",
-      payload: "enter command",
+      payload: "line one\nline two",
     });
+    expect(onCommandSent).toHaveBeenCalledWith("cmd-ff-1", "line one\nline two");
   });
 });

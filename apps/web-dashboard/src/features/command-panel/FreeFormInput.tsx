@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type KeyboardEvent } from "react";
 import { Button } from "../../shared/ui/Button";
 import { Input } from "../../shared/ui/Input";
 import { sendCommand } from "./commandPanel.api";
@@ -44,14 +44,23 @@ export function FreeFormInput({
     handleSend();
   }
 
+  function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement | HTMLInputElement>) {
+    if (e.key === "Enter" && e.ctrlKey) {
+      e.preventDefault();
+      void handleSend();
+    }
+  }
+
   return (
     <div className="space-y-2">
       <form onSubmit={handleSubmit} className="flex gap-2 items-start">
         <div className="flex-1">
           <Input
-            type="text"
+            type="textarea"
+            rows={4}
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
+            onKeyDown={handleKeyDown}
             placeholder="Type a custom command..."
             disabled={isSending}
           />
@@ -75,6 +84,7 @@ export function FreeFormInput({
       {error && (
         <span className="text-xs text-red-600">{error}</span>
       )}
+      <p className="text-xs text-gray-500">Press Ctrl+Enter to send. Enter inserts a new line.</p>
     </div>
   );
 }
