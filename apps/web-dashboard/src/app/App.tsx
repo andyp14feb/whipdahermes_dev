@@ -9,6 +9,7 @@ import { SessionWindow } from "../features/session-preview/SessionWindow";
 import { LayoutSelector } from "../features/window-layout/LayoutSelector";
 import { SettingsPage } from "../features/settings/SettingsPage";
 import { useAppStore } from "../shared/state/appStore";
+import { useSettingsStore } from "../shared/state/settingsStore";
 import { Button } from "../shared/ui/Button";
 import { formatErrorMessage } from "../shared/api-client/errorEnvelope";
 
@@ -48,7 +49,7 @@ class ErrorBoundary extends Component<
   render() {
     if (this.state.hasError) {
       return (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
           Unable to render dashboard content.
         </div>
       );
@@ -65,7 +66,7 @@ function ConnectionBanner() {
   if (!connectionError) return null;
 
   return (
-    <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+    <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
       <span>Connection lost — showing cached data. {connectionError}</span>
       <Button
         type="button"
@@ -82,16 +83,32 @@ function ConnectionBanner() {
   );
 }
 
+function ThemeToggle() {
+  const themeMode = useSettingsStore((s) => s.themeMode);
+  const setThemeMode = useSettingsStore((s) => s.setThemeMode);
+
+  return (
+    <Button
+      type="button"
+      variant="secondary"
+      className="py-1 text-xs"
+      onClick={() => setThemeMode(themeMode === "dark" ? "light" : "dark")}
+    >
+      {themeMode === "dark" ? "Light Mode" : "Dark Mode"}
+    </Button>
+  );
+}
+
 function NavBar({ current, onNavigate }: { current: "dashboard" | "settings"; onNavigate: (view: "dashboard" | "settings") => void }) {
   return (
-    <nav className="mb-6 flex items-center gap-4 border-b border-gray-200 pb-4">
-      <h1 className="mr-auto text-2xl font-bold text-gray-900">WhipAI</h1>
+    <nav className="mb-6 flex items-center gap-4 border-b border-gray-200 pb-4 dark:border-gray-800">
+      <h1 className="mr-auto text-2xl font-bold text-gray-900 dark:text-gray-100">WhipAI</h1>
       <button
         type="button"
         className={`text-sm font-medium ${
           current === "dashboard"
             ? "text-blue-600 underline underline-offset-4"
-            : "text-gray-600 hover:text-gray-900"
+            : "text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
         }`}
         onClick={() => onNavigate("dashboard")}
       >
@@ -102,12 +119,13 @@ function NavBar({ current, onNavigate }: { current: "dashboard" | "settings"; on
         className={`text-sm font-medium ${
           current === "settings"
             ? "text-blue-600 underline underline-offset-4"
-            : "text-gray-600 hover:text-gray-900"
+            : "text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
         }`}
         onClick={() => onNavigate("settings")}
       >
         Settings
       </button>
+      <ThemeToggle />
     </nav>
   );
 }
@@ -127,7 +145,7 @@ function Dashboard() {
   return (
     <>
       <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-gray-500 dark:text-gray-400">
           Monitor machines and tmux sessions from one live view.
         </p>
         <LayoutSelector />
@@ -155,10 +173,11 @@ function Dashboard() {
 
 export function App() {
   const [view, setView] = useState<"dashboard" | "settings">("dashboard");
+  const themeMode = useSettingsStore((s) => s.themeMode);
 
   return (
     <QueryClientProvider client={queryClient}>
-      <main className="min-h-screen bg-gray-100 p-6">
+      <main className={`min-h-screen bg-gray-100 p-6 dark:bg-gray-950 ${themeMode === "dark" ? "dark" : ""}`}>
         <div className="mx-auto max-w-7xl">
           <NavBar current={view} onNavigate={setView} />
           {view === "dashboard" && <Dashboard />}

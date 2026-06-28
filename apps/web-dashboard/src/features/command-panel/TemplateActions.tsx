@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { Button } from "../../shared/ui/Button";
 import { useAppStore } from "../../shared/state/appStore";
+import { useSettingsStore } from "../../shared/state/settingsStore";
 import { sendCommand } from "./commandPanel.api";
-import { TEMPLATE_ACTIONS } from "./commandPanel.types";
 import type { CommandResponse } from "../../shared/types/contracts";
+import type { TemplateAction } from "./commandPanel.types";
 
 interface TemplateActionsProps {
   machineId: string;
@@ -18,6 +19,7 @@ export function TemplateActions({
 }: TemplateActionsProps) {
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const templateActions = useSettingsStore((s) => s.templateActions);
   const setConnectionError = useAppStore((s) => s.setConnectionError);
 
   async function handleClick(actionId: string, payload: string) {
@@ -43,7 +45,7 @@ export function TemplateActions({
 
   return (
     <div className="flex flex-wrap gap-2">
-      {TEMPLATE_ACTIONS.map((action) => (
+      {templateActions.map((action: TemplateAction) => (
         <Button
           key={action.id}
           type="button"

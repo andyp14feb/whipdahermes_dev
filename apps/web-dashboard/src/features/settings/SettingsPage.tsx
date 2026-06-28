@@ -11,6 +11,9 @@ interface SettingsPageProps {
   onClose: () => void;
 }
 
+const fieldClass = "mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100";
+const labelClass = "block text-sm font-medium text-gray-700 dark:text-gray-200";
+
 export function SettingsPage({ onClose }: SettingsPageProps) {
   const {
     workerApiUrl,
@@ -20,6 +23,8 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
     aiApiKey,
     aiSelectedModel,
     aiProviderName,
+    themeMode,
+    templateActions,
     isDirty,
     setWorkerApiUrl,
     setRefreshIntervalMs,
@@ -28,6 +33,10 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
     setAiApiKey,
     setAiSelectedModel,
     setAiProviderName,
+    setThemeMode,
+    addTemplateAction,
+    updateTemplateAction,
+    deleteTemplateAction,
     save,
     reset,
   } = useSettingsStore();
@@ -36,6 +45,8 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
   const [models, setModels] = useState<ModelOption[]>([]);
   const [isFetchingModels, setIsFetchingModels] = useState(false);
   const [modelsError, setModelsError] = useState<string | null>(null);
+  const [templateLabel, setTemplateLabel] = useState("");
+  const [templatePayload, setTemplatePayload] = useState("");
   const scriptRef = useRef<HTMLPreElement>(null);
 
   const workerScript = `#!/usr/bin/env bash
@@ -108,65 +119,141 @@ python3 src/main.py`;
     }
   }, [aiApiKey, aiProviderBaseUrl]);
 
+  const handleAddTemplate = () => {
+    const label = templateLabel.trim();
+    const payload = templatePayload.trim();
+    if (!label || !payload) return;
+    addTemplateAction({ label, payload });
+    setTemplateLabel("");
+    setTemplatePayload("");
+  };
+
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <header className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Settings</h1>
         <Button variant="secondary" onClick={onClose}>
           Back to Dashboard
         </Button>
       </header>
 
-      <Card className="p-6">
-        <h2 className="mb-4 text-lg font-semibold text-gray-900">
+      <Card className="p-6 dark:border-gray-800 dark:bg-gray-950">
+        <h2 className="mb-4 text-lg font-semibold text-gray-900 dark:text-gray-100">
+          Appearance
+        </h2>
+        <div>
+          <label htmlFor="theme-mode" className={labelClass}>
+            Theme
+          </label>
+          <select
+            id="theme-mode"
+            className={fieldClass}
+            value={themeMode}
+            onChange={(e) => setThemeMode(e.target.value === "dark" ? "dark" : "light")}
+          >
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+          </select>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            Theme changes are saved locally immediately.
+          </p>
+        </div>
+      </Card>
+
+      <Card className="p-6 dark:border-gray-800 dark:bg-gray-950">
+        <h2 className="mb-4 text-lg font-semibold text-gray-900 dark:text-gray-100">
+          Quick Templates
+        </h2>
+        <div className="space-y-3">
+          {templateActions.map((template) => (
+            <div key={template.id} className="grid gap-2 rounded border border-gray-200 p-3 dark:border-gray-800 md:grid-cols-[1fr_2fr_auto]">
+              <input
+                aria-label={`Template label ${template.label}`}
+                className={fieldClass}
+                value={template.label}
+                onChange={(e) => updateTemplateAction(template.id, { label: e.target.value, payload: template.payload })}
+              />
+              <input
+                aria-label={`Template payload ${template.label}`}
+                className={fieldClass}
+                value={template.payload}
+                onChange={(e) => updateTemplateAction(template.id, { label: template.label, payload: e.target.value })}
+              />
+              <Button type="button" variant="secondary" onClick={() => deleteTemplateAction(template.id)}>
+                Delete
+              </Button>
+            </div>
+          ))}
+          <div className="grid gap-2 rounded border border-dashed border-gray-300 p-3 dark:border-gray-700 md:grid-cols-[1fr_2fr_auto]">
+            <input
+              aria-label="New template label"
+              className={fieldClass}
+              value={templateLabel}
+              onChange={(e) => setTemplateLabel(e.target.value)}
+              placeholder="Label"
+            />
+            <input
+              aria-label="New template payload"
+              className={fieldClass}
+              value={templatePayload}
+              onChange={(e) => setTemplatePayload(e.target.value)}
+              placeholder="Message"
+            />
+            <Button type="button" onClick={handleAddTemplate} disabled={!templateLabel.trim() || !templatePayload.trim()}>
+              Add
+            </Button>
+          </div>
+        </div>
+      </Card>
+
+      <Card className="p-6 dark:border-gray-800 dark:bg-gray-950">
+        <h2 className="mb-4 text-lg font-semibold text-gray-900 dark:text-gray-100">
           Connection
         </h2>
         <div className="space-y-4">
           <div>
-            <label htmlFor="worker-api-url" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="worker-api-url" className={labelClass}>
               Worker API / Server URL
             </label>
             <input
               id="worker-api-url"
               type="text"
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className={fieldClass}
               value={workerApiUrl}
               onChange={(e) => setWorkerApiUrl(e.target.value)}
               placeholder="http://localhost:8000"
             />
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               The URL that worker machine agents connect to when reporting heartbeats.
               This does <strong>not</strong> affect dashboard data fetching, which always
               uses the Vite dev proxy. To connect the dashboard directly to a remote
-              server, set <code>VITE_API_BASE_URL</code> in your{" "}
-              <code>.env</code> and ensure the backend includes your dashboard origin
+              server, set <code>VITE_API_BASE_URL</code> in your <code>.env</code> and ensure the backend includes your dashboard origin
               in its CORS allowlist.
             </p>
           </div>
 
           <div>
-              <label htmlFor="ai-provider-name" className="block text-sm font-medium text-gray-700">
-                Provider Name
-              </label>
-              <input
-                id="ai-provider-name"
-                type="text"
-                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                value={aiProviderName}
-                onChange={(e) => setAiProviderName(e.target.value)}
-                placeholder="openai"
-              />
-            </div>
+            <label htmlFor="ai-provider-name" className={labelClass}>
+              Provider Name
+            </label>
+            <input
+              id="ai-provider-name"
+              type="text"
+              className={fieldClass}
+              value={aiProviderName}
+              onChange={(e) => setAiProviderName(e.target.value)}
+              placeholder="openai"
+            />
+          </div>
 
-            <div>
-              <label htmlFor="ai-provider-base-url" className="block text-sm font-medium text-gray-700">
-                Provider Base URL
-              </label>
-
+          <div>
+            <label htmlFor="ai-provider-base-url" className={labelClass}>
+              Provider Base URL
+            </label>
             <input
               id="ai-provider-base-url"
               type="text"
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className={fieldClass}
               value={aiProviderBaseUrl}
               onChange={(e) => setAiProviderBaseUrl(e.target.value)}
               placeholder="https://api.openai.com"
@@ -174,13 +261,13 @@ python3 src/main.py`;
           </div>
 
           <div>
-            <label htmlFor="ai-api-key" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="ai-api-key" className={labelClass}>
               API Key
             </label>
             <input
               id="ai-api-key"
               type="password"
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className={fieldClass}
               value={aiApiKey}
               onChange={(e) => setAiApiKey(e.target.value)}
               placeholder="sk-..."
@@ -188,13 +275,13 @@ python3 src/main.py`;
           </div>
 
           <div>
-            <label htmlFor="ai-selected-model" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="ai-selected-model" className={labelClass}>
               Selected Model
             </label>
             <div className="mt-1 flex gap-3">
               <select
                 id="ai-selected-model"
-                className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className={fieldClass}
                 value={aiSelectedModel}
                 onChange={(e) => setAiSelectedModel(e.target.value)}
               >
@@ -222,35 +309,31 @@ python3 src/main.py`;
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Refresh Interval (ms)
-            </label>
+            <label className={labelClass}>Refresh Interval (ms)</label>
             <input
               type="number"
               min={500}
               max={30000}
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className={fieldClass}
               value={refreshIntervalMs}
               onChange={(e) => setRefreshIntervalMs(Number(e.target.value))}
             />
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               How often the dashboard polls the API for updates (500–30000ms).
             </p>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Stale Timeout (seconds)
-            </label>
+            <label className={labelClass}>Stale Timeout (seconds)</label>
             <input
               type="number"
               min={10}
               max={86400}
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className={fieldClass}
               value={staleTimeoutSeconds}
               onChange={(e) => setStaleTimeoutSeconds(Number(e.target.value))}
             />
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               Machines without a heartbeat within this period are marked stale.
             </p>
           </div>
@@ -266,15 +349,15 @@ python3 src/main.py`;
         </div>
       </Card>
 
-      <Card className="p-6">
-        <h2 className="mb-4 text-lg font-semibold text-gray-900">
+      <Card className="p-6 dark:border-gray-800 dark:bg-gray-950">
+        <h2 className="mb-4 text-lg font-semibold text-gray-900 dark:text-gray-100">
           Worker Machine Script
         </h2>
-        <p className="mb-3 text-sm text-gray-600">
+        <p className="mb-3 text-sm text-gray-600 dark:text-gray-300">
           Copy and run this script on a worker machine that has git and tmux installed.
           It clones (or pulls) the repo from GitHub, sets up the Python environment,
           installs dependencies, and starts the machine agent connecting back to{" "}
-          <code className="rounded bg-gray-100 px-1 py-0.5 text-xs">
+          <code className="rounded bg-gray-100 px-1 py-0.5 text-xs dark:bg-gray-900">
             {workerApiUrl}
           </code>{" "}
           with a unique machine ID. Adjust the <code>cd</code> path to match
@@ -283,7 +366,7 @@ python3 src/main.py`;
 
         <pre
           ref={scriptRef}
-          className="max-h-80 overflow-auto rounded border border-gray-200 bg-gray-50 p-4 font-mono text-xs text-gray-800"
+          className="max-h-80 overflow-auto rounded border border-gray-200 bg-gray-50 p-4 font-mono text-xs text-gray-800 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-100"
         >
           {workerScript}
         </pre>

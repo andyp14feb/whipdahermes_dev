@@ -3,30 +3,42 @@ import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SettingsPage } from "../SettingsPage";
-import { useSettingsStore } from "../../../shared/state/settingsStore";
+import {
+  DEFAULT_TEMPLATE_ACTIONS,
+  STORAGE_KEY,
+  useSettingsStore,
+} from "../../../shared/state/settingsStore";
 import { server } from "../../../__tests__/setup";
 
 describe("SettingsPage", () => {
   beforeEach(() => {
-    localStorage.removeItem("whipai-settings");
+    localStorage.removeItem(STORAGE_KEY);
     useSettingsStore.setState({
       workerApiUrl: "http://localhost:8000",
       refreshIntervalMs: 2000,
       staleTimeoutSeconds: 60,
       aiProviderBaseUrl: "",
       aiApiKey: "",
-       aiSelectedModel: "",
-       aiProviderName: "",
-
+      aiSelectedModel: "",
+      aiProviderName: "",
+      themeMode: "light",
+      templateActions: DEFAULT_TEMPLATE_ACTIONS,
+      nudgesBySession: {},
       isDirty: false,
       setWorkerApiUrl: useSettingsStore.getState().setWorkerApiUrl,
       setRefreshIntervalMs: useSettingsStore.getState().setRefreshIntervalMs,
       setStaleTimeoutSeconds: useSettingsStore.getState().setStaleTimeoutSeconds,
       setAiProviderBaseUrl: useSettingsStore.getState().setAiProviderBaseUrl,
       setAiApiKey: useSettingsStore.getState().setAiApiKey,
-       setAiSelectedModel: useSettingsStore.getState().setAiSelectedModel,
-       setAiProviderName: useSettingsStore.getState().setAiProviderName,
-
+      setAiSelectedModel: useSettingsStore.getState().setAiSelectedModel,
+      setAiProviderName: useSettingsStore.getState().setAiProviderName,
+      setThemeMode: useSettingsStore.getState().setThemeMode,
+      addTemplateAction: useSettingsStore.getState().addTemplateAction,
+      updateTemplateAction: useSettingsStore.getState().updateTemplateAction,
+      deleteTemplateAction: useSettingsStore.getState().deleteTemplateAction,
+      upsertNudgeConfig: useSettingsStore.getState().upsertNudgeConfig,
+      incrementNudgeCount: useSettingsStore.getState().incrementNudgeCount,
+      clearNudgeConfig: useSettingsStore.getState().clearNudgeConfig,
       save: useSettingsStore.getState().save,
       reset: useSettingsStore.getState().reset,
     });
@@ -81,6 +93,43 @@ describe("SettingsPage", () => {
       expect(useSettingsStore.getState().aiProviderName).toBe("openai-compatible");
       expect(useSettingsStore.getState().aiSelectedModel).toBe("model-b");
     });
+  });
+
+  it("supports template CRUD", async () => {
+    const user = userEvent.setup();
+    render(<SettingsPage onClose={() => undefined} />);
+
+    await user.type(screen.getByLabelText("New template label"), "nudge");
+    await user.type(screen.getByLabelText("New template payload"), "please continue");
+    await user.click(screen.getByRole("button", { name: "Add" }));
+
+    await waitFor(() => {
+      expect(useSettingsStore.getState().templateActions.some((action) => action.label === "nudge" && action.payload === "please continue")).toBe(true);
+    });
+
+    const labelInput = await screen.findByDisplayValue("nudge");
+    const payloadInput = await screen.findByDisplayValue("please continue");
+    await user.clear(labelInput);
+    await user.type(labelInput, "resume");
+    await user.clear(payloadInput);
+    await user.type(payloadInput, "resume work");
+
+    expect(useSettingsStore.getState().templateActions.some((action) => action.label === "resume" && action.payload === "resume work")).toBe(true);
+
+    const deleteButtons = screen.getAllByRole("button", { name: "Delete" });
+    await user.click(deleteButtons.at(-1)!);
+
+    expect(useSettingsStore.getState().templateActions.some((action) => action.label === "resume")).toBe(false);
+  });
+
+  it("persists theme locally", async () => {
+    const user = userEvent.setup();
+    render(<SettingsPage onClose={() => undefined} />);
+
+    await user.selectOptions(screen.getByLabelText("Theme"), "dark");
+
+    expect(useSettingsStore.getState().themeMode).toBe("dark");
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}").themeMode).toBe("dark");
   });
 
   it("explains that dashboard fetches use the Vite proxy, not the worker URL", () => {
