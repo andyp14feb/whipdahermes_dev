@@ -1,5 +1,6 @@
 import { StatusSummary } from "../status-summary/StatusSummary";
 import { Card } from "../../shared/ui/Card";
+import { TerminalView } from "./TerminalView";
 import type { SessionDetail } from "../../shared/types/contracts";
 
 interface PreviewPanelProps {
@@ -26,15 +27,13 @@ export function PreviewPanel({ session }: PreviewPanelProps) {
         )}
       </div>
 
-      <div className="rounded border border-gray-100 bg-gray-50 p-3">
-        {session.preview ? (
-          <pre className="max-h-96 overflow-auto font-mono text-sm whitespace-pre-wrap">
-            {session.preview}
-          </pre>
-        ) : (
+      {session.preview ? (
+        <TerminalView output={session.preview} />
+      ) : (
+        <div className="rounded border border-gray-700 bg-[#1e1e1e] p-3">
           <p className="font-mono text-sm text-gray-400">No preview available</p>
-        )}
-      </div>
+        </div>
+      )}
     </Card>
   );
 }
