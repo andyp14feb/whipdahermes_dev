@@ -63,6 +63,23 @@ class SQLSessionRepo(ISessionRepo):
             db.add(session)
             db.commit()
 
+    def update_assessment(
+        self,
+        session_id: str,
+        assessment: str,
+        reason: str,
+        assessed_at: str,
+    ) -> None:
+        with SQLSession(self.engine) as db:
+            session = db.get(SessionModel, session_id)
+            if session is None:
+                return
+            session.ai_assessment = assessment
+            session.ai_assessment_reason = reason
+            session.ai_assessed_at = assessed_at
+            db.add(session)
+            db.commit()
+
     def delete_all_by_machine(self, machine_id: str) -> None:
         with SQLSession(self.engine) as db:
             db.exec(sa_delete(SnapshotModel).where(SnapshotModel.machine_id == machine_id))

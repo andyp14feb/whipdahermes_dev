@@ -13,7 +13,9 @@ from modules.query_api.tests.test_query_service import (
     FakeMachineReader,
     FakeSessionReader,
 )
-from modules.session_state.domain.session import Session
+from modules.session_state.application.ports import AssessmentResult
+from modules.session_state.application.session_service import SessionService
+from modules.session_state.domain.session import Assessment, Session
 from modules.session_state.domain.snapshot import Snapshot
 from modules.shared_kernel.time_utils import now_utc
 
@@ -151,3 +153,129 @@ class TestSessionsRouter:
 
         assert response.status_code == 200
         assert response.json()["status"] == "stale"
+
+
+class FakeAssessor:
+    def __init__(self, result: AssessmentResult) -> None:
+        self.result = result
+
+    def assess_session(self, session: Session, snapshot: Snapshot | None) -> AssessmentResult:
+        return self.result
+
+
+class TestAssessSessionRouter:
+    def test_assess_endpoint_stores_and_returns_assessment(self) -> None:
+        """RED: This test should fail because the endpoint does not exist yet."""
+        session_reader = FakeSessionReader()
+        machine_reader = FakeMachineReader()
+        query_service = QueryService(machine_reader, session_reader)
+
+        session = Session(
+            session_id="s-1",
+            machine_id="vm-1",
+            label="test",
+            status="active",
+            last_seen_at=NOW,
+        )
+        session_reader.sessions["s-1"] = session
+        machine_reader.machines["vm-1"] = Machine(
+            machine_id="vm-1",
+            display_name="VM 1",
+            last_seen_at=NOW,
+            session_count=1,
+        )
+
+        assessor = FakeAssessor(AssessmentResult(Assessment.waiting, "user input"))
+
+        from modules.session_state.adapters.persistence.session_repo import (
+            SQLSessionRepo,
+            create_session_engine,
+        )
+        from sqlalchemy.pool import StaticPool
+        from sqlmodel import SQLModel
+
+        engine = create_session_engine(
+            "sqlite://",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+        SQLModel.metadata.create_all(engine)
+        repo = SQLSessionRepo(engine)
+        session_service = SessionService(repo)
+        session_service.repo.upsert(session)
+        session_service.repo.append_snapshot(Snapshot(
+            session_id="s-1",
+            machine_id="vm-1",
+            preview="Proceed? [y/N]",
+            diff_pct=0.0,
+            stable_counter=1,
+            cwd="/home/user",
+            captured_at=NOW,
+        ))
+
+        from modules.query_api.adapters.http.assess_router import create_assess_router
+        app = FastAPI()
+        app.include_router(create_assess_router(session_service, assessor))
+        client = TestClient(app)
+
+        response = client.post("/assess/vm-1/s-1")
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["ai_assessment"] == "waiting"
+        assert body["ai_assessment_reason"] == "user input"
+
+        # Verify persisted
+        updated = session_service.get_session("vm-1", "s-1")
+        assert updated is not None
+        assert updated.ai_assessment == "waiting"
+
+    def test_assess_endpoint_404_for_missing_session(self) -> None:
+        from modules.session_state.adapters.persistence.session_repo import (
+            SQLSessionRepo,
+            create_session_engine,
+        )
+        from sqlalchemy.pool import StaticPool
+        from sqlmodel import SQLModel
+
+        engine = create_session_engine(
+            "sqlite://",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+        SQLModel.metadata.create_all(engine)
+        repo = SQLSessionRepo(engine)
+        session_service = SessionService(repo)
+
+        from modules.query_api.adapters.http.assess_router import create_assess_router
+        app = FastAPI()
+        app.include_router(create_assess_router(session_service, None))
+        client = TestClient(app)
+
+        response = client.post("/assess/vm-1/missing")
+        assert response.status_code == 404
+
+    def test_assess_endpoint_rejects_get_method(self) -> None:
+        from modules.session_state.adapters.persistence.session_repo import (
+            SQLSessionRepo,
+            create_session_engine,
+        )
+        from sqlalchemy.pool import StaticPool
+        from sqlmodel import SQLModel
+
+        engine = create_session_engine(
+            "sqlite://",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+        SQLModel.metadata.create_all(engine)
+        repo = SQLSessionRepo(engine)
+        session_service = SessionService(repo)
+
+        from modules.query_api.adapters.http.assess_router import create_assess_router
+        app = FastAPI()
+        app.include_router(create_assess_router(session_service, None))
+        client = TestClient(app)
+
+        response = client.get("/assess/vm-1/s-1")
+        assert response.status_code == 405

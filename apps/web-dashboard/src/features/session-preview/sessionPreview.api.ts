@@ -7,3 +7,12 @@ export function fetchSessionDetail(
 ): Promise<SessionDetail> {
   return apiClient<SessionDetail>(`/sessions/${machineId}/${sessionId}`);
 }
+
+export function assessSession(
+  machineId: string,
+  sessionId: string,
+): Promise<SessionDetail> {
+  return apiClient<SessionDetail>(`/assess/${machineId}/${sessionId}`, {
+    method: "POST",
+  });
+}

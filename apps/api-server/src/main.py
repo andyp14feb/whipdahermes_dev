@@ -17,6 +17,7 @@ from modules.machine_registry.application.machine_service import MachineService
 from modules.machine_registry.application.stale_detector import StaleDetector
 from modules.machine_registry.machine_registry import create_machine_registry_module
 from modules.query_api.application.query_service import QueryService
+from modules.query_api.adapters.http.assess_router import create_assess_router
 from modules.query_api.query_api import create_query_api_router
 from modules.session_state.adapters.persistence.session_repo import (
     SQLSessionRepo,
@@ -70,6 +71,7 @@ query_service = QueryService(
     stale_timeout_seconds=settings.stale_timeout_seconds,
 )
 app.include_router(create_query_api_router(query_service))
+app.include_router(create_assess_router(session_service, None))
 
 stale_detector = StaleDetector(
     machine_service=machine_service,

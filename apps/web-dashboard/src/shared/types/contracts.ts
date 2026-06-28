@@ -33,6 +33,9 @@ export interface SessionDetail {
   preview: string;
   cwd: string;
   last_seen_at: string;
+  ai_assessment?: string | null;
+  ai_assessment_reason?: string | null;
+  ai_assessed_at?: string | null;
 }
 
 export type CommandStatus = "pending" | "accepted" | "delivered" | "failed";

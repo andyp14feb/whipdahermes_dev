@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from modules.ingest.domain.heartbeat_payload import SessionSnapshot
+from modules.session_state.application.ports import AssessmentResult
 from modules.session_state.application.session_service import SessionService
-from modules.session_state.domain.session import Session
+from modules.session_state.domain.session import Assessment, Session
 from modules.session_state.domain.snapshot import Snapshot
 from modules.shared_kernel.ids import MachineId
 
@@ -40,6 +41,18 @@ class FakeSessionRepo:
         self.status_updates.append((session_id, status))
         if session_id in self.sessions:
             self.sessions[session_id].status = status
+
+    def update_assessment(
+        self,
+        session_id: str,
+        assessment: str,
+        reason: str,
+        assessed_at: str,
+    ) -> None:
+        if session_id in self.sessions:
+            self.sessions[session_id].ai_assessment = assessment
+            self.sessions[session_id].ai_assessment_reason = reason
+            self.sessions[session_id].ai_assessed_at = assessed_at
 
     def delete_all_by_machine(self, machine_id: str) -> None:
         stale_session_ids = [
@@ -562,3 +575,137 @@ class TestSessionService:
 
         assert classifier.calls == [("s-1", "s-1")]
         assert repo.sessions["s-1"].status == "active"
+
+
+class FakeAssessor:
+    def __init__(self, result: AssessmentResult) -> None:
+        self.result = result
+        self.last_session: Session | None = None
+        self.last_snapshot: Snapshot | None = None
+
+    def assess_session(self, session: Session, snapshot: Snapshot | None) -> AssessmentResult:
+        self.last_session = session
+        self.last_snapshot = snapshot
+        return self.result
+
+
+class TestAssessSession:
+    def test_assess_session_stores_stuck(self) -> None:
+        repo = FakeSessionRepo()
+        service = SessionService(repo)
+        repo.sessions["s-1"] = Session(
+            session_id="s-1",
+            machine_id="vm-1",
+            label="test",
+            status="unknown",
+            last_seen_at="2026-06-26T12:00:00Z",
+        )
+
+        assessor = FakeAssessor(AssessmentResult(Assessment.stuck, "No output in 60s"))
+        result = service.assess_session("vm-1", "s-1", assessor)
+
+        assert result is not None
+        assert result.ai_assessment == "stuck"
+        assert result.ai_assessment_reason == "No output in 60s"
+
+    def test_assess_session_stores_waiting(self) -> None:
+        repo = FakeSessionRepo()
+        service = SessionService(repo)
+        repo.sessions["s-1"] = Session(
+            session_id="s-1",
+            machine_id="vm-1",
+            label="test",
+            status="unknown",
+            last_seen_at="2026-06-26T12:00:00Z",
+        )
+
+        assessor = FakeAssessor(AssessmentResult(Assessment.waiting, "Waiting for input"))
+        result = service.assess_session("vm-1", "s-1", assessor)
+
+        assert result is not None
+        assert result.ai_assessment == "waiting"
+
+    def test_assess_session_stores_running(self) -> None:
+        repo = FakeSessionRepo()
+        service = SessionService(repo)
+        repo.sessions["s-1"] = Session(
+            session_id="s-1",
+            machine_id="vm-1",
+            label="test",
+            status="unknown",
+            last_seen_at="2026-06-26T12:00:00Z",
+        )
+
+        assessor = FakeAssessor(AssessmentResult(Assessment.running, "Building project"))
+        result = service.assess_session("vm-1", "s-1", assessor)
+
+        assert result is not None
+        assert result.ai_assessment == "running"
+
+    def test_assess_session_stores_finished(self) -> None:
+        repo = FakeSessionRepo()
+        service = SessionService(repo)
+        repo.sessions["s-1"] = Session(
+            session_id="s-1",
+            machine_id="vm-1",
+            label="test",
+            status="unknown",
+            last_seen_at="2026-06-26T12:00:00Z",
+        )
+
+        assessor = FakeAssessor(AssessmentResult(Assessment.finished, "Process exited"))
+        result = service.assess_session("vm-1", "s-1", assessor)
+
+        assert result is not None
+        assert result.ai_assessment == "finished"
+
+    def test_assess_session_missing_returns_none(self) -> None:
+        repo = FakeSessionRepo()
+        service = SessionService(repo)
+
+        assessor = FakeAssessor(AssessmentResult(Assessment.stuck, ""))
+        result = service.assess_session("vm-1", "missing", assessor)
+
+        assert result is None
+
+    def test_assess_session_wrong_machine_returns_none(self) -> None:
+        repo = FakeSessionRepo()
+        service = SessionService(repo)
+        repo.sessions["s-1"] = Session(
+            session_id="s-1",
+            machine_id="vm-1",
+            label="test",
+            status="unknown",
+            last_seen_at="2026-06-26T12:00:00Z",
+        )
+
+        assessor = FakeAssessor(AssessmentResult(Assessment.running, ""))
+        result = service.assess_session("vm-2", "s-1", assessor)
+
+        assert result is None
+
+    def test_assess_session_provides_latest_snapshot(self) -> None:
+        repo = FakeSessionRepo()
+        service = SessionService(repo)
+        repo.sessions["s-1"] = Session(
+            session_id="s-1",
+            machine_id="vm-1",
+            label="test",
+            status="unknown",
+            last_seen_at="2026-06-26T12:00:00Z",
+        )
+        repo.snapshots.append(Snapshot(
+            session_id="s-1",
+            machine_id="vm-1",
+            preview="building something...",
+            diff_pct=0.0,
+            stable_counter=1,
+            cwd="/home/user",
+            captured_at="2026-06-26T12:00:00Z",
+        ))
+
+        assessor = FakeAssessor(AssessmentResult(Assessment.running, ""))
+        service.assess_session("vm-1", "s-1", assessor)
+
+        assert assessor.last_snapshot is not None
+        assert assessor.last_snapshot.preview == "building something..."

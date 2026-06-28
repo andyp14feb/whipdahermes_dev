@@ -1,7 +1,8 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ApiRequestError } from "../../shared/api-client/apiClient";
 import { useAppStore } from "../../shared/state/appStore";
 import { useSettingsStore } from "../../shared/state/settingsStore";
-import { fetchSessionDetail } from "./sessionPreview.api";
+import { assessSession, fetchSessionDetail } from "./sessionPreview.api";
 import { PreviewPanel } from "./PreviewPanel";
 import { Card } from "../../shared/ui/Card";
 
@@ -9,6 +10,7 @@ export function SessionPreview() {
   const selectedMachineId = useAppStore((s) => s.selectedMachineId);
   const selectedSessionId = useAppStore((s) => s.selectedSessionId);
   const refreshIntervalMs = useSettingsStore((s) => s.refreshIntervalMs);
+  const queryClient = useQueryClient();
 
   const query = useQuery({
     queryKey: ["session-detail", selectedMachineId, selectedSessionId],
@@ -17,6 +19,21 @@ export function SessionPreview() {
     enabled: !!selectedMachineId && !!selectedSessionId,
     refetchInterval: refreshIntervalMs,
   });
+
+  const assessMutation = useMutation({
+    mutationFn: () => assessSession(selectedMachineId!, selectedSessionId!),
+    onSuccess: (data) => {
+      queryClient.setQueryData(
+        ["session-detail", selectedMachineId, selectedSessionId],
+        query.data ? { ...query.data, ...data } : data,
+      );
+    },
+  });
+
+  const handleAssess = () => {
+    if (!selectedMachineId || !selectedSessionId) return;
+    assessMutation.mutate();
+  };
 
   if (!selectedMachineId || !selectedSessionId) {
     return (
@@ -50,5 +67,20 @@ export function SessionPreview() {
     );
   }
 
-  return <PreviewPanel session={query.data} />;
+  const assessError = assessMutation.error;
+  const assessErrorMessage =
+    assessError instanceof ApiRequestError && assessError.status === 503
+      ? "AI assessor is not configured yet"
+      : assessError instanceof Error
+        ? assessError.message
+        : null;
+
+  return (
+    <PreviewPanel
+      session={query.data}
+      onAssess={handleAssess}
+      isAssessing={assessMutation.isPending}
+      assessError={assessErrorMessage}
+    />
+  );
 }

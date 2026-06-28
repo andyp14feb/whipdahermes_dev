@@ -1,6 +1,14 @@
 from __future__ import annotations
 
+from enum import Enum
 from sqlmodel import Field, SQLModel
+
+
+class Assessment(str, Enum):
+    stuck = "stuck"
+    waiting = "waiting"
+    running = "running"
+    finished = "finished"
 
 
 class Session(SQLModel, table=True):
@@ -13,3 +21,7 @@ class Session(SQLModel, table=True):
     seconds_since_change: int = 0
     last_seen_at: str
     cwd: str = ""
+
+    ai_assessment: str | None = Field(default=None)
+    ai_assessment_reason: str | None = Field(default=None)
+    ai_assessed_at: str | None = Field(default=None)

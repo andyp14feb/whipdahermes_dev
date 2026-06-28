@@ -1,7 +1,12 @@
 from __future__ import annotations
 
 from modules.ingest.domain.heartbeat_payload import SessionSnapshot
-from modules.session_state.application.ports import IDetectionClassifier, ISessionRepo
+from modules.session_state.application.ports import (
+    IDetectionClassifier,
+    ISessionAssessor,
+    ISessionRepo,
+    assess_and_update_session,
+)
 from modules.session_state.domain.session import Session
 from modules.session_state.domain.snapshot import Snapshot
 from modules.shared_kernel.ids import MachineId
@@ -81,3 +86,16 @@ class SessionService:
 
     def list_sessions_by_machine(self, machine_id: str) -> list[Session]:
         return self.repo.list_by_machine(machine_id)
+
+    def assess_session(
+        self,
+        machine_id: str,
+        session_id: str,
+        assessor: ISessionAssessor,
+    ) -> Session | None:
+        session = self.repo.get(session_id)
+        if session is None or session.machine_id != machine_id:
+            return None
+        snapshot = self.repo.get_latest_snapshot(session_id)
+        assessed_at = now_utc()
+        return assess_and_update_session(self.repo, assessor, session, snapshot, assessed_at)
