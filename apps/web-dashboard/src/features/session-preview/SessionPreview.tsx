@@ -6,36 +6,46 @@ import { assessSession, fetchSessionDetail } from "./sessionPreview.api";
 import { PreviewPanel } from "./PreviewPanel";
 import { Card } from "../../shared/ui/Card";
 
-export function SessionPreview() {
-  const selectedMachineId = useAppStore((s) => s.selectedMachineId);
-  const selectedSessionId = useAppStore((s) => s.selectedSessionId);
+interface SessionPreviewProps {
+  machineId?: string | null;
+  sessionId?: string | null;
+}
+
+export function SessionPreview({
+  machineId: propMachineId,
+  sessionId: propSessionId,
+}: SessionPreviewProps) {
+  const storeMachineId = useAppStore((s) => s.selectedMachineId);
+  const storeSessionId = useAppStore((s) => s.selectedSessionId);
   const refreshIntervalMs = useSettingsStore((s) => s.refreshIntervalMs);
   const queryClient = useQueryClient();
 
+  const machineId = propMachineId !== undefined ? propMachineId : storeMachineId;
+  const sessionId = propSessionId !== undefined ? propSessionId : storeSessionId;
+
   const query = useQuery({
-    queryKey: ["session-detail", selectedMachineId, selectedSessionId],
-    queryFn: () =>
-      fetchSessionDetail(selectedMachineId!, selectedSessionId!),
-    enabled: !!selectedMachineId && !!selectedSessionId,
+    queryKey: ["session-detail", machineId, sessionId],
+    queryFn: () => fetchSessionDetail(machineId!, sessionId!),
+    enabled: !!machineId && !!sessionId,
     refetchInterval: refreshIntervalMs,
   });
 
   const assessMutation = useMutation({
-    mutationFn: () => assessSession(selectedMachineId!, selectedSessionId!),
+    mutationFn: () => assessSession(machineId!, sessionId!),
     onSuccess: (data) => {
       queryClient.setQueryData(
-        ["session-detail", selectedMachineId, selectedSessionId],
+        ["session-detail", machineId, sessionId],
         query.data ? { ...query.data, ...data } : data,
       );
     },
   });
 
   const handleAssess = () => {
-    if (!selectedMachineId || !selectedSessionId) return;
+    if (!machineId || !sessionId) return;
     assessMutation.mutate();
   };
 
-  if (!selectedMachineId || !selectedSessionId) {
+  if (!machineId || !sessionId) {
     return (
       <Card className="flex h-full items-center justify-center p-8">
         <p className="text-sm text-gray-400">Select a session to view details</p>

@@ -149,7 +149,7 @@ describe("Polling refresh behavior", () => {
       render(<App />);
 
       expect(await screen.findByText("Alpha")).toBeInTheDocument();
-      expect(screen.getByText("Frontend Agent")).toBeInTheDocument();
+      expect(screen.getAllByText("Frontend Agent").length).toBeGreaterThanOrEqual(1);
 
       server.use(
         http.get("/machines", () =>
@@ -168,7 +168,7 @@ describe("Polling refresh behavior", () => {
 
       expect(await screen.findByText(/connection lost/i, {}, { timeout: 10000 })).toBeInTheDocument();
       expect(screen.getByText("Alpha")).toBeInTheDocument();
-      expect(screen.getByText("Frontend Agent")).toBeInTheDocument();
+      expect(screen.getAllByText("Frontend Agent").length).toBeGreaterThanOrEqual(1);
     },
     20000,
   );
@@ -184,7 +184,7 @@ describe("Polling refresh behavior", () => {
 
       render(<App />);
 
-      expect(await screen.findByText("Frontend Agent")).toBeInTheDocument();
+      expect((await screen.findAllByText("Frontend Agent")).length).toBeGreaterThanOrEqual(1);
       expect(await screen.findByText("/workspace/frontend")).toBeInTheDocument();
 
       server.use(

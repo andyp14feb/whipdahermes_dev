@@ -5,8 +5,8 @@ import {
   QueryClientProvider,
 } from "@tanstack/react-query";
 import { MachineList } from "../features/machine-list/MachineList";
-import { SessionPreview } from "../features/session-preview/SessionPreview";
-import { CommandPanel } from "../features/command-panel/CommandPanel";
+import { SessionWindow } from "../features/session-preview/SessionWindow";
+import { LayoutSelector } from "../features/window-layout/LayoutSelector";
 import { SettingsPage } from "../features/settings/SettingsPage";
 import { useAppStore } from "../shared/state/appStore";
 import { Button } from "../shared/ui/Button";
@@ -112,16 +112,25 @@ function NavBar({ current, onNavigate }: { current: "dashboard" | "settings"; on
   );
 }
 
+const GRID_CLASSES: Record<number, string> = {
+  1: "grid-cols-1",
+  2: "grid-cols-1 md:grid-cols-2",
+  4: "grid-cols-1 md:grid-cols-2 xl:grid-cols-4",
+};
+
 function Dashboard() {
-  const selectedMachineId = useAppStore((s) => s.selectedMachineId);
-  const selectedSessionId = useAppStore((s) => s.selectedSessionId);
+  const windows = useAppStore((s) => s.windows);
+  const layoutCount = useAppStore((s) => s.layoutCount);
+
+  const visibleWindows = windows.slice(0, layoutCount);
 
   return (
     <>
-      <header className="mb-6">
+      <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <p className="text-sm text-gray-500">
           Monitor machines and tmux sessions from one live view.
         </p>
+        <LayoutSelector />
       </header>
 
       <ConnectionBanner />
@@ -132,11 +141,11 @@ function Dashboard() {
             <MachineList />
           </aside>
           <section className="min-h-[32rem]">
-            <SessionPreview />
-            <CommandPanel
-              machineId={selectedMachineId}
-              sessionId={selectedSessionId}
-            />
+            <div className={`grid gap-4 ${GRID_CLASSES[layoutCount]}`}>
+              {visibleWindows.map((_, i) => (
+                <SessionWindow key={i} index={i} />
+              ))}
+            </div>
           </section>
         </div>
       </ErrorBoundary>
