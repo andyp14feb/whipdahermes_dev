@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TemplateActions } from "../TemplateActions";
+import { DEFAULT_TEMPLATE_ACTIONS, useSettingsStore } from "../../../shared/state/settingsStore";
 import { server } from "../../../__tests__/setup";
 
 const postResponse = {
@@ -25,6 +26,7 @@ function renderWithClient(ui: ReactNode) {
 describe("TemplateActions", () => {
   beforeEach(() => {
     server.resetHandlers();
+    useSettingsStore.setState({ templateActions: DEFAULT_TEMPLATE_ACTIONS });
   });
 
   it("renders all 5 template action buttons", () => {
