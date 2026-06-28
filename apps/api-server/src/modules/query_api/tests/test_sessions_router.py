@@ -174,7 +174,7 @@ class TestAssessSessionRouter:
             session_id="s-1",
             machine_id="vm-1",
             label="test",
-            status="active",
+            status="waiting_input",
             last_seen_at=NOW,
         )
         session_reader.sessions["s-1"] = session
@@ -225,10 +225,45 @@ class TestAssessSessionRouter:
         assert body["ai_assessment"] == "waiting"
         assert body["ai_assessment_reason"] == "user input"
 
-        # Verify persisted
         updated = session_service.get_session("vm-1", "s-1")
         assert updated is not None
         assert updated.ai_assessment == "waiting"
+
+    def test_assess_endpoint_409_for_ineligible_status(self) -> None:
+        from modules.session_state.adapters.persistence.session_repo import (
+            SQLSessionRepo,
+            create_session_engine,
+        )
+        from sqlalchemy.pool import StaticPool
+        from sqlmodel import SQLModel
+
+        engine = create_session_engine(
+            "sqlite://",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+        SQLModel.metadata.create_all(engine)
+        repo = SQLSessionRepo(engine)
+        session_service = SessionService(repo)
+        repo.upsert(
+            Session(
+                session_id="s-1",
+                machine_id="vm-1",
+                label="test",
+                status="active",
+                last_seen_at=NOW,
+            )
+        )
+
+        from modules.query_api.adapters.http.assess_router import create_assess_router
+        from modules.session_state.application.ports import AssessmentResult
+        local_assessor = FakeAssessor(AssessmentResult(Assessment.stuck, ""))
+        a = FastAPI()
+        a.include_router(create_assess_router(session_service, local_assessor))
+        c = TestClient(a)
+
+        r = c.post("/assess/vm-1/s-1")
+        assert r.status_code == 409
 
     def test_assess_endpoint_404_for_missing_session(self) -> None:
         from modules.session_state.adapters.persistence.session_repo import (

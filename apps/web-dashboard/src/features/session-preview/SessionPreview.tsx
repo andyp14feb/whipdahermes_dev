@@ -1,7 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
 import { ApiRequestError } from "../../shared/api-client/apiClient";
 import { useAppStore } from "../../shared/state/appStore";
 import { useSettingsStore } from "../../shared/state/settingsStore";
+import type { StatusValue } from "../../shared/types/contracts";
 import { assessSession, fetchSessionDetail } from "./sessionPreview.api";
 import { PreviewPanel } from "./PreviewPanel";
 import { Card } from "../../shared/ui/Card";
@@ -9,6 +11,21 @@ import { Card } from "../../shared/ui/Card";
 interface SessionPreviewProps {
   machineId?: string | null;
   sessionId?: string | null;
+}
+
+const assessStatuses = new Set<StatusValue>(["stuck", "waiting", "waiting_input"]);
+
+function shouldAssessTransition(
+  previousStatus: StatusValue | null,
+  nextStatus: StatusValue,
+): boolean {
+  if (previousStatus === null) {
+    return false;
+  }
+  if (previousStatus === nextStatus) {
+    return false;
+  }
+  return assessStatuses.has(nextStatus);
 }
 
 export function SessionPreview({
@@ -19,6 +36,7 @@ export function SessionPreview({
   const storeSessionId = useAppStore((s) => s.selectedSessionId);
   const refreshIntervalMs = useSettingsStore((s) => s.refreshIntervalMs);
   const queryClient = useQueryClient();
+  const lastStatusRef = useRef<StatusValue | null>(null);
 
   const machineId = propMachineId !== undefined ? propMachineId : storeMachineId;
   const sessionId = propSessionId !== undefined ? propSessionId : storeSessionId;
@@ -39,6 +57,25 @@ export function SessionPreview({
       );
     },
   });
+
+  useEffect(() => {
+    if (!machineId || !sessionId) {
+      lastStatusRef.current = null;
+      return;
+    }
+    const currentStatus = query.data?.status;
+    if (!currentStatus) {
+      return;
+    }
+    const previousStatus = lastStatusRef.current;
+    if (
+      shouldAssessTransition(previousStatus, currentStatus) &&
+      !assessMutation.isPending
+    ) {
+      assessMutation.mutate();
+    }
+    lastStatusRef.current = currentStatus;
+  }, [assessMutation, machineId, query.data?.status, sessionId]);
 
   const handleAssess = () => {
     if (!machineId || !sessionId) return;
@@ -81,9 +118,11 @@ export function SessionPreview({
   const assessErrorMessage =
     assessError instanceof ApiRequestError && assessError.status === 503
       ? "AI assessor is not configured yet"
-      : assessError instanceof Error
-        ? assessError.message
-        : null;
+      : assessError instanceof ApiRequestError && assessError.status === 409
+        ? "AI assessment only runs when a session turns stuck or waiting"
+        : assessError instanceof Error
+          ? assessError.message
+          : null;
 
   return (
     <PreviewPanel

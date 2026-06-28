@@ -1,10 +1,13 @@
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from starlette.responses import JSONResponse
 
+from modules.query_api.application.query_service import QueryService
+from modules.session_state.adapters.ai_assessor import HttpProviderAssessor
 from modules.session_state.application.ports import ISessionAssessor
 from modules.session_state.application.session_service import SessionService
+from modules.session_state.application.transition_gate import should_assess_status
 
 
 class SessionNotFound(JSONResponse):
@@ -33,21 +36,50 @@ class AssessorUnavailable(JSONResponse):
         )
 
 
+class AssessNotEligible(JSONResponse):
+    def __init__(self, status: str) -> None:
+        super().__init__(
+            status_code=409,
+            content={
+                "error": {
+                    "code": "NOT_ELIGIBLE",
+                    "message": f"Session status '{status}' is not eligible for AI assessment",
+                }
+            },
+        )
+
+
 def create_assess_router(
     service: SessionService,
     assessor: ISessionAssessor | None,
+    query_service: QueryService | None = None,
 ) -> APIRouter:
     router = APIRouter(prefix="/assess", tags=["assessment"])
 
     @router.post("/{machine_id}/{session_id}", response_model=None)
-    def assess_session(machine_id: str, session_id: str) -> dict[str, object] | JSONResponse:
+    def assess_session(
+        machine_id: str, session_id: str, request: Request
+    ) -> dict[str, object] | JSONResponse:
         session = service.get_session(machine_id, session_id)
         if session is None or session.machine_id != machine_id:
             return SessionNotFound()
-        if assessor is None:
+        if not should_assess_status(session.status):
+            return AssessNotEligible(session.status)
+
+        effective_assessor = assessor
+        provider_base_url = request.headers.get("x-ai-provider-base-url")
+        provider_model = request.headers.get("x-ai-model")
+        if effective_assessor is None and provider_base_url and provider_model:
+            effective_assessor = HttpProviderAssessor(
+                base_url=provider_base_url,
+                api_key=request.headers.get("x-ai-api-key", ""),
+                model=provider_model,
+            )
+
+        if effective_assessor is None:
             return AssessorUnavailable()
 
-        assessed = service.assess_session(machine_id, session_id, assessor)
+        assessed = service.assess_session(machine_id, session_id, effective_assessor)
         if assessed is None:
             return SessionNotFound()
         return {

@@ -709,3 +709,209 @@ class TestAssessSession:
 
         assert assessor.last_snapshot is not None
         assert assessor.last_snapshot.preview == "building something..."
+
+
+class TestAutoAssessOnTransition:
+    def _make_classifier(self, status_value: str = "stuck"):
+        class _FakeClassifier:
+            def classify_session(self, session, snapshot=None):
+                return type("EnumLike", (), {"value": status_value})()
+        return _FakeClassifier()
+
+    def test_assessor_called_when_transition_to_stuck(self) -> None:
+        repo = FakeSessionRepo()
+        classifier = self._make_classifier("stuck")
+        assessor = FakeAssessor(AssessmentResult(Assessment.stuck, "No output"))
+        service = SessionService(repo, classifier, assessor)
+
+        repo.sessions["s-1"] = Session(
+            session_id="s-1",
+            machine_id="vm-1",
+            label="test",
+            status="active",
+            last_seen_at="2026-06-26T12:00:00Z",
+        )
+
+        service.upsert_from_heartbeat(
+            MachineId("vm-1"),
+            [
+                SessionSnapshot(
+                    session_id="s-1",
+                    label="test",
+                    preview="idle",
+                    seconds_since_change=300,
+                    diff_pct=0.0,
+                    stable_counter=5,
+                    cwd="/home/user",
+                    captured_at="2026-06-26T12:00:00Z",
+                )
+            ],
+        )
+
+        assert assessor.last_session is not None
+        assert assessor.last_session.session_id == "s-1"
+        updated = repo.get("s-1")
+        assert updated is not None
+        assert updated.ai_assessment == "stuck"
+        assert updated.ai_assessment_reason == "No output"
+
+    def test_assessor_called_when_transition_to_waiting(self) -> None:
+        repo = FakeSessionRepo()
+        classifier = self._make_classifier("waiting")
+        assessor = FakeAssessor(AssessmentResult(Assessment.waiting, "Waiting for I/O"))
+        service = SessionService(repo, classifier, assessor)
+
+        repo.sessions["s-1"] = Session(
+            session_id="s-1",
+            machine_id="vm-1",
+            label="test",
+            status="active",
+            last_seen_at="2026-06-26T12:00:00Z",
+        )
+
+        service.upsert_from_heartbeat(
+            MachineId("vm-1"),
+            [
+                SessionSnapshot(
+                    session_id="s-1",
+                    label="test",
+                    preview="waiting...",
+                    seconds_since_change=120,
+                    diff_pct=0.0,
+                    stable_counter=3,
+                    cwd="/home/user",
+                    captured_at="2026-06-26T12:00:00Z",
+                )
+            ],
+        )
+
+        assert assessor.last_session is not None
+        assert assessor.last_session.session_id == "s-1"
+        updated = repo.get("s-1")
+        assert updated is not None
+        assert updated.ai_assessment == "waiting"
+
+    def test_assessor_called_when_transition_to_waiting_input(self) -> None:
+        repo = FakeSessionRepo()
+        classifier = self._make_classifier("waiting_input")
+        assessor = FakeAssessor(AssessmentResult(Assessment.waiting, "Waiting for user"))
+        service = SessionService(repo, classifier, assessor)
+
+        repo.sessions["s-1"] = Session(
+            session_id="s-1",
+            machine_id="vm-1",
+            label="test",
+            status="active",
+            last_seen_at="2026-06-26T12:00:00Z",
+        )
+
+        service.upsert_from_heartbeat(
+            MachineId("vm-1"),
+            [
+                SessionSnapshot(
+                    session_id="s-1",
+                    label="test",
+                    preview="Continue? [y/N]",
+                    seconds_since_change=10,
+                    diff_pct=0.0,
+                    stable_counter=0,
+                    cwd="/home/user",
+                    captured_at="2026-06-26T12:00:00Z",
+                )
+            ],
+        )
+
+        assert assessor.last_session is not None
+        updated = repo.get("s-1")
+        assert updated is not None
+        assert updated.ai_assessment == "waiting"
+
+    def test_assessor_not_called_when_transition_to_active(self) -> None:
+        repo = FakeSessionRepo()
+        repo.sessions["s-1"] = Session(
+            session_id="s-1",
+            machine_id="vm-1",
+            label="test",
+            status="unknown",
+            last_seen_at="2026-06-26T12:00:00Z",
+        )
+        classifier = self._make_classifier("active")
+        assessor = FakeAssessor(AssessmentResult(Assessment.running, "Making progress"))
+        service = SessionService(repo, classifier, assessor)
+
+        service.upsert_from_heartbeat(
+            MachineId("vm-1"),
+            [
+                SessionSnapshot(
+                    session_id="s-1",
+                    label="test",
+                    preview="building...",
+                    seconds_since_change=5,
+                    diff_pct=15.0,
+                    stable_counter=0,
+                    cwd="/home/user",
+                    captured_at="2026-06-26T12:00:00Z",
+                )
+            ],
+        )
+
+        assert assessor.last_session is None
+        updated = repo.get("s-1")
+        assert updated is not None
+        assert updated.ai_assessment is None
+
+    def test_assessor_not_called_when_assessor_is_none(self) -> None:
+        repo = FakeSessionRepo()
+        classifier = self._make_classifier("stuck")
+        service = SessionService(repo, classifier, assessor=None)
+
+        service.upsert_from_heartbeat(
+            MachineId("vm-1"),
+            [
+                SessionSnapshot(
+                    session_id="s-1",
+                    label="test",
+                    preview="idle",
+                    seconds_since_change=300,
+                    diff_pct=0.0,
+                    stable_counter=5,
+                    cwd="/home/user",
+                    captured_at="2026-06-26T12:00:00Z",
+                )
+            ],
+        )
+
+        updated = repo.get("s-1")
+        assert updated is not None
+        assert updated.ai_assessment is None
+
+    def test_assessor_not_called_when_already_stuck(self) -> None:
+        repo = FakeSessionRepo()
+        repo.sessions["s-1"] = Session(
+            session_id="s-1",
+            machine_id="vm-1",
+            label="test",
+            status="stuck",
+            last_seen_at="2026-06-26T12:00:00Z",
+        )
+        classifier = self._make_classifier("stuck")
+        assessor = FakeAssessor(AssessmentResult(Assessment.stuck, "still stuck"))
+        service = SessionService(repo, classifier, assessor)
+
+        service.upsert_from_heartbeat(
+            MachineId("vm-1"),
+            [
+                SessionSnapshot(
+                    session_id="s-1",
+                    label="test",
+                    preview="idle",
+                    seconds_since_change=300,
+                    diff_pct=0.0,
+                    stable_counter=5,
+                    cwd="/home/user",
+                    captured_at="2026-06-26T12:00:00Z",
+                )
+            ],
+        )
+
+        assert assessor.last_session is None

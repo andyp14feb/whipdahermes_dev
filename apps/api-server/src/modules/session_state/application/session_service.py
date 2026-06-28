@@ -7,6 +7,10 @@ from modules.session_state.application.ports import (
     ISessionRepo,
     assess_and_update_session,
 )
+from modules.session_state.application.transition_gate import (
+    should_assess_status,
+    should_assess_transition,
+)
 from modules.session_state.domain.session import Session
 from modules.session_state.domain.snapshot import Snapshot
 from modules.shared_kernel.ids import MachineId
@@ -18,9 +22,11 @@ class SessionService:
         self,
         repo: ISessionRepo,
         classifier: IDetectionClassifier | None = None,
+        assessor: ISessionAssessor | None = None,
     ) -> None:
         self.repo = repo
         self.classifier = classifier
+        self.assessor = assessor
 
     def upsert_from_heartbeat(
         self, machine_id: MachineId, sessions: list[SessionSnapshot]
@@ -28,6 +34,9 @@ class SessionService:
         now = now_utc()
         self.repo.delete_missing_by_machine(str(machine_id), {snap.session_id for snap in sessions})
         for snap in sessions:
+            previous = self.repo.get(snap.session_id)
+            old_status: str | None = previous.status if previous else None
+
             session = Session(
                 session_id=snap.session_id,
                 machine_id=str(machine_id),
@@ -51,8 +60,23 @@ class SessionService:
             if self.classifier:
                 status = self.classifier.classify_session(session, snapshot_record)
                 self.repo.update_status(snap.session_id, status.value)
+                new_status = status.value
+            else:
+                new_status = "unknown"
 
             self.repo.append_snapshot(snapshot_record)
+
+            if (
+                self.assessor is not None
+                and should_assess_transition(old_status, new_status)
+                and should_assess_status(new_status)
+            ):
+                refreshed = self.repo.get(snap.session_id)
+                if refreshed is not None:
+                    latest_snapshot = self.repo.get_latest_snapshot(snap.session_id)
+                    assess_and_update_session(
+                        self.repo, self.assessor, refreshed, latest_snapshot, now_utc()
+                    )
 
     def upsert_from_command_result(
         self,
