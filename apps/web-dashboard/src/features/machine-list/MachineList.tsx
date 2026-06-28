@@ -74,7 +74,7 @@ export function MachineList() {
           <div className="space-y-1">
             {machine.sessions.map((session) => (
               <MachineListItem
-                key={session.session_id}
+                key={`${machine.machine_id}:${session.session_id}`}
                 machineId={machine.machine_id}
                 session={session}
               />

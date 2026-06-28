@@ -76,4 +76,7 @@ class QueryService:
             "preview": snapshot.preview if snapshot else "",
             "cwd": session.cwd,
             "last_seen_at": session.last_seen_at,
+            "ai_assessment": session.ai_assessment,
+            "ai_assessment_reason": session.ai_assessment_reason,
+            "ai_assessed_at": session.ai_assessed_at,
         }

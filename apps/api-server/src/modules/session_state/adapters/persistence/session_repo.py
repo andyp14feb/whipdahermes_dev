@@ -16,6 +16,31 @@ class SQLSessionRepo(ISessionRepo):
     def __init__(self, engine) -> None:
         self.engine = engine
         SQLModel.metadata.create_all(self.engine)
+        self._ensure_session_columns()
+
+    def _ensure_session_columns(self) -> None:
+        if self.engine.url.get_backend_name() != "sqlite":
+            return
+
+        session_table = SessionModel.__tablename__
+        required_columns = {
+            "ai_assessment": "TEXT",
+            "ai_assessment_reason": "TEXT",
+            "ai_assessed_at": "TEXT",
+        }
+
+        with self.engine.connect() as conn:
+            dbapi_conn = conn.connection.driver_connection
+            cursor = dbapi_conn.cursor()
+            cursor.execute(f"PRAGMA table_info({session_table})")
+            existing_columns = {row[1] for row in cursor.fetchall()}
+
+            for column_name, column_type in required_columns.items():
+                if column_name not in existing_columns:
+                    cursor.execute(
+                        f"ALTER TABLE {session_table} ADD COLUMN {column_name} {column_type}"
+                    )
+            dbapi_conn.commit()
 
     def upsert(self, session: Session) -> None:
         with SQLSession(self.engine) as db:

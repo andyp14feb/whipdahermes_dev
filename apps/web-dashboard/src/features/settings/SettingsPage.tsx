@@ -3,6 +3,10 @@ import { useSettingsStore } from "../../shared/state/settingsStore";
 import { Button } from "../../shared/ui/Button";
 import { Card } from "../../shared/ui/Card";
 
+interface ModelOption {
+  id: string;
+}
+
 interface SettingsPageProps {
   onClose: () => void;
 }
@@ -12,15 +16,26 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
     workerApiUrl,
     refreshIntervalMs,
     staleTimeoutSeconds,
+    aiProviderBaseUrl,
+    aiApiKey,
+    aiSelectedModel,
+    aiProviderName,
     isDirty,
     setWorkerApiUrl,
     setRefreshIntervalMs,
     setStaleTimeoutSeconds,
+    setAiProviderBaseUrl,
+    setAiApiKey,
+    setAiSelectedModel,
+    setAiProviderName,
     save,
     reset,
   } = useSettingsStore();
 
   const [copied, setCopied] = useState(false);
+  const [models, setModels] = useState<ModelOption[]>([]);
+  const [isFetchingModels, setIsFetchingModels] = useState(false);
+  const [modelsError, setModelsError] = useState<string | null>(null);
   const scriptRef = useRef<HTMLPreElement>(null);
 
   const workerScript = `#!/usr/bin/env bash
@@ -72,6 +87,27 @@ python3 src/main.py`;
     setTimeout(() => setCopied(false), 2000);
   }, [workerScript]);
 
+  const fetchModels = useCallback(async () => {
+    setIsFetchingModels(true);
+    setModelsError(null);
+    try {
+      const modelsUrl = new URL("/v1/models", aiProviderBaseUrl);
+      const response = await fetch(modelsUrl.toString(), {
+        headers: aiApiKey ? { Authorization: `Bearer ${aiApiKey}` } : undefined,
+      });
+      if (!response.ok) {
+        throw new Error("Unable to fetch models");
+      }
+      const payload = (await response.json()) as { data?: ModelOption[] };
+      setModels(payload.data ?? []);
+    } catch {
+      setModels([]);
+      setModelsError("Unable to fetch models. Check the provider URL and API key.");
+    } finally {
+      setIsFetchingModels(false);
+    }
+  }, [aiApiKey, aiProviderBaseUrl]);
+
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <header className="flex items-center justify-between">
@@ -106,6 +142,83 @@ python3 src/main.py`;
               <code>.env</code> and ensure the backend includes your dashboard origin
               in its CORS allowlist.
             </p>
+          </div>
+
+          <div>
+              <label htmlFor="ai-provider-name" className="block text-sm font-medium text-gray-700">
+                Provider Name
+              </label>
+              <input
+                id="ai-provider-name"
+                type="text"
+                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                value={aiProviderName}
+                onChange={(e) => setAiProviderName(e.target.value)}
+                placeholder="openai"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="ai-provider-base-url" className="block text-sm font-medium text-gray-700">
+                Provider Base URL
+              </label>
+
+            <input
+              id="ai-provider-base-url"
+              type="text"
+              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              value={aiProviderBaseUrl}
+              onChange={(e) => setAiProviderBaseUrl(e.target.value)}
+              placeholder="https://api.openai.com"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="ai-api-key" className="block text-sm font-medium text-gray-700">
+              API Key
+            </label>
+            <input
+              id="ai-api-key"
+              type="password"
+              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              value={aiApiKey}
+              onChange={(e) => setAiApiKey(e.target.value)}
+              placeholder="sk-..."
+            />
+          </div>
+
+          <div>
+            <label htmlFor="ai-selected-model" className="block text-sm font-medium text-gray-700">
+              Selected Model
+            </label>
+            <div className="mt-1 flex gap-3">
+              <select
+                id="ai-selected-model"
+                className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                value={aiSelectedModel}
+                onChange={(e) => setAiSelectedModel(e.target.value)}
+              >
+                <option value="">Select a model</option>
+                {models.map((model) => (
+                  <option key={model.id} value={model.id}>
+                    {model.id}
+                  </option>
+                ))}
+              </select>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={fetchModels}
+                disabled={isFetchingModels || !aiProviderBaseUrl}
+              >
+                {isFetchingModels ? "Loading..." : "Fetch Models"}
+              </Button>
+            </div>
+            {modelsError && (
+              <p role="alert" className="mt-1 text-xs text-red-600">
+                {modelsError}
+              </p>
+            )}
           </div>
 
           <div>

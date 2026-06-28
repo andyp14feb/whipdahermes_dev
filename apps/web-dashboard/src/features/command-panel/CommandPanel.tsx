@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { FreeFormInput } from "./FreeFormInput";
 import { TemplateActions } from "./TemplateActions";
 import { Card } from "../../shared/ui/Card";
-import { getCommandStatus } from "./commandPanel.api";
+import { getCommandStatus, sendCommand } from "./commandPanel.api";
 import type { CommandEntry } from "./commandPanel.types";
 import type { CommandResponse, CommandStatus } from "../../shared/types/contracts";
 
@@ -83,13 +83,27 @@ export function CommandPanel({ machineId, sessionId }: CommandPanelProps) {
     };
   }, []);
 
-  function handleCommandSent(commandId: string, payload: string) {
-    setCommands((prev) => [
-      { id: commandId, payload, state: "pending" as const },
-      ...prev,
-    ]);
-    startPolling(commandId);
-  }
+  const handleCommandSent = useCallback(
+    (commandId: string, payload: string) => {
+      setCommands((prev) => [
+        { id: commandId, payload, state: "pending" as const },
+        ...prev,
+      ]);
+      startPolling(commandId);
+    },
+    [startPolling],
+  );
+
+  const handleResend = useCallback(
+    (payload: string) => {
+      if (!machineId || !sessionId) return;
+      void (async () => {
+        const response = await sendCommand(machineId, sessionId, payload);
+        handleCommandSent(response.command_id, payload);
+      })();
+    },
+    [handleCommandSent, machineId, sessionId],
+  );
 
   if (!machineId || !sessionId) {
     return (
@@ -128,6 +142,13 @@ export function CommandPanel({ machineId, sessionId }: CommandPanelProps) {
               >
                 <span className="font-mono text-gray-800">{cmd.payload}</span>
                 <span className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
+                    onClick={() => handleResend(cmd.payload)}
+                  >
+                    Resend
+                  </button>
                   {cmd.state === "failed" && cmd.failureReason && (
                     <span className="text-xs text-red-600">
                       {cmd.failureReason}

@@ -8,8 +8,9 @@ interface MachineListItemProps {
 }
 
 export function MachineListItem({ machineId, session }: MachineListItemProps) {
-  const { selectedSessionId, setSelectedSession } = useAppStore();
-  const isSelected = selectedSessionId === session.session_id;
+  const { selectedMachineId, selectedSessionId, setSelectedSession } = useAppStore();
+  const isSelected =
+    selectedMachineId === machineId && selectedSessionId === session.session_id;
 
   return (
     <button

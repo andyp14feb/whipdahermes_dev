@@ -76,6 +76,41 @@ describe("CommandPanel", () => {
     });
   });
 
+  it("resends a history payload to the current active session", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const posts: Array<{ machine_id: string; session_id: string; payload: string }> = [];
+
+    server.use(
+      http.post("/command", async ({ request }) => {
+        const body = await request.json() as { machine_id: string; session_id: string; payload: string };
+        posts.push(body);
+        return HttpResponse.json({
+          command_id: `cmd-${posts.length}`,
+          state: "accepted",
+          target: `${body.machine_id}/${body.session_id}`,
+        });
+      }),
+    );
+
+    const { rerender } = renderWithClient(
+      <CommandPanel machineId="m-1" sessionId="s-1" />,
+    );
+    await user.click(screen.getByRole("button", { name: "yes" }));
+    rerender(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: 0 } } })}>
+        <CommandPanel machineId="m-2" sessionId="s-2" />
+      </QueryClientProvider>,
+    );
+    await user.click(screen.getByRole("button", { name: "Resend" }));
+
+    await waitFor(() => {
+      expect(posts).toEqual([
+        { machine_id: "m-1", session_id: "s-1", payload: "yes" },
+        { machine_id: "m-2", session_id: "s-2", payload: "yes" },
+      ]);
+    });
+  });
+
   it("shows failure reason in red when command fails", async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 

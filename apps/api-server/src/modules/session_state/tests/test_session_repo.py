@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import sqlite3
+from pathlib import Path
+
 from sqlalchemy.pool import StaticPool
 from sqlmodel import Session as SQLSession, SQLModel, create_engine, select
 
@@ -145,6 +148,44 @@ class TestSQLSessionRepo:
 
         repo.update_status("non-existent", "active")  # should not raise
 
+    def test_sqlite_repo_adds_missing_assessment_columns_for_existing_db(self) -> None:
+        db_path = Path("/tmp/hermes-verify-session-repo-migration.db")
+        db_path.unlink(missing_ok=True)
+        conn = sqlite3.connect(db_path)
+        conn.execute(
+            "CREATE TABLE sessions (session_id VARCHAR NOT NULL PRIMARY KEY, machine_id VARCHAR NOT NULL, label VARCHAR NOT NULL, status VARCHAR NOT NULL, seconds_since_change INTEGER NOT NULL, last_seen_at VARCHAR NOT NULL, cwd VARCHAR NOT NULL)"
+        )
+        conn.execute(
+            "INSERT INTO sessions VALUES ('s-1', 'vm-1', 'pane', 'active', 0, '2026-06-26T12:00:00Z', '/tmp')"
+        )
+        conn.commit()
+        conn.close()
+
+        engine = create_engine(f"sqlite:///{db_path}")
+        repo = SQLSessionRepo(engine)
+
+        fetched = repo.get("s-1")
+        assert fetched is not None
+        assert fetched.ai_assessment is None
+
+        repo.update_assessment(
+            "s-1",
+            "waiting",
+            "manual verification",
+            "2026-06-26T12:00:10Z",
+        )
+
+        updated = repo.get("s-1")
+        assert updated is not None
+        assert updated.ai_assessment == "waiting"
+
+        conn = sqlite3.connect(db_path)
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(sessions)")}
+        conn.close()
+        db_path.unlink(missing_ok=True)
+
+        assert {"ai_assessment", "ai_assessment_reason", "ai_assessed_at"} <= columns
+
     def test_get_latest_snapshot_returns_most_recent(self) -> None:
         repo = self.create_repo()
         s1 = Snapshot(
@@ -179,6 +220,23 @@ class TestSQLSessionRepo:
         result = repo.get_latest_snapshot("nonexistent")
 
         assert result is None
+
+    def test_ensure_session_columns_backfills_ai_assessment_columns(self) -> None:
+        engine = create_engine(
+            "sqlite://",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+        with engine.begin() as conn:
+            conn.exec_driver_sql(
+                "CREATE TABLE sessions (session_id TEXT PRIMARY KEY, machine_id TEXT NOT NULL, label TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'unknown', seconds_since_change INTEGER NOT NULL DEFAULT 0, last_seen_at TEXT NOT NULL, cwd TEXT NOT NULL DEFAULT '')"
+            )
+        repo = SQLSessionRepo(engine)
+
+        with SQLSession(repo.engine) as db:
+            rows = db.exec(select(Session)).all()
+
+        assert rows == []
 
     def test_delete_all_by_machine_removes_sessions_and_snapshots(self) -> None:
         repo = self.create_repo()
