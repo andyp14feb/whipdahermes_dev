@@ -57,7 +57,7 @@ export function FreeFormInput({
         <div className="flex-1">
           <Input
             type="textarea"
-            rows={4}
+            rows={2}
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}

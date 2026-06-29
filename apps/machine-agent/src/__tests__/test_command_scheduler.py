@@ -4,11 +4,15 @@ from config import AgentConfig
 from command.command_poller import Command, CommandPoller
 from command.command_reporter import CommandReporter
 from command.command_scheduler import CommandScheduler
-from command.executor import ExecutionResult
+from command.executor import AgentControlState, ExecutionResult
 
 
 def _config():
-    return AgentConfig(machine_id="vm-1", api_url="http://localhost:8000", interval=2, command_poll_interval=5)
+    control_state = AgentControlState.get_instance()
+    control_state.start_updates()
+    control_state.clear_shutdown()
+    control_state.clear_restart()
+    return AgentConfig(machine_id="vm-1", api_url="http://localhost:8000", interval=2, command_poll_interval=5, tmux_socket="/host-tmux/default")
 
 
 def test_run_once_no_commands():

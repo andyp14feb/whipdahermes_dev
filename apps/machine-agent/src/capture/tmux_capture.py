@@ -1,10 +1,12 @@
 import logging
 import subprocess
 
+from capture.tmux_command import build_tmux_command
+
 logger = logging.getLogger(__name__)
 
 
-def capture_panes() -> list[dict]:
+def capture_panes(tmux_socket: str | None = None) -> list[dict]:
     """Discover all tmux panes and capture their visible text.
 
     Returns a list of raw pane captures with target identifier, text, and cwd.
@@ -12,7 +14,10 @@ def capture_panes() -> list[dict]:
     """
     try:
         result = subprocess.run(
-            ["tmux", "list-panes", "-a", "-F", "#{session_name}:#{window_index}.#{pane_index}\t#{pane_current_path}"],
+            build_tmux_command(
+                ["list-panes", "-a", "-F", "#{session_name}:#{window_index}.#{pane_index}\t#{pane_current_path}"],
+                tmux_socket,
+            ),
             capture_output=True,
             text=True,
             check=True,
@@ -33,7 +38,7 @@ def capture_panes() -> list[dict]:
 
         try:
             capture = subprocess.run(
-                ["tmux", "capture-pane", "-t", target, "-p"],
+                build_tmux_command(["capture-pane", "-t", target, "-p"], tmux_socket),
                 capture_output=True,
                 text=True,
                 check=True,

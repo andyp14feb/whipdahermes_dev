@@ -10,6 +10,12 @@ class AgentConfig:
     api_url: str
     interval: int = 2
     command_poll_interval: int = 5
+    tmux_socket: str | None = None
+
+
+def _default_tmux_socket() -> str:
+    uid = os.getuid()
+    return f"/tmp/tmux-{uid}/default"
 
 
 def load_config() -> AgentConfig:
@@ -17,6 +23,7 @@ def load_config() -> AgentConfig:
     api_url = os.getenv("API_URL", "").strip()
     interval_raw = os.getenv("INTERVAL", "2").strip()
     command_poll_interval_raw = os.getenv("COMMAND_POLL_INTERVAL", "5").strip()
+    tmux_socket = os.getenv("TMUX_SOCKET", _default_tmux_socket()).strip() or None
 
     if not machine_id or not api_url:
         raise SystemExit("MACHINE_ID and API_URL must be set")
@@ -42,4 +49,5 @@ def load_config() -> AgentConfig:
         api_url=api_url,
         interval=interval,
         command_poll_interval=command_poll_interval,
+        tmux_socket=tmux_socket,
     )

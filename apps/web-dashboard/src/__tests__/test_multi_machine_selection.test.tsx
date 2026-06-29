@@ -101,9 +101,9 @@ beforeEach(() => {
   });
 
   server.use(
-    http.get("/machines", () => HttpResponse.json(multiMachineMachines)),
-    http.get("/sessions", () => HttpResponse.json(multiMachineSessions)),
-    http.get("/sessions/:machineId/:sessionId", ({ params }) => {
+    http.get("*/machines", () => HttpResponse.json(multiMachineMachines)),
+    http.get("*/sessions", () => HttpResponse.json(multiMachineSessions)),
+    http.get("*/sessions/:machineId/:sessionId", ({ params }) => {
       const { machineId, sessionId } = params as {
         machineId: string;
         sessionId: string;
@@ -118,6 +118,22 @@ beforeEach(() => {
         { error: { code: "NOT_FOUND", message: "Session not found" } },
         { status: 404 },
       );
+    }),
+    http.post("*/assess/:machineId/:sessionId", ({ params }) => {
+      const { machineId, sessionId } = params as {
+        machineId: string;
+        sessionId: string;
+      };
+      if (machineId === "machine-2" && sessionId === "session-c") {
+        return HttpResponse.json({
+          ...sessionCDetail,
+          ai_assessment: "needs attention",
+          ai_assessment_reason: "mocked assessment",
+        });
+      }
+      return HttpResponse.json({
+        error: { code: "NOT_FOUND", message: "Session not found" },
+      }, { status: 404 });
     }),
   );
 });

@@ -73,10 +73,30 @@ class SQLCommandRepo(ICommandRepo):
 def create_command_engine(url: str = "sqlite://", **engine_kwargs):
     if url == "sqlite://":
         default_kwargs = {
-            "connect_args": {"check_same_thread": False},
+            "connect_args": {
+                "check_same_thread": False,
+                "timeout": 10,
+                "isolation_level": None,
+            },
             "poolclass": StaticPool,
+        }
+    elif url.startswith("sqlite"):
+        default_kwargs = {
+            "connect_args": {
+                "check_same_thread": False,
+                "timeout": 10,
+                "isolation_level": None,
+            },
         }
     else:
         default_kwargs = {}
 
-    return create_engine(url, **(default_kwargs | engine_kwargs))
+    engine = create_engine(url, **(default_kwargs | engine_kwargs))
+
+    if url.startswith("sqlite"):
+        with engine.connect() as conn:
+            conn.exec_driver_sql("PRAGMA journal_mode=WAL")
+            conn.exec_driver_sql("PRAGMA busy_timeout=5000")
+            conn.commit()
+
+    return engine

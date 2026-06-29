@@ -1,13 +1,17 @@
 import logging
+import os
+import sys
 import threading
 
 from config import load_config
+from functools import partial
+
 from heartbeat.heartbeat_client import HeartbeatClient
 from heartbeat.scheduler import HeartbeatScheduler
 from capture.tmux_capture import capture_panes
 from parse.capture_parser import parse_sessions
 from command.command_poller import CommandPoller
-from command.executor import CommandExecutor
+from command.executor import AgentControlState, CommandExecutor
 from command.command_reporter import CommandReporter
 from command.command_scheduler import CommandScheduler
 
@@ -16,12 +20,17 @@ logger = logging.getLogger(__name__)
 
 def main() -> None:
     config = load_config()
+    control_state = AgentControlState.get_instance()
+    control_state.clear_shutdown()
+    control_state.clear_restart()
+    control_state.start_updates()
 
     client = HeartbeatClient(config.api_url)
-    heartbeat_scheduler = HeartbeatScheduler(config, client, capture_panes, parse_sessions)
+    capture_fn = partial(capture_panes, config.tmux_socket)
+    heartbeat_scheduler = HeartbeatScheduler(config, client, capture_fn, parse_sessions)
 
     poller = CommandPoller(config.api_url)
-    executor = CommandExecutor()
+    executor = CommandExecutor(config.tmux_socket)
     reporter = CommandReporter(config.api_url)
     command_scheduler = CommandScheduler(config, poller, executor, reporter)
 
@@ -35,6 +44,10 @@ def main() -> None:
         command_thread.join()
     except KeyboardInterrupt:
         logger.info("Shutting down...")
+
+    if control_state.restart_requested():
+        logger.info("Restarting machine agent process")
+        os.execv(sys.executable, [sys.executable, *sys.argv])
 
 
 if __name__ == "__main__":

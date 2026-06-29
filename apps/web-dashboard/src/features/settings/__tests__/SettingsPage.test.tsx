@@ -37,6 +37,7 @@ describe("SettingsPage", () => {
       updateTemplateAction: useSettingsStore.getState().updateTemplateAction,
       deleteTemplateAction: useSettingsStore.getState().deleteTemplateAction,
       upsertNudgeConfig: useSettingsStore.getState().upsertNudgeConfig,
+      setNudgeEnabled: useSettingsStore.getState().setNudgeEnabled,
       incrementNudgeCount: useSettingsStore.getState().incrementNudgeCount,
       clearNudgeConfig: useSettingsStore.getState().clearNudgeConfig,
       save: useSettingsStore.getState().save,

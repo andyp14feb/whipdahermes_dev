@@ -17,13 +17,13 @@ export function PreviewPanel({
   assessError,
 }: PreviewPanelProps) {
   return (
-    <Card className="p-4">
-      <div className="mb-3">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{session.label}</h2>
+    <Card className="flex min-h-0 flex-1 flex-col p-3">
+      <div className="mb-2">
+        <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{session.label}</h2>
         <p className="text-xs text-gray-400 dark:text-gray-500">{session.session_id}</p>
       </div>
 
-      <div className="mb-3 flex flex-wrap items-center gap-3">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
         <StatusSummary
           status={session.status}
           secondsSinceChange={session.seconds_since_change}
@@ -66,13 +66,15 @@ export function PreviewPanel({
         )}
       </div>
 
-      {session.preview ? (
-        <TerminalView output={session.preview} />
-      ) : (
-        <div className="rounded border border-gray-700 bg-[#1e1e1e] p-3">
-          <p className="font-mono text-sm text-gray-400">No preview available</p>
-        </div>
-      )}
+      <div className="min-h-0 flex-1">
+        {session.preview ? (
+          <TerminalView output={session.preview} />
+        ) : (
+          <div className="rounded border border-gray-700 bg-[#1e1e1e] p-3">
+            <p className="font-mono text-sm text-gray-400">No preview available</p>
+          </div>
+        )}
+      </div>
     </Card>
   );
 }

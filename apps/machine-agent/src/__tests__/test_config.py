@@ -80,6 +80,17 @@ def test_load_config_strips_whitespace(monkeypatch):
     assert config.api_url == "http://localhost:8000"
 
 
+def test_load_config_defaults_tmux_socket(monkeypatch):
+    monkeypatch.setenv("MACHINE_ID", "vm-1")
+    monkeypatch.setenv("API_URL", "http://localhost:8000")
+    monkeypatch.delenv("TMUX_SOCKET", raising=False)
+
+    config = load_config()
+
+    assert config.tmux_socket == f"/tmp/tmux-{os.getuid()}/default"
+
+
 def test_agent_config_dataclass_defaults():
     config = AgentConfig(machine_id="vm-1", api_url="http://localhost:8000")
     assert config.interval == 2
+    assert config.tmux_socket is None

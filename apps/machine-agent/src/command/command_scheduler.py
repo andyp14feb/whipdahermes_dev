@@ -3,6 +3,8 @@ from __future__ import annotations
 import logging
 import time
 
+from command.executor import AgentControlState
+
 logger = logging.getLogger(__name__)
 
 
@@ -46,7 +48,8 @@ class CommandScheduler:
             self.config.api_url,
             self.config.command_poll_interval,
         )
-        while True:
+        control_state = AgentControlState.get_instance()
+        while not control_state.shutdown_requested() and not control_state.restart_requested():
             try:
                 self.run_once()
                 time.sleep(self.config.command_poll_interval)

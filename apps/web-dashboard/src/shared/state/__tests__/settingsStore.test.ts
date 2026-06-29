@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+  DEFAULT_NUDGE_PROMPT,
   DEFAULT_TEMPLATE_ACTIONS,
   STORAGE_KEY,
   useSettingsStore,
@@ -38,6 +39,24 @@ describe("settingsStore", () => {
 
     expect(useSettingsStore.getState().themeMode).toBe("dark");
     expect(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}").themeMode).toBe("dark");
+  });
+
+  it("persists templates immediately while preserving default templates", () => {
+    useSettingsStore.getState().addTemplateAction({ label: "status", payload: "status please" });
+
+    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
+    expect(stored.templateActions.some((action: { id: string }) => action.id === "yes")).toBe(true);
+    expect(stored.templateActions.some((action: { label: string }) => action.label === "status")).toBe(true);
+  });
+
+  it("toggles nudge config with a default prompt", () => {
+    useSettingsStore.getState().setNudgeEnabled("machine-1:A", true);
+
+    expect(useSettingsStore.getState().nudgesBySession["machine-1:A"]).toMatchObject({
+      enabled: true,
+      customPrompt: DEFAULT_NUDGE_PROMPT,
+    });
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}").nudgesBySession["machine-1:A"].enabled).toBe(true);
   });
 
   it("stops nudging after configured count", () => {

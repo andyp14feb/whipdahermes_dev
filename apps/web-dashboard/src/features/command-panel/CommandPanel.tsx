@@ -14,6 +14,13 @@ interface CommandPanelProps {
 const POLL_INTERVAL_MS = 2000;
 const TERMINAL_STATES: CommandStatus[] = ["delivered", "failed"];
 
+const MACHINE_CONTROL_ACTIONS = [
+  { label: "Start updates", payload: "__whipai__:resume", confirmation: null },
+  { label: "Stop updates", payload: "__whipai__:pause", confirmation: null },
+  { label: "Restart service", payload: "__whipai__:restart", confirmation: "Restart the machine-agent service?" },
+  { label: "Shutdown service", payload: "__whipai__:shutdown", confirmation: "Shutdown the machine-agent service?" },
+] as const;
+
 const stateColor: Record<CommandStatus, string> = {
   pending: "bg-yellow-100 text-yellow-800",
   accepted: "bg-blue-100 text-blue-800",
@@ -23,6 +30,9 @@ const stateColor: Record<CommandStatus, string> = {
 
 export function CommandPanel({ machineId, sessionId }: CommandPanelProps) {
   const [commands, setCommands] = useState<CommandEntry[]>([]);
+  const [canSendControl, setCanSendControl] = useState(true);
+  const [machineControlMessage, setMachineControlMessage] = useState<string | null>(null);
+  const [machineControlError, setMachineControlError] = useState<string | null>(null);
   const pollTimers = useRef<Map<string, ReturnType<typeof setInterval>>>(
     new Map(),
   );
@@ -107,15 +117,36 @@ export function CommandPanel({ machineId, sessionId }: CommandPanelProps) {
 
   if (!machineId || !sessionId) {
     return (
-      <Card className="flex items-center justify-center p-6">
+      <Card className="flex items-center justify-center p-3">
         <p className="text-sm text-gray-400">No session selected</p>
       </Card>
     );
   }
 
+  const handleMachineControl = (payload: string, label: string) => {
+    if (!canSendControl) {
+      setMachineControlError("A control command is already in progress");
+      return;
+    }
+    setCanSendControl(false);
+    setMachineControlMessage(null);
+    setMachineControlError(null);
+    void (async () => {
+      try {
+        const response = await sendCommand(machineId, sessionId, payload);
+        handleCommandSent(response.command_id, payload);
+        setMachineControlMessage(`${label} command sent successfully`);
+      } catch {
+        setMachineControlError(`Failed to send ${label.toLowerCase()} command`);
+      } finally {
+        setTimeout(() => { setCanSendControl(true); }, 2000);
+      }
+    })();
+  };
+
   return (
-    <Card className="p-4">
-      <h2 className="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100">
+    <Card className="p-3">
+      <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-200">
         Command Actions
       </h2>
       <FreeFormInput
@@ -123,7 +154,7 @@ export function CommandPanel({ machineId, sessionId }: CommandPanelProps) {
         sessionId={sessionId}
         onCommandSent={handleCommandSent}
       />
-      <div className="mt-4">
+      <div className="mt-2">
         <TemplateActions
           machineId={machineId}
           sessionId={sessionId}
@@ -131,20 +162,53 @@ export function CommandPanel({ machineId, sessionId }: CommandPanelProps) {
         />
       </div>
 
+      <div className="mt-3 border-t border-gray-200 pt-2 dark:border-gray-700">
+        <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">
+          Machine-Agent Control
+        </h3>
+        <div className="flex flex-wrap gap-1.5">
+          {MACHINE_CONTROL_ACTIONS.map((action) => {
+            const handleClick = () => {
+              if (action.confirmation) {
+                if (!window.confirm(action.confirmation)) return;
+              }
+              handleMachineControl(action.payload, action.label);
+            };
+            return (
+              <button
+                key={action.payload}
+                type="button"
+                disabled={!canSendControl}
+                onClick={handleClick}
+                className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-100 disabled:opacity-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
+              >
+                {action.label}
+              </button>
+            );
+          })}
+        </div>
+        {machineControlMessage && (
+          <p className="mt-1 text-xs text-green-600">{machineControlMessage}</p>
+        )}
+        {machineControlError && (
+          <p className="mt-1 text-xs text-red-600">{machineControlError}</p>
+        )}
+      </div>
+
       {commands.length > 0 && (
-        <div className="mt-4 space-y-2">
-          <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Command History</h3>
+        <div className="mt-3 space-y-1.5">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">Command History</h3>
           <ul className="space-y-1">
             {commands.map((cmd) => (
               <li
                 key={cmd.id}
-                className="flex items-center justify-between gap-2 rounded border border-gray-100 px-3 py-2 text-sm dark:border-gray-800"
+                className="flex items-center justify-between gap-2 rounded border border-gray-100 px-2 py-1.5 text-xs dark:border-gray-800"
               >
-                <span className="font-mono text-gray-800 dark:text-gray-100">{cmd.payload}</span>
-                <span className="flex items-center gap-2">
+                <span className="truncate font-mono text-gray-800 dark:text-gray-100">{cmd.payload}</span>
+                <span className="flex shrink-0 items-center gap-1.5">
                   <button
                     type="button"
-                    className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                    className="rounded border border-gray-300 px-1.5 py-0.5 text-xs text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
                     onClick={() => handleResend(cmd.payload)}
                   >
                     Resend
@@ -155,7 +219,7 @@ export function CommandPanel({ machineId, sessionId }: CommandPanelProps) {
                     </span>
                   )}
                   <span
-                    className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${stateColor[cmd.state]}`}
+                    className={`inline-block rounded-full px-1.5 py-0.5 text-xs font-medium ${stateColor[cmd.state]}`}
                   >
                     {cmd.state}
                   </span>

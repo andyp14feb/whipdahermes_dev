@@ -152,4 +152,53 @@ describe("CommandPanel", () => {
       expect(screen.getByText("failed")).toBeInTheDocument();
     });
   });
+
+  it("sends machine-agent control command without confirmation when none configured", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+
+    server.use(
+      http.post("/command", () =>
+        HttpResponse.json({
+          command_id: "cmd-start",
+          state: "accepted",
+          target: "m-1/s-1",
+        }),
+      ),
+    );
+
+    renderWithClient(
+      <CommandPanel machineId="m-1" sessionId="s-1" />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Start updates" }));
+
+    expect(await screen.findByText("Start updates command sent successfully")).toBeInTheDocument();
+    expect(screen.getByText("pending")).toBeInTheDocument();
+  });
+
+  it("cancels restart action when confirmation is rejected", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+
+    server.use(
+      http.post("/command", () =>
+        HttpResponse.json({
+          command_id: "cmd-restart",
+          state: "accepted",
+          target: "m-1/s-1",
+        }),
+      ),
+    );
+
+    renderWithClient(
+      <CommandPanel machineId="m-1" sessionId="s-1" />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Restart service" }));
+
+    expect(confirmSpy).toHaveBeenCalledWith("Restart the machine-agent service?");
+    expect(screen.queryByText("pending")).not.toBeInTheDocument();
+    confirmSpy.mockRestore();
+  });
 });
+

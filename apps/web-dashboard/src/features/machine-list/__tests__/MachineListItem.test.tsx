@@ -36,11 +36,21 @@ describe("MachineListItem", () => {
     expect(unselected).not.toHaveClass("bg-blue-50");
   });
 
-  it("opens nudge modal and validates inputs", async () => {
+  it("toggles nudge without opening config modal", async () => {
     const user = userEvent.setup();
     render(<MachineListItem machineId="machine-1" session={session} />);
 
     await user.click(screen.getByLabelText("Nudge this"));
+
+    expect(useSettingsStore.getState().nudgesBySession["machine-1:A"]?.enabled).toBe(true);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("opens nudge modal from configure and validates inputs", async () => {
+    const user = userEvent.setup();
+    render(<MachineListItem machineId="machine-1" session={session} />);
+
+    await user.click(screen.getByRole("button", { name: "Configure" }));
     await user.clear(screen.getByLabelText("Stable-time threshold (seconds)"));
     await user.clear(screen.getByLabelText("Max nudges"));
     await user.click(screen.getByRole("button", { name: "Save" }));

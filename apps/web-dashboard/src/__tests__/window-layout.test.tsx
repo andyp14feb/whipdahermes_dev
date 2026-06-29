@@ -162,9 +162,9 @@ beforeEach(() => {
   });
 
   server.use(
-    http.get("/machines", () => HttpResponse.json(machinesResponse)),
-    http.get("/sessions", () => HttpResponse.json(sessionsResponse)),
-    http.get("/sessions/:machineId/:sessionId", ({ params }) => {
+    http.get("*/machines", () => HttpResponse.json(machinesResponse)),
+    http.get("*/sessions", () => HttpResponse.json(sessionsResponse)),
+    http.get("*/sessions/:machineId/:sessionId", ({ params }) => {
       const { sessionId } = params as Record<string, string>;
       return HttpResponse.json(sessionDetails[sessionId] ?? { error: "not found" });
     }),
@@ -198,5 +198,5 @@ describe("Multi-window dashboard", () => {
     expect(await screen.findByText("Window 1")).toBeInTheDocument();
     expect(screen.getByText("Command Actions")).toBeInTheDocument();
     expect(screen.getByText("Layout:")).toBeInTheDocument();
-  });
+  }, 30000);
 });

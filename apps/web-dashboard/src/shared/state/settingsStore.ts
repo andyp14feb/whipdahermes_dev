@@ -10,7 +10,10 @@ export interface NudgeConfig {
   stableTimeSeconds: number;
   maxNudges: number;
   nudgesSent: number;
+  customPrompt: string;
 }
+
+export const DEFAULT_NUDGE_PROMPT = "Please continue if you are waiting for input.";
 
 interface Settings {
   workerApiUrl: string;
@@ -38,7 +41,8 @@ interface SettingsState extends Settings {
   addTemplateAction: (template: Omit<TemplateAction, "id">) => void;
   updateTemplateAction: (id: string, template: Omit<TemplateAction, "id">) => void;
   deleteTemplateAction: (id: string) => void;
-  upsertNudgeConfig: (sessionKey: string, config: Omit<NudgeConfig, "nudgesSent"> & { nudgesSent?: number }) => void;
+  upsertNudgeConfig: (sessionKey: string, config: Omit<NudgeConfig, "nudgesSent" | "customPrompt"> & { nudgesSent?: number; customPrompt?: string }) => void;
+  setNudgeEnabled: (sessionKey: string, enabled: boolean) => void;
   incrementNudgeCount: (sessionKey: string) => void;
   clearNudgeConfig: (sessionKey: string) => void;
   save: () => void;
@@ -67,17 +71,23 @@ const defaultSettings: Settings = {
 };
 
 function normalizeTemplateActions(actions: Partial<TemplateAction>[] | undefined) {
-  if (!actions || actions.length === 0) {
-    return DEFAULT_TEMPLATE_ACTIONS;
-  }
-
-  return actions
+  const validActions = (actions ?? [])
     .filter((action): action is TemplateAction =>
       typeof action?.id === "string" &&
       typeof action?.label === "string" &&
       typeof action?.payload === "string",
     )
     .map((action) => ({ ...action }));
+  const byId = new Map<string, TemplateAction>();
+
+  for (const action of DEFAULT_TEMPLATE_ACTIONS) {
+    byId.set(action.id, { ...action });
+  }
+  for (const action of validActions) {
+    byId.set(action.id, action);
+  }
+
+  return Array.from(byId.values());
 }
 
 function normalizeNudges(
@@ -101,6 +111,7 @@ function normalizeNudges(
           stableTimeSeconds: config.stableTimeSeconds!,
           maxNudges: config.maxNudges!,
           nudgesSent: config.nudgesSent ?? 0,
+          customPrompt: typeof config.customPrompt === "string" ? config.customPrompt : DEFAULT_NUDGE_PROMPT,
         },
       ]),
   );
@@ -134,11 +145,42 @@ function loadFromStorage(): Settings {
       };
     }
   } catch {}
-  return defaultSettings;
+  return {
+    ...defaultSettings,
+    templateActions: normalizeTemplateActions(defaultSettings.templateActions),
+    nudgesBySession: {},
+  };
 }
 
 function withDirtyFlag<T extends object>(patch: T): T & { isDirty: true } {
   return { ...patch, isDirty: true };
+}
+
+function persistCurrentSettings(get: () => SettingsState) {
+  const {
+    workerApiUrl,
+    refreshIntervalMs,
+    staleTimeoutSeconds,
+    aiProviderBaseUrl,
+    aiApiKey,
+    aiSelectedModel,
+    aiProviderName,
+    themeMode,
+    templateActions,
+    nudgesBySession,
+  } = get();
+  persistSettings({
+    workerApiUrl,
+    refreshIntervalMs,
+    staleTimeoutSeconds,
+    aiProviderBaseUrl,
+    aiApiKey,
+    aiSelectedModel,
+    aiProviderName,
+    themeMode,
+    templateActions,
+    nudgesBySession,
+  });
 }
 
 const defaults = loadFromStorage();
@@ -159,22 +201,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   setAiProviderName: (aiProviderName) =>
     set(withDirtyFlag({ aiProviderName })),
   setThemeMode: (themeMode) => {
-    const nextSettings = { ...get(), themeMode };
-    persistSettings({
-      workerApiUrl: nextSettings.workerApiUrl,
-      refreshIntervalMs: nextSettings.refreshIntervalMs,
-      staleTimeoutSeconds: nextSettings.staleTimeoutSeconds,
-      aiProviderBaseUrl: nextSettings.aiProviderBaseUrl,
-      aiApiKey: nextSettings.aiApiKey,
-      aiSelectedModel: nextSettings.aiSelectedModel,
-      aiProviderName: nextSettings.aiProviderName,
-      themeMode: nextSettings.themeMode,
-      templateActions: nextSettings.templateActions,
-      nudgesBySession: nextSettings.nudgesBySession,
-    });
     set({ themeMode });
+    persistCurrentSettings(get);
   },
-  addTemplateAction: (template) =>
+  addTemplateAction: (template) => {
     set((state) => {
       const templateActions = [
         ...state.templateActions,
@@ -184,22 +214,28 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         },
       ];
       return withDirtyFlag({ templateActions });
-    }),
-  updateTemplateAction: (id, template) =>
+    });
+    persistCurrentSettings(get);
+  },
+  updateTemplateAction: (id, template) => {
     set((state) =>
       withDirtyFlag({
         templateActions: state.templateActions.map((action) =>
           action.id === id ? { id, ...template } : action,
         ),
       }),
-    ),
-  deleteTemplateAction: (id) =>
+    );
+    persistCurrentSettings(get);
+  },
+  deleteTemplateAction: (id) => {
     set((state) =>
       withDirtyFlag({
         templateActions: state.templateActions.filter((action) => action.id !== id),
       }),
-    ),
-  upsertNudgeConfig: (sessionKey, config) =>
+    );
+    persistCurrentSettings(get);
+  },
+  upsertNudgeConfig: (sessionKey, config) => {
     set((state) => {
       const current = state.nudgesBySession[sessionKey];
       return withDirtyFlag({
@@ -210,11 +246,35 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
             stableTimeSeconds: config.stableTimeSeconds,
             maxNudges: config.maxNudges,
             nudgesSent: config.nudgesSent ?? current?.nudgesSent ?? 0,
+            customPrompt: config.customPrompt ?? current?.customPrompt ?? DEFAULT_NUDGE_PROMPT,
           },
         },
       });
-    }),
-  incrementNudgeCount: (sessionKey) =>
+    });
+    persistCurrentSettings(get);
+  },
+  setNudgeEnabled: (sessionKey, enabled) => {
+    set((state) => {
+      const current = state.nudgesBySession[sessionKey];
+      const nextConfig = current
+        ? { ...current, enabled }
+        : {
+            enabled,
+            stableTimeSeconds: 60,
+            maxNudges: 3,
+            nudgesSent: 0,
+            customPrompt: DEFAULT_NUDGE_PROMPT,
+          };
+      return withDirtyFlag({
+        nudgesBySession: {
+          ...state.nudgesBySession,
+          [sessionKey]: nextConfig,
+        },
+      });
+    });
+    persistCurrentSettings(get);
+  },
+  incrementNudgeCount: (sessionKey) => {
     set((state) => {
       const current = state.nudgesBySession[sessionKey];
       if (!current) {
@@ -231,13 +291,17 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           },
         },
       });
-    }),
-  clearNudgeConfig: (sessionKey) =>
+    });
+    persistCurrentSettings(get);
+  },
+  clearNudgeConfig: (sessionKey) => {
     set((state) => {
       const next = { ...state.nudgesBySession };
       delete next[sessionKey];
       return withDirtyFlag({ nudgesBySession: next });
-    }),
+    });
+    persistCurrentSettings(get);
+  },
   save: () => {
     const {
       workerApiUrl,

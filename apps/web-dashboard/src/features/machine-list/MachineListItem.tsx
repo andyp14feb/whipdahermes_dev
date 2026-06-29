@@ -2,7 +2,7 @@ import { useState } from "react";
 import { StatusSummary } from "../status-summary/StatusSummary";
 import type { SessionListItem } from "../../shared/types/contracts";
 import { useAppStore } from "../../shared/state/appStore";
-import { useSettingsStore } from "../../shared/state/settingsStore";
+import { DEFAULT_NUDGE_PROMPT, useSettingsStore } from "../../shared/state/settingsStore";
 import { Button } from "../../shared/ui/Button";
 import { NudgeConfigModal } from "./NudgeConfigModal";
 
@@ -17,12 +17,14 @@ export function MachineListItem({ machineId, session }: MachineListItemProps) {
   const [validationError, setValidationError] = useState<string | null>(null);
   const sessionKey = `${machineId}:${session.session_id}`;
   const nudgeConfig = useSettingsStore((s) => s.nudgesBySession[sessionKey]);
+  const setNudgeEnabled = useSettingsStore((s) => s.setNudgeEnabled);
+  const upsertNudgeConfig = useSettingsStore((s) => s.upsertNudgeConfig);
+  const incrementNudgeCount = useSettingsStore((s) => s.incrementNudgeCount);
   const [stableTimeSeconds, setStableTimeSeconds] = useState(
     String(nudgeConfig?.stableTimeSeconds ?? 60),
   );
   const [maxNudges, setMaxNudges] = useState(String(nudgeConfig?.maxNudges ?? 3));
-  const upsertNudgeConfig = useSettingsStore((s) => s.upsertNudgeConfig);
-  const incrementNudgeCount = useSettingsStore((s) => s.incrementNudgeCount);
+  const [customPrompt, setCustomPrompt] = useState(nudgeConfig?.customPrompt ?? "");
   const isSelected =
     selectedMachineId === machineId && selectedSessionId === session.session_id;
 
@@ -33,7 +35,12 @@ export function MachineListItem({ machineId, session }: MachineListItemProps) {
       setValidationError("Stable time and max nudges must be positive integers.");
       return;
     }
-    upsertNudgeConfig(sessionKey, { enabled: true, stableTimeSeconds: stable, maxNudges: max });
+    upsertNudgeConfig(sessionKey, {
+      enabled: nudgeConfig?.enabled ?? true,
+      stableTimeSeconds: stable,
+      maxNudges: max,
+      customPrompt: customPrompt.trim() || DEFAULT_NUDGE_PROMPT,
+    });
     setIsModalOpen(false);
     setValidationError(null);
   };
@@ -51,14 +58,15 @@ export function MachineListItem({ machineId, session }: MachineListItemProps) {
         </div>
       </button>
       <div className="mt-2 flex items-center gap-2 px-3">
-        <label className="flex items-center gap-1 text-xs text-gray-700 dark:text-gray-300">
-          <input
-            type="checkbox"
-            checked={nudgeConfig?.enabled ?? false}
-            onChange={() => setIsModalOpen(true)}
-          />
-          Nudge this
-        </label>
+          <label className="flex items-center gap-1 text-xs text-gray-700 dark:text-gray-300">
+            <input
+              type="checkbox"
+              checked={nudgeConfig?.enabled ?? false}
+              onChange={(event) => setNudgeEnabled(sessionKey, event.target.checked)}
+            />
+            Nudge this
+          </label>
+
         <Button type="button" variant="secondary" className="px-2 py-1 text-xs" onClick={() => setIsModalOpen(true)}>
           Configure
         </Button>
@@ -79,9 +87,11 @@ export function MachineListItem({ machineId, session }: MachineListItemProps) {
         isOpen={isModalOpen}
         stableTimeSeconds={stableTimeSeconds}
         maxNudges={maxNudges}
+        customPrompt={customPrompt}
         validationError={validationError}
         onStableTimeSecondsChange={setStableTimeSeconds}
         onMaxNudgesChange={setMaxNudges}
+        onCustomPromptChange={setCustomPrompt}
         onClose={() => setIsModalOpen(false)}
         onSave={handleSave}
       />

@@ -4,6 +4,7 @@ import logging
 import time
 
 from capture.tmux_capture import capture_panes
+from command.executor import AgentControlState
 from parse.capture_parser import CaptureState, parse_sessions
 
 logger = logging.getLogger(__name__)
@@ -18,6 +19,9 @@ class HeartbeatScheduler:
         self.state = CaptureState()
 
     def run_once(self) -> bool:
+        if not AgentControlState.get_instance().updates_enabled():
+            logger.info("Heartbeat updates paused for machine_id=%s", self.config.machine_id)
+            return True
         panes = self.capture_fn()
         snapshots, self.state = self.parse_fn(panes, self.state, interval=self.config.interval)
         success = self.client.post_heartbeat(self.config.machine_id, snapshots)
@@ -32,7 +36,8 @@ class HeartbeatScheduler:
             self.config.api_url,
             self.config.interval,
         )
-        while True:
+        control_state = AgentControlState.get_instance()
+        while not control_state.shutdown_requested() and not control_state.restart_requested():
             try:
                 self.run_once()
                 time.sleep(self.config.interval)

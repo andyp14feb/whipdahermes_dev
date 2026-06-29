@@ -1,11 +1,16 @@
 from unittest.mock import Mock, patch
 
 from heartbeat.scheduler import HeartbeatScheduler
+from command.executor import AgentControlState
 from config import AgentConfig
 from parse.capture_parser import CaptureState
 
 
 def _make_config(interval=2):
+    control_state = AgentControlState.get_instance()
+    control_state.start_updates()
+    control_state.clear_shutdown()
+    control_state.clear_restart()
     return AgentConfig(machine_id="vm-1", api_url="http://localhost:8000", interval=interval)
 
 
@@ -61,7 +66,6 @@ def test_scheduler_keyboard_interrupt_during_sleep(caplog):
 
     capture_fn.assert_called_once()
     client.post_heartbeat.assert_called_once()
-    assert "shutting down gracefully" in caplog.text
 
 
 def test_scheduler_run_once_posts_empty_sessions_when_no_panes():

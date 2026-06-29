@@ -101,8 +101,9 @@ function ThemeToggle() {
 
 function NavBar({ current, onNavigate }: { current: "dashboard" | "settings"; onNavigate: (view: "dashboard" | "settings") => void }) {
   return (
-    <nav className="mb-6 flex items-center gap-4 border-b border-gray-200 pb-4 dark:border-gray-800">
-      <h1 className="mr-auto text-2xl font-bold text-gray-900 dark:text-gray-100">WhipAI</h1>
+      <nav className="mb-4 flex items-center gap-3 border-b border-gray-200 pb-3 dark:border-gray-800">
+        <h1 className="mr-auto text-xl font-bold text-gray-900 dark:text-gray-100">WhipAI</h1>
+
       <button
         type="button"
         className={`text-sm font-medium ${
@@ -132,8 +133,8 @@ function NavBar({ current, onNavigate }: { current: "dashboard" | "settings"; on
 
 const GRID_CLASSES: Record<number, string> = {
   1: "grid-cols-1",
-  2: "grid-cols-1 md:grid-cols-2",
-  4: "grid-cols-1 md:grid-cols-2 xl:grid-cols-2",
+  2: "grid-cols-1 2xl:grid-cols-2",
+  4: "grid-cols-1 lg:grid-cols-2",
 };
 
 function Dashboard() {
@@ -144,7 +145,7 @@ function Dashboard() {
 
   return (
     <>
-      <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
+      <header className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-gray-500 dark:text-gray-400">
           Monitor machines and tmux sessions from one live view.
         </p>
@@ -154,12 +155,12 @@ function Dashboard() {
       <ConnectionBanner />
 
       <ErrorBoundary>
-        <div className="grid gap-4 lg:grid-cols-[360px_1fr]">
-          <aside className="min-h-[32rem]">
+        <div className="grid gap-3 lg:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[340px_minmax(0,1fr)]">
+          <aside className="min-h-[30rem]">
             <MachineList />
           </aside>
-          <section className="min-h-[32rem]">
-            <div className={`grid gap-4 ${GRID_CLASSES[layoutCount]}`}>
+          <section className="min-h-[30rem]">
+            <div className={`grid gap-3 ${GRID_CLASSES[layoutCount]}`}>
               {visibleWindows.map((_, i) => (
                 <SessionWindow key={i} index={i} />
               ))}
