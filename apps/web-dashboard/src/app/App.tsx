@@ -1,4 +1,4 @@
-import { Component, type ReactNode, useState } from "react";
+import { Component, type ReactNode, useEffect, useState } from "react";
 import {
   QueryCache,
   QueryClient,
@@ -13,7 +13,7 @@ import { useSettingsStore } from "../shared/state/settingsStore";
 import { Button } from "../shared/ui/Button";
 import { formatErrorMessage } from "../shared/api-client/errorEnvelope";
 
-const queryClient = new QueryClient({
+export const queryClient = new QueryClient({
   queryCache: new QueryCache({
     onError: (error) => {
       useAppStore
@@ -133,7 +133,7 @@ function NavBar({ current, onNavigate }: { current: "dashboard" | "settings"; on
 const GRID_CLASSES: Record<number, string> = {
   1: "grid-cols-1",
   2: "grid-cols-1 md:grid-cols-2",
-  4: "grid-cols-1 md:grid-cols-2 xl:grid-cols-4",
+  4: "grid-cols-1 md:grid-cols-2 xl:grid-cols-2",
 };
 
 function Dashboard() {
@@ -175,10 +175,15 @@ export function App() {
   const [view, setView] = useState<"dashboard" | "settings">("dashboard");
   const themeMode = useSettingsStore((s) => s.themeMode);
 
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", themeMode === "dark");
+    document.documentElement.style.colorScheme = themeMode;
+  }, [themeMode]);
+
   return (
     <QueryClientProvider client={queryClient}>
-      <main className={`min-h-screen bg-gray-100 p-6 dark:bg-gray-950 ${themeMode === "dark" ? "dark" : ""}`}>
-        <div className="mx-auto max-w-7xl">
+      <main className="min-h-screen w-full bg-gray-100 p-4 text-gray-900 dark:bg-gray-950 dark:text-gray-100 sm:p-6">
+        <div className="w-full min-w-0">
           <NavBar current={view} onNavigate={setView} />
           {view === "dashboard" && <Dashboard />}
           {view === "settings" && (

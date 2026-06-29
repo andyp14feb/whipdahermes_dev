@@ -70,12 +70,36 @@ function renderWithClient(ui: ReactNode) {
   );
 }
 
+function selectSessionInFirstWindow() {
+  useAppStore.setState({
+    selectedMachineId: "machine-1",
+    selectedSessionId: "session-1",
+    connectionError: null,
+    windows: [
+      { machineId: "machine-1", sessionId: "session-1" },
+      { machineId: null, sessionId: null },
+      { machineId: null, sessionId: null },
+      { machineId: null, sessionId: null },
+    ],
+    activeWindowIndex: 0,
+    layoutCount: 1,
+  });
+}
+
 beforeEach(() => {
   useAppStore.setState({
     selectedMachineId: null,
     selectedSessionId: null,
     connectionError: null,
     connectionFailureCount: 0,
+    windows: [
+      { machineId: null, sessionId: null },
+      { machineId: null, sessionId: null },
+      { machineId: null, sessionId: null },
+      { machineId: null, sessionId: null },
+    ],
+    activeWindowIndex: 0,
+    layoutCount: 1,
   });
   localStorage.removeItem("whipai-settings");
   vi.restoreAllMocks();
@@ -92,6 +116,10 @@ beforeEach(() => {
 describe("MachineList", () => {
   it("renders machines and sessions from API data", async () => {
     renderWithClient(<MachineList />);
+
+    await waitFor(() => {
+      expect(screen.queryByText("Loading machines...")).not.toBeInTheDocument();
+    });
 
     expect(await screen.findByText("Alpha")).toBeInTheDocument();
     expect(screen.getByText("Frontend Agent")).toBeInTheDocument();
@@ -176,15 +204,12 @@ describe("Polling refresh behavior", () => {
   it(
     "keeps cached SessionPreview data visible after polling failure",
     async () => {
-      useAppStore.setState({
-        selectedMachineId: "machine-1",
-        selectedSessionId: "session-1",
-        connectionError: null,
-      });
+      selectSessionInFirstWindow();
 
       render(<App />);
 
-      expect((await screen.findAllByText("Frontend Agent")).length).toBeGreaterThanOrEqual(1);
+      expect(await screen.findByText("machine-1/session-1")).toBeInTheDocument();
+      expect(await screen.findByText("Frontend Agent")).toBeInTheDocument();
       expect(await screen.findByText("/workspace/frontend")).toBeInTheDocument();
 
       server.use(
@@ -218,11 +243,7 @@ describe("Polling refresh behavior", () => {
 
 describe("CommandPanel integration", () => {
   it("shows CommandPanel when session is selected", async () => {
-    useAppStore.setState({
-      selectedMachineId: "machine-1",
-      selectedSessionId: "session-1",
-      connectionError: null,
-    });
+    selectSessionInFirstWindow();
 
     server.use(
       http.post("/command", () =>
@@ -268,11 +289,7 @@ describe("CommandPanel integration", () => {
 
   it("sends POST /command and shows pending state on template click", async () => {
     const user = userEvent.setup();
-    useAppStore.setState({
-      selectedMachineId: "machine-1",
-      selectedSessionId: "session-1",
-      connectionError: null,
-    });
+    selectSessionInFirstWindow();
 
     server.use(
       http.post("/command", () =>

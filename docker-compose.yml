@@ -27,7 +27,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      VITE_API_BASE_URL: http://localhost:8000
+      API_PROXY_TARGET: http://api-server:8000
     depends_on:
       api-server:
         condition: service_healthy
@@ -42,6 +42,9 @@ services:
       API_URL: http://api-server:8000
       INTERVAL: 2
       COMMAND_POLL_INTERVAL: 5
+      TMUX_SOCKET: /host-tmux/default
+    volumes:
+      - /tmp/tmux-1000:/host-tmux
     depends_on:
       api-server:
         condition: service_healthy

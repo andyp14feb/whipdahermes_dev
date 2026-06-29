@@ -19,8 +19,8 @@ export function PreviewPanel({
   return (
     <Card className="p-4">
       <div className="mb-3">
-        <h2 className="text-lg font-semibold text-gray-900">{session.label}</h2>
-        <p className="text-xs text-gray-400">{session.session_id}</p>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{session.label}</h2>
+        <p className="text-xs text-gray-400 dark:text-gray-500">{session.session_id}</p>
       </div>
 
       <div className="mb-3 flex flex-wrap items-center gap-3">
@@ -29,19 +29,19 @@ export function PreviewPanel({
           secondsSinceChange={session.seconds_since_change}
         />
         {session.cwd && (
-          <span className="text-xs text-gray-500" title="Working directory">
+          <span className="text-xs text-gray-500 dark:text-gray-400" title="Working directory">
             {session.cwd}
           </span>
         )}
       </div>
 
       {session.ai_assessment && (
-        <div className="mb-3 flex items-center gap-2 rounded bg-blue-50 p-2 text-sm">
-          <span className="font-semibold text-blue-800">
+        <div className="mb-3 flex items-center gap-2 rounded bg-blue-50 p-2 text-sm dark:bg-blue-950/60">
+          <span className="font-semibold text-blue-800 dark:text-blue-200">
             {session.ai_assessment}
           </span>
           {session.ai_assessment_reason && (
-            <span className="text-blue-600">
+            <span className="text-blue-600 dark:text-blue-300">
               {session.ai_assessment_reason}
             </span>
           )}

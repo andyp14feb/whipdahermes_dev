@@ -84,7 +84,7 @@ export function FreeFormInput({
       {error && (
         <span className="text-xs text-red-600">{error}</span>
       )}
-      <p className="text-xs text-gray-500">Press Ctrl+Enter to send. Enter inserts a new line.</p>
+      <p className="text-xs text-gray-500 dark:text-gray-400">Press Ctrl+Enter to send. Enter inserts a new line.</p>
     </div>
   );
 }

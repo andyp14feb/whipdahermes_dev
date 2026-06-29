@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -65,8 +65,9 @@ describe("SettingsPage", () => {
     const user = userEvent.setup();
     render(<SettingsPage onClose={() => undefined} />);
 
-    await user.clear(screen.getByLabelText("Worker API / Server URL"));
-    await user.type(screen.getByLabelText("Worker API / Server URL"), "http://192.168.18.68:8000");
+    fireEvent.change(screen.getByLabelText("Worker API / Server URL"), {
+      target: { value: "http://192.168.18.68:8000" },
+    });
 
     expect(screen.getAllByText(/http:\/\/192\.168\.18\.68:8000/).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/git clone/)).toBeInTheDocument();
@@ -83,9 +84,15 @@ describe("SettingsPage", () => {
     );
     render(<SettingsPage onClose={() => undefined} />);
 
-    await user.type(screen.getByLabelText("Provider Name"), "openai-compatible");
-    await user.type(screen.getByLabelText("Provider Base URL"), "https://provider.example");
-    await user.type(screen.getByLabelText("API Key"), "test-key");
+    fireEvent.change(screen.getByLabelText("Provider Name"), {
+      target: { value: "openai-compatible" },
+    });
+    fireEvent.change(screen.getByLabelText("Provider Base URL"), {
+      target: { value: "https://provider.example" },
+    });
+    fireEvent.change(screen.getByLabelText("API Key"), {
+      target: { value: "test-key" },
+    });
     await user.click(screen.getByRole("button", { name: "Fetch Models" }));
     await user.selectOptions(await screen.findByLabelText("Selected Model"), "model-b");
 
@@ -99,8 +106,12 @@ describe("SettingsPage", () => {
     const user = userEvent.setup();
     render(<SettingsPage onClose={() => undefined} />);
 
-    await user.type(screen.getByLabelText("New template label"), "nudge");
-    await user.type(screen.getByLabelText("New template payload"), "please continue");
+    fireEvent.change(screen.getByLabelText("New template label"), {
+      target: { value: "nudge" },
+    });
+    fireEvent.change(screen.getByLabelText("New template payload"), {
+      target: { value: "please continue" },
+    });
     await user.click(screen.getByRole("button", { name: "Add" }));
 
     await waitFor(() => {
@@ -109,10 +120,8 @@ describe("SettingsPage", () => {
 
     const labelInput = await screen.findByDisplayValue("nudge");
     const payloadInput = await screen.findByDisplayValue("please continue");
-    await user.clear(labelInput);
-    await user.type(labelInput, "resume");
-    await user.clear(payloadInput);
-    await user.type(payloadInput, "resume work");
+    fireEvent.change(labelInput, { target: { value: "resume" } });
+    fireEvent.change(payloadInput, { target: { value: "resume work" } });
 
     expect(useSettingsStore.getState().templateActions.some((action) => action.label === "resume" && action.payload === "resume work")).toBe(true);
 

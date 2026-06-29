@@ -115,7 +115,7 @@ export function CommandPanel({ machineId, sessionId }: CommandPanelProps) {
 
   return (
     <Card className="p-4">
-      <h2 className="mb-3 text-lg font-semibold text-gray-900">
+      <h2 className="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100">
         Command Actions
       </h2>
       <FreeFormInput
@@ -133,18 +133,18 @@ export function CommandPanel({ machineId, sessionId }: CommandPanelProps) {
 
       {commands.length > 0 && (
         <div className="mt-4 space-y-2">
-          <h3 className="text-sm font-medium text-gray-700">Command History</h3>
+          <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Command History</h3>
           <ul className="space-y-1">
             {commands.map((cmd) => (
               <li
                 key={cmd.id}
-                className="flex items-center justify-between gap-2 rounded border border-gray-100 px-3 py-2 text-sm"
+                className="flex items-center justify-between gap-2 rounded border border-gray-100 px-3 py-2 text-sm dark:border-gray-800"
               >
-                <span className="font-mono text-gray-800">{cmd.payload}</span>
+                <span className="font-mono text-gray-800 dark:text-gray-100">{cmd.payload}</span>
                 <span className="flex items-center gap-2">
                   <button
                     type="button"
-                    className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
+                    className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
                     onClick={() => handleResend(cmd.payload)}
                   >
                     Resend

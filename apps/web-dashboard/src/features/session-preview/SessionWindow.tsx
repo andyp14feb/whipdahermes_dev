@@ -20,16 +20,16 @@ export function SessionWindow({ index }: SessionWindowProps) {
     >
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-base font-semibold text-gray-900">
+          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
             Window {index + 1}
           </h2>
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-gray-500 dark:text-gray-400">
             {window.machineId && window.sessionId
               ? `${window.machineId}/${window.sessionId}`
               : "No session selected"}
           </p>
         </div>
-        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
+        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">
           {isActive ? "Active" : "Idle"}
         </span>
       </div>

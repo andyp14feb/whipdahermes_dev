@@ -60,9 +60,9 @@ export function MachineList() {
           key={machine.machine_id}
           className={`p-3 ${machine.is_stale ? "opacity-60" : ""}`}
         >
-          <h3 className="mb-2 text-sm font-semibold text-gray-700">
+          <h3 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-200">
             {machine.display_name}
-            <span className="ml-1 font-normal text-gray-400">
+            <span className="ml-1 font-normal text-gray-400 dark:text-gray-500">
               ({machine.sessions.length})
             </span>
             {machine.is_stale && (

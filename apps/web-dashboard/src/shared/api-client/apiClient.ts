@@ -1,7 +1,36 @@
 import { isApiError } from "./errorEnvelope";
 
 const REQUEST_TIMEOUT_MS = 5000;
-const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
+
+function resolveBaseUrl() {
+  const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
+
+  if (!configuredBaseUrl) {
+    return "";
+  }
+
+  if (typeof window !== "undefined") {
+    try {
+      const configuredUrl = new URL(configuredBaseUrl, window.location.origin);
+      const currentHost = window.location.hostname;
+      const configuredHost = configuredUrl.hostname;
+      const localHosts = new Set(["localhost", "127.0.0.1", "0.0.0.0"]);
+
+      if (
+        localHosts.has(configuredHost) &&
+        !localHosts.has(currentHost)
+      ) {
+        return "";
+      }
+    } catch {
+      return "";
+    }
+  }
+
+  return configuredBaseUrl;
+}
+
+const BASE_URL = resolveBaseUrl();
 
 export class ApiRequestError extends Error {
   constructor(
