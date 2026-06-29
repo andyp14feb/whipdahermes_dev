@@ -177,8 +177,11 @@ export function App() {
   const themeMode = useSettingsStore((s) => s.themeMode);
 
   useEffect(() => {
-    document.documentElement.classList.toggle("dark", themeMode === "dark");
+    const isDark = themeMode === "dark";
+    document.documentElement.classList.toggle("dark", isDark);
     document.documentElement.style.colorScheme = themeMode;
+    document.documentElement.style.backgroundColor = isDark ? "#030712" : "#f3f4f6";
+    document.body.style.backgroundColor = isDark ? "#030712" : "#f3f4f6";
   }, [themeMode]);
 
   return (

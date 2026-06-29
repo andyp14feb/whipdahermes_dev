@@ -48,9 +48,12 @@ def _build_payload(session: Session, snapshot: Snapshot | None) -> dict[str, obj
 def _parse_response(body: bytes) -> AssessmentResult:
     data = json.loads(body)
     choices = data.get("choices", [])
-    if not choices:
+    if choices:
+        content = choices[0].get("message", {}).get("content", "")
+    else:
+        content = data.get("message", {}).get("content", "")
+    if not content:
         return AssessmentResult(Assessment.running, "No response from provider")
-    content = choices[0].get("message", {}).get("content", "")
     try:
         parsed = json.loads(content)
         classification = parsed.get("classification", "running")
@@ -71,29 +74,42 @@ class HttpProviderAssessor(ISessionAssessor):
         base_url: str,
         api_key: str = "",
         model: str = "",
+        provider_type: str = "openai-compatible",
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
         self.model = model
+        self.provider_type = provider_type
 
     @override
     def assess_session(
         self, session: Session, snapshot: Snapshot | None
     ) -> AssessmentResult:
-        url = f"{self.base_url}/v1/chat/completions"
+        endpoint = "/v1/chat/completions"
+        if self.provider_type == "ollama-compatible":
+            endpoint = "/api/chat"
+        url = f"{self.base_url}{endpoint}"
         payload = _build_payload(session, snapshot)
         payload["model"] = self.model or "gpt-4o-mini"
 
         headers: dict[str, str] = {
             "Content-Type": "application/json",
         }
-        if self.api_key:
+        if self.provider_type == "anthropic-compatible":
+            headers["anthropic-version"] = "2023-06-01"
+            if self.api_key:
+                headers["x-api-key"] = self.api_key
+        elif self.provider_type == "gemini-compatible":
+            if self.api_key:
+                headers["x-goog-api-key"] = self.api_key
+        elif self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
 
         logger.info(
-            "Assessing session %s via %s model=%s",
+            "Assessing session %s via %s provider_type=%s model=%s",
             session.session_id,
             self.base_url,
+            self.provider_type,
             self.model,
         )
 

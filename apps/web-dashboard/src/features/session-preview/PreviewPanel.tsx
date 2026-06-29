@@ -8,6 +8,7 @@ interface PreviewPanelProps {
   onAssess?: () => void;
   isAssessing?: boolean;
   assessError?: string | null;
+  heightPx?: number;
 }
 
 export function PreviewPanel({
@@ -15,6 +16,7 @@ export function PreviewPanel({
   onAssess,
   isAssessing,
   assessError,
+  heightPx = 480,
 }: PreviewPanelProps) {
   return (
     <Card className="flex min-h-0 flex-1 flex-col p-3">
@@ -68,7 +70,7 @@ export function PreviewPanel({
 
       <div className="min-h-0 flex-1">
         {session.preview ? (
-          <TerminalView output={session.preview} />
+          <TerminalView output={session.preview} maxHeightPx={heightPx} />
         ) : (
           <div className="rounded border border-gray-700 bg-[#1e1e1e] p-3">
             <p className="font-mono text-sm text-gray-400">No preview available</p>

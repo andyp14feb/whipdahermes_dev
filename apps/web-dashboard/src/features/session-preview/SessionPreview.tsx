@@ -1,5 +1,5 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiRequestError } from "../../shared/api-client/apiClient";
 import { useAppStore } from "../../shared/state/appStore";
 import { useSettingsStore } from "../../shared/state/settingsStore";
@@ -11,6 +11,7 @@ import { Card } from "../../shared/ui/Card";
 interface SessionPreviewProps {
   machineId?: string | null;
   sessionId?: string | null;
+  heightPx?: number;
 }
 
 const assessStatuses = new Set<StatusValue>(["stuck", "waiting", "waiting_input"]);
@@ -31,6 +32,7 @@ function shouldAssessTransition(
 export function SessionPreview({
   machineId: propMachineId,
   sessionId: propSessionId,
+  heightPx,
 }: SessionPreviewProps) {
   const storeMachineId = useAppStore((s) => s.selectedMachineId);
   const storeSessionId = useAppStore((s) => s.selectedSessionId);
@@ -130,6 +132,7 @@ export function SessionPreview({
       onAssess={handleAssess}
       isAssessing={assessMutation.isPending}
       assessError={assessErrorMessage}
+      heightPx={heightPx}
     />
   );
 }

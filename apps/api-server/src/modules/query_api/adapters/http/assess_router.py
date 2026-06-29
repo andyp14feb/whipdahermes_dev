@@ -69,11 +69,13 @@ def create_assess_router(
         effective_assessor = assessor
         provider_base_url = request.headers.get("x-ai-provider-base-url")
         provider_model = request.headers.get("x-ai-model")
+        provider_type = request.headers.get("x-ai-provider-type", "openai-compatible")
         if effective_assessor is None and provider_base_url and provider_model:
             effective_assessor = HttpProviderAssessor(
                 base_url=provider_base_url,
                 api_key=request.headers.get("x-ai-api-key", ""),
                 model=provider_model,
+                provider_type=provider_type,
             )
 
         if effective_assessor is None:

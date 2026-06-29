@@ -4,6 +4,24 @@ import type { TemplateAction } from "../../features/command-panel/commandPanel.t
 export const STORAGE_KEY = "whipai-settings";
 
 export type ThemeMode = "light" | "dark";
+export type AiProviderType =
+  | "openai-compatible"
+  | "anthropic-compatible"
+  | "gemini-compatible"
+  | "ollama-compatible"
+  | "9router-compatible";
+
+export const AI_PROVIDER_TYPES: AiProviderType[] = [
+  "openai-compatible",
+  "anthropic-compatible",
+  "gemini-compatible",
+  "ollama-compatible",
+  "9router-compatible",
+];
+
+export function isAiProviderType(value: string): value is AiProviderType {
+  return AI_PROVIDER_TYPES.includes(value as AiProviderType);
+}
 
 export interface NudgeConfig {
   enabled: boolean;
@@ -20,6 +38,7 @@ interface Settings {
   refreshIntervalMs: number;
   staleTimeoutSeconds: number;
   aiProviderBaseUrl: string;
+  aiProviderType: AiProviderType;
   aiApiKey: string;
   aiSelectedModel: string;
   aiProviderName: string;
@@ -34,6 +53,7 @@ interface SettingsState extends Settings {
   setRefreshIntervalMs: (ms: number) => void;
   setStaleTimeoutSeconds: (s: number) => void;
   setAiProviderBaseUrl: (url: string) => void;
+  setAiProviderType: (providerType: AiProviderType) => void;
   setAiApiKey: (apiKey: string) => void;
   setAiSelectedModel: (model: string) => void;
   setAiProviderName: (provider: string) => void;
@@ -62,6 +82,7 @@ const defaultSettings: Settings = {
   refreshIntervalMs: 2000,
   staleTimeoutSeconds: 60,
   aiProviderBaseUrl: "",
+  aiProviderType: "openai-compatible",
   aiApiKey: "",
   aiSelectedModel: "",
   aiProviderName: "",
@@ -134,6 +155,9 @@ function loadFromStorage(): Settings {
           parsed.staleTimeoutSeconds ?? defaultSettings.staleTimeoutSeconds,
         aiProviderBaseUrl:
           parsed.aiProviderBaseUrl ?? defaultSettings.aiProviderBaseUrl,
+        aiProviderType: isAiProviderType(parsed.aiProviderType ?? "")
+          ? (parsed.aiProviderType as AiProviderType)
+          : defaultSettings.aiProviderType,
         aiApiKey: parsed.aiApiKey ?? defaultSettings.aiApiKey,
         aiSelectedModel:
           parsed.aiSelectedModel ?? defaultSettings.aiSelectedModel,
@@ -162,6 +186,7 @@ function persistCurrentSettings(get: () => SettingsState) {
     refreshIntervalMs,
     staleTimeoutSeconds,
     aiProviderBaseUrl,
+    aiProviderType,
     aiApiKey,
     aiSelectedModel,
     aiProviderName,
@@ -174,6 +199,7 @@ function persistCurrentSettings(get: () => SettingsState) {
     refreshIntervalMs,
     staleTimeoutSeconds,
     aiProviderBaseUrl,
+    aiProviderType,
     aiApiKey,
     aiSelectedModel,
     aiProviderName,
@@ -195,6 +221,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     set(withDirtyFlag({ staleTimeoutSeconds })),
   setAiProviderBaseUrl: (aiProviderBaseUrl) =>
     set(withDirtyFlag({ aiProviderBaseUrl })),
+  setAiProviderType: (aiProviderType) => set(withDirtyFlag({ aiProviderType })),
   setAiApiKey: (aiApiKey) => set(withDirtyFlag({ aiApiKey })),
   setAiSelectedModel: (aiSelectedModel) =>
     set(withDirtyFlag({ aiSelectedModel })),
@@ -308,6 +335,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       refreshIntervalMs,
       staleTimeoutSeconds,
       aiProviderBaseUrl,
+      aiProviderType,
       aiApiKey,
       aiSelectedModel,
       aiProviderName,
@@ -320,6 +348,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       refreshIntervalMs,
       staleTimeoutSeconds,
       aiProviderBaseUrl,
+      aiProviderType,
       aiApiKey,
       aiSelectedModel,
       aiProviderName,

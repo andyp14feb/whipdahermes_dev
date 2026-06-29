@@ -18,6 +18,7 @@ describe("SettingsPage", () => {
       refreshIntervalMs: 2000,
       staleTimeoutSeconds: 60,
       aiProviderBaseUrl: "",
+      aiProviderType: "openai-compatible",
       aiApiKey: "",
       aiSelectedModel: "",
       aiProviderName: "",

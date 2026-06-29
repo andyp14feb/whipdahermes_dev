@@ -1,10 +1,40 @@
 import { useCallback, useRef, useState } from "react";
-import { useSettingsStore } from "../../shared/state/settingsStore";
+import { AI_PROVIDER_TYPES, useSettingsStore } from "../../shared/state/settingsStore";
 import { Button } from "../../shared/ui/Button";
 import { Card } from "../../shared/ui/Card";
 
 interface ModelOption {
   id: string;
+}
+const MODEL_ENDPOINTS_BY_PROVIDER = {
+  "openai-compatible": "/v1/models",
+  "anthropic-compatible": "/v1/models",
+  "gemini-compatible": "/v1/models",
+  "ollama-compatible": "/api/tags",
+  "9router-compatible": "/v1/models",
+} as const;
+
+function buildModelRequestHeaders(
+  providerType: (typeof AI_PROVIDER_TYPES)[number],
+  apiKey: string,
+): HeadersInit | undefined {
+  if (!apiKey) return undefined;
+  if (providerType === "anthropic-compatible") {
+    return new Headers({ "x-api-key": apiKey, "anthropic-version": "2023-06-01" });
+  }
+  if (providerType === "gemini-compatible") {
+    return new Headers({ "x-goog-api-key": apiKey });
+  }
+  return new Headers({ Authorization: `Bearer ${apiKey}` });
+}
+
+function normalizeFetchedModels(providerType: (typeof AI_PROVIDER_TYPES)[number], payload: unknown): ModelOption[] {
+  if (providerType === "ollama-compatible") {
+    const models = (payload as { models?: Array<{ name?: string }> }).models ?? [];
+    return models.map((model) => model.name?.trim()).filter((id): id is string => Boolean(id)).map((id) => ({ id }));
+  }
+  const models = (payload as { data?: ModelOption[] }).data ?? [];
+  return models.filter((model): model is ModelOption => typeof model?.id === "string");
 }
 
 interface SettingsPageProps {
@@ -20,6 +50,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
     refreshIntervalMs,
     staleTimeoutSeconds,
     aiProviderBaseUrl,
+    aiProviderType,
     aiApiKey,
     aiSelectedModel,
     aiProviderName,
@@ -30,6 +61,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
     setRefreshIntervalMs,
     setStaleTimeoutSeconds,
     setAiProviderBaseUrl,
+    setAiProviderType,
     setAiApiKey,
     setAiSelectedModel,
     setAiProviderName,
@@ -102,22 +134,23 @@ python3 src/main.py`;
     setIsFetchingModels(true);
     setModelsError(null);
     try {
-      const modelsUrl = new URL("/v1/models", aiProviderBaseUrl);
+      const endpoint = MODEL_ENDPOINTS_BY_PROVIDER[aiProviderType];
+      const modelsUrl = new URL(endpoint, aiProviderBaseUrl);
       const response = await fetch(modelsUrl.toString(), {
-        headers: aiApiKey ? { Authorization: `Bearer ${aiApiKey}` } : undefined,
+        headers: buildModelRequestHeaders(aiProviderType, aiApiKey),
       });
       if (!response.ok) {
         throw new Error("Unable to fetch models");
       }
-      const payload = (await response.json()) as { data?: ModelOption[] };
-      setModels(payload.data ?? []);
+      const payload = await response.json();
+      setModels(normalizeFetchedModels(aiProviderType, payload));
     } catch {
       setModels([]);
       setModelsError("Unable to fetch models. Check the provider URL and API key.");
     } finally {
       setIsFetchingModels(false);
     }
-  }, [aiApiKey, aiProviderBaseUrl]);
+  }, [aiApiKey, aiProviderBaseUrl, aiProviderType]);
 
   const handleAddTemplate = () => {
     const label = templateLabel.trim();
@@ -233,6 +266,24 @@ python3 src/main.py`;
           </div>
 
           <div>
+            <label htmlFor="ai-provider-type" className={labelClass}>
+              Provider Type
+            </label>
+            <select
+              id="ai-provider-type"
+              className={fieldClass}
+              value={aiProviderType}
+              onChange={(e) => setAiProviderType(e.target.value as (typeof AI_PROVIDER_TYPES)[number])}
+            >
+              {AI_PROVIDER_TYPES.map((providerType) => (
+                <option key={providerType} value={providerType}>
+                  {providerType}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
             <label htmlFor="ai-provider-name" className={labelClass}>
               Provider Name
             </label>
@@ -258,6 +309,9 @@ python3 src/main.py`;
               onChange={(e) => setAiProviderBaseUrl(e.target.value)}
               placeholder="https://api.openai.com"
             />
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              Supports OpenAI-compatible, Anthropic-compatible, Gemini-compatible, Ollama-compatible, and 9Router-compatible endpoints.
+            </p>
           </div>
 
           <div>
@@ -292,6 +346,13 @@ python3 src/main.py`;
                   </option>
                 ))}
               </select>
+              <input
+                aria-label="Manual Model Name"
+                className={fieldClass}
+                value={aiSelectedModel}
+                onChange={(e) => setAiSelectedModel(e.target.value)}
+                placeholder="manual-model-name"
+              />
               <Button
                 type="button"
                 variant="secondary"
@@ -306,6 +367,9 @@ python3 src/main.py`;
                 {modelsError}
               </p>
             )}
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              If model discovery fails, enter the model name manually and save.
+            </p>
           </div>
 
           <div>

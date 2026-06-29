@@ -3,15 +3,16 @@ import { create } from "zustand";
 interface WindowSlot {
   machineId: string | null;
   sessionId: string | null;
+  heightPx: number;
 }
 
-const EMPTY_SLOT: WindowSlot = { machineId: null, sessionId: null };
+const EMPTY_SLOT: WindowSlot = { machineId: null, sessionId: null, heightPx: 480 };
 
 const initialWindows: WindowSlot[] = [
-  EMPTY_SLOT,
-  EMPTY_SLOT,
-  EMPTY_SLOT,
-  EMPTY_SLOT,
+  { ...EMPTY_SLOT },
+  { ...EMPTY_SLOT },
+  { ...EMPTY_SLOT },
+  { ...EMPTY_SLOT },
 ];
 
 interface AppState {
@@ -23,7 +24,10 @@ interface AppState {
   activeWindowIndex: number;
   layoutCount: 1 | 2 | 4;
   setSelectedSession: (machineId: string, sessionId: string) => void;
+  setWindowSelection: (index: number, machineId: string | null, sessionId: string | null) => void;
   clearSelection: () => void;
+  clearWindowSelection: (index: number) => void;
+  setWindowHeight: (index: number, heightPx: number) => void;
   setConnectionError: (error: string | null) => void;
   recordConnectionFailure: (error: string) => void;
   recordConnectionSuccess: () => void;
@@ -42,22 +46,40 @@ export const useAppStore = create<AppState>((set) => ({
   setSelectedSession: (machineId, sessionId) =>
     set((state) => {
       const windows = [...state.windows];
-      windows[state.activeWindowIndex] = { machineId, sessionId };
+      windows[state.activeWindowIndex] = { machineId, sessionId, heightPx: windows[state.activeWindowIndex]?.heightPx ?? EMPTY_SLOT.heightPx };
       return {
         windows,
         selectedMachineId: machineId,
         selectedSessionId: sessionId,
       };
     }),
+  setWindowSelection: (index, machineId, sessionId) =>
+    set((state) => {
+      const windows = [...state.windows];
+      windows[index] = { machineId, sessionId, heightPx: windows[index]?.heightPx ?? EMPTY_SLOT.heightPx };
+      return { windows };
+    }),
   clearSelection: () =>
     set((state) => {
       const windows = [...state.windows];
-      windows[state.activeWindowIndex] = EMPTY_SLOT;
+      windows[state.activeWindowIndex] = { ...EMPTY_SLOT, heightPx: windows[state.activeWindowIndex]?.heightPx ?? EMPTY_SLOT.heightPx };
       return {
         windows,
         selectedMachineId: null,
         selectedSessionId: null,
       };
+    }),
+  clearWindowSelection: (index) =>
+    set((state) => {
+      const windows = [...state.windows];
+      windows[index] = { ...EMPTY_SLOT, heightPx: windows[index]?.heightPx ?? EMPTY_SLOT.heightPx };
+      return { windows };
+    }),
+  setWindowHeight: (index, heightPx) =>
+    set((state) => {
+      const windows = [...state.windows];
+      windows[index] = { ...windows[index], heightPx: Math.max(280, Math.min(1200, heightPx)) };
+      return { windows };
     }),
   setConnectionError: (error) => set({ connectionError: error }),
   recordConnectionFailure: (error) =>
