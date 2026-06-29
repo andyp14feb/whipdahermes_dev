@@ -34,6 +34,17 @@ def test_report_returns_false_on_http_error():
     assert ok is False
 
 
+def test_report_returns_false_on_404_with_endpoint_not_found_log(caplog):
+    reporter = CommandReporter("http://localhost:8000")
+    response = Mock(status_code=404)
+
+    with patch("command.command_reporter.requests.post", return_value=response):
+        ok = reporter.report(_result(False, "boom"))
+
+    assert ok is False
+    assert "Delivery report endpoint not found" in caplog.text
+
+
 def test_report_returns_false_on_request_exception():
     reporter = CommandReporter("http://localhost:8000")
 
@@ -52,3 +63,13 @@ def test_report_strips_trailing_slash():
         reporter.report(_result())
 
     assert post.call_args.args[0] == "http://localhost:8000/commands/cmd-1/delivery"
+
+
+def test_report_api_url_with_path_and_trailing_slash_builds_expected_url():
+    reporter = CommandReporter("http://localhost:8000/api/")
+    response = Mock(status_code=200)
+
+    with patch("command.command_reporter.requests.post", return_value=response) as post:
+        reporter.report(_result())
+
+    assert post.call_args.args[0] == "http://localhost:8000/api/commands/cmd-1/delivery"

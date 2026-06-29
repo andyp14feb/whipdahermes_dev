@@ -71,6 +71,16 @@ def test_post_heartbeat_http_422(caplog):
     assert "validation error" in caplog.text
 
 
+def test_post_heartbeat_http_404(caplog):
+    client = HeartbeatClient("http://localhost:8000")
+    with patch("heartbeat.heartbeat_client.requests.post") as mock_post:
+        mock_post.return_value.status_code = 404
+        result = client.post_heartbeat("vm-1", [])
+
+    assert result is False
+    assert "Heartbeat endpoint not found" in caplog.text
+
+
 def test_post_heartbeat_ok_false(caplog):
     client = HeartbeatClient("http://localhost:8000")
     with patch("heartbeat.heartbeat_client.requests.post") as mock_post:
@@ -92,6 +102,22 @@ def test_post_heartbeat_trailing_slash_stripped():
     assert result is True
     mock_post.assert_called_once_with(
         "http://localhost:8000/heartbeat",
+        json={"machine_id": "vm-1", "sessions": []},
+        headers={"Content-Type": "application/json"},
+        timeout=10,
+    )
+
+
+def test_post_heartbeat_api_url_with_path_and_trailing_slash_builds_expected_url():
+    client = HeartbeatClient("http://localhost:8000/api/")
+    with patch("heartbeat.heartbeat_client.requests.post") as mock_post:
+        mock_post.return_value.status_code = 200
+        mock_post.return_value.json.return_value = {"ok": True, "accepted": 1}
+        result = client.post_heartbeat("vm-1", [])
+
+    assert result is True
+    mock_post.assert_called_once_with(
+        "http://localhost:8000/api/heartbeat",
         json={"machine_id": "vm-1", "sessions": []},
         headers={"Content-Type": "application/json"},
         timeout=10,
@@ -133,3 +159,23 @@ def test_post_heartbeat_empty_sessions():
         headers={"Content-Type": "application/json"},
         timeout=10,
     )
+
+
+def test_is_api_available_returns_false_on_connection_error(caplog):
+    client = HeartbeatClient("http://localhost:8000")
+    from requests.exceptions import ConnectionError as RequestsConnectionError
+    with patch("heartbeat.heartbeat_client.requests.get", side_effect=RequestsConnectionError("connection refused")):
+        result = client.is_api_available()
+
+    assert result is False
+    assert "API health check failed" in caplog.text
+
+
+def test_is_api_available_uses_normalized_health_url():
+    client = HeartbeatClient("http://localhost:8000/api/")
+    with patch("heartbeat.heartbeat_client.requests.get") as mock_get:
+        mock_get.return_value.status_code = 200
+        result = client.is_api_available()
+
+    assert result is True
+    mock_get.assert_called_once_with("http://localhost:8000/api/health", timeout=5)

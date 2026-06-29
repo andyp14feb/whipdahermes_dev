@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import asdict
+from urllib.parse import urljoin
 
 import requests
 
@@ -14,17 +15,38 @@ class HeartbeatClient:
     def __init__(self, api_url: str):
         self.api_url = api_url.rstrip("/")
 
+    def _url(self, path: str) -> str:
+        return urljoin(f"{self.api_url}/", path.lstrip("/"))
+
+    def is_api_available(self) -> bool:
+        url = self._url("health")
+        try:
+            response = requests.get(url, timeout=5)
+        except requests.RequestException as exc:
+            logger.warning("API health check failed at %s: %s", url, exc)
+            return False
+
+        if response.status_code != 200:
+            logger.warning("API health check failed at %s: HTTP %s", url, response.status_code)
+            return False
+
+        return True
+
     def post_heartbeat(self, machine_id: str, sessions: list[SessionSnapshot]) -> bool:
         payload = {
             "machine_id": machine_id,
             "sessions": [asdict(session) for session in sessions],
         }
-        url = f"{self.api_url}/heartbeat"
+        url = self._url("heartbeat")
 
         try:
             response = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=10)
         except requests.RequestException as exc:
             logger.warning("Failed to POST heartbeat for machine_id=%s to %s: %s", machine_id, url, exc)
+            return False
+
+        if response.status_code == 404:
+            logger.warning("Heartbeat endpoint not found for machine_id=%s at %s", machine_id, url)
             return False
 
         if response.status_code == 422:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from urllib.parse import urljoin
 
 import requests
 
@@ -13,8 +14,11 @@ class CommandReporter:
     def __init__(self, api_url: str):
         self.api_url = api_url.rstrip("/")
 
+    def _url(self, path: str) -> str:
+        return urljoin(f"{self.api_url}/", path.lstrip("/"))
+
     def report(self, result: ExecutionResult) -> bool:
-        url = f"{self.api_url}/commands/{result.command_id}/delivery"
+        url = self._url(f"commands/{result.command_id}/delivery")
         payload = {
             "delivered": result.delivered,
             "failure_reason": result.failure_reason,
@@ -27,6 +31,14 @@ class CommandReporter:
                 result.command_id,
                 url,
                 exc,
+            )
+            return False
+
+        if response.status_code == 404:
+            logger.warning(
+                "Delivery report endpoint not found for command_id=%s at %s",
+                result.command_id,
+                url,
             )
             return False
 

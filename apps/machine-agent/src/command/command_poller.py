@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from urllib.parse import urljoin
 
 import requests
 
@@ -19,8 +20,11 @@ class CommandPoller:
     def __init__(self, api_url: str):
         self.api_url = api_url.rstrip("/")
 
+    def _url(self, path: str) -> str:
+        return urljoin(f"{self.api_url}/", path.lstrip("/"))
+
     def fetch_pending(self, machine_id: str) -> list[Command]:
-        url = f"{self.api_url}/commands/{machine_id}"
+        url = self._url(f"commands/{machine_id}")
         try:
             response = requests.get(url, timeout=10)
         except requests.RequestException as exc:
@@ -29,6 +33,10 @@ class CommandPoller:
 
         if response.status_code == 422:
             logger.warning("Command fetch validation failed for machine_id=%s: %s", machine_id, response.text)
+            return []
+
+        if response.status_code == 404:
+            logger.warning("Command fetch endpoint not found for machine_id=%s at %s", machine_id, url)
             return []
 
         if response.status_code != 200:

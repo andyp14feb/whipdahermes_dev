@@ -53,6 +53,13 @@ class TestCommandPollerFetchPending:
         with patch("command.command_poller.requests.get", return_value=resp):
             assert poller.fetch_pending("vm-1") == []
 
+    def test_http_404_returns_empty_with_endpoint_not_found_log(self, caplog):
+        poller = CommandPoller("http://localhost:8000")
+        resp = _make_response(status_code=404)
+        with patch("command.command_poller.requests.get", return_value=resp):
+            assert poller.fetch_pending("vm-1") == []
+        assert "Command fetch endpoint not found" in caplog.text
+
     def test_http_500_returns_empty(self):
         poller = CommandPoller("http://localhost:8000")
         resp = _make_response(status_code=500)
@@ -89,3 +96,10 @@ class TestCommandPollerFetchPending:
         with patch("command.command_poller.requests.get", return_value=resp) as mock_get:
             poller.fetch_pending("vm-1")
         mock_get.assert_called_once_with("http://localhost:8000/commands/vm-1", timeout=10)
+
+    def test_api_url_with_path_and_trailing_slash_builds_expected_url(self):
+        poller = CommandPoller("http://localhost:8000/api/")
+        resp = _make_response({"commands": []})
+        with patch("command.command_poller.requests.get", return_value=resp) as mock_get:
+            poller.fetch_pending("vm-1")
+        mock_get.assert_called_once_with("http://localhost:8000/api/commands/vm-1", timeout=10)
