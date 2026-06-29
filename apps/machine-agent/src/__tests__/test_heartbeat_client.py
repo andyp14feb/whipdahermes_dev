@@ -1,4 +1,4 @@
-from unittest.mock import patch, Mock
+from unittest.mock import Mock, patch
 
 from heartbeat.heartbeat_client import HeartbeatClient
 from parse.capture_parser import SessionSnapshot
@@ -20,7 +20,7 @@ def _make_snapshot(session_id="miniwa:0.0") -> SessionSnapshot:
 def test_post_heartbeat_success():
     client = HeartbeatClient("http://localhost:8000")
     snapshot = _make_snapshot()
-    with patch("heartbeat.heartbeat_client.requests.post") as mock_post:
+    with patch.object(client.session, "post") as mock_post:
         mock_post.return_value.status_code = 200
         mock_post.return_value.json.return_value = {"ok": True, "accepted": 1}
         result = client.post_heartbeat("vm-1", [snapshot])
@@ -44,13 +44,13 @@ def test_post_heartbeat_success():
             ],
         },
         headers={"Content-Type": "application/json"},
-        timeout=10,
+        timeout=30,
     )
 
 
 def test_post_heartbeat_connection_error(caplog):
     client = HeartbeatClient("http://localhost:8000")
-    with patch("heartbeat.heartbeat_client.requests.post") as mock_post:
+    with patch.object(client.session, "post") as mock_post:
         from requests.exceptions import ConnectionError as RequestsConnectionError
         mock_post.side_effect = RequestsConnectionError("connection refused")
         result = client.post_heartbeat("vm-1", [])
@@ -62,7 +62,7 @@ def test_post_heartbeat_connection_error(caplog):
 
 def test_post_heartbeat_http_422(caplog):
     client = HeartbeatClient("http://localhost:8000")
-    with patch("heartbeat.heartbeat_client.requests.post") as mock_post:
+    with patch.object(client.session, "post") as mock_post:
         mock_post.return_value.status_code = 422
         mock_post.return_value.text = '{"detail": "validation error"}'
         result = client.post_heartbeat("vm-1", [])
@@ -73,7 +73,7 @@ def test_post_heartbeat_http_422(caplog):
 
 def test_post_heartbeat_http_404(caplog):
     client = HeartbeatClient("http://localhost:8000")
-    with patch("heartbeat.heartbeat_client.requests.post") as mock_post:
+    with patch.object(client.session, "post") as mock_post:
         mock_post.return_value.status_code = 404
         result = client.post_heartbeat("vm-1", [])
 
@@ -83,7 +83,7 @@ def test_post_heartbeat_http_404(caplog):
 
 def test_post_heartbeat_ok_false(caplog):
     client = HeartbeatClient("http://localhost:8000")
-    with patch("heartbeat.heartbeat_client.requests.post") as mock_post:
+    with patch.object(client.session, "post") as mock_post:
         mock_post.return_value.status_code = 200
         mock_post.return_value.json.return_value = {"ok": False}
         result = client.post_heartbeat("vm-1", [])
@@ -94,7 +94,7 @@ def test_post_heartbeat_ok_false(caplog):
 
 def test_post_heartbeat_trailing_slash_stripped():
     client = HeartbeatClient("http://localhost:8000/")
-    with patch("heartbeat.heartbeat_client.requests.post") as mock_post:
+    with patch.object(client.session, "post") as mock_post:
         mock_post.return_value.status_code = 200
         mock_post.return_value.json.return_value = {"ok": True, "accepted": 1}
         result = client.post_heartbeat("vm-1", [])
@@ -104,13 +104,13 @@ def test_post_heartbeat_trailing_slash_stripped():
         "http://localhost:8000/heartbeat",
         json={"machine_id": "vm-1", "sessions": []},
         headers={"Content-Type": "application/json"},
-        timeout=10,
+        timeout=30,
     )
 
 
 def test_post_heartbeat_api_url_with_path_and_trailing_slash_builds_expected_url():
     client = HeartbeatClient("http://localhost:8000/api/")
-    with patch("heartbeat.heartbeat_client.requests.post") as mock_post:
+    with patch.object(client.session, "post") as mock_post:
         mock_post.return_value.status_code = 200
         mock_post.return_value.json.return_value = {"ok": True, "accepted": 1}
         result = client.post_heartbeat("vm-1", [])
@@ -120,13 +120,13 @@ def test_post_heartbeat_api_url_with_path_and_trailing_slash_builds_expected_url
         "http://localhost:8000/api/heartbeat",
         json={"machine_id": "vm-1", "sessions": []},
         headers={"Content-Type": "application/json"},
-        timeout=10,
+        timeout=30,
     )
 
 
 def test_post_heartbeat_invalid_json_response(caplog):
     client = HeartbeatClient("http://localhost:8000")
-    with patch("heartbeat.heartbeat_client.requests.post") as mock_post:
+    with patch.object(client.session, "post") as mock_post:
         mock_post.return_value.status_code = 200
         mock_post.return_value.json.side_effect = ValueError("No JSON object could be decoded")
         result = client.post_heartbeat("vm-1", [])
@@ -137,7 +137,7 @@ def test_post_heartbeat_invalid_json_response(caplog):
 
 def test_post_heartbeat_http_500(caplog):
     client = HeartbeatClient("http://localhost:8000")
-    with patch("heartbeat.heartbeat_client.requests.post") as mock_post:
+    with patch.object(client.session, "post") as mock_post:
         mock_post.return_value.status_code = 500
         result = client.post_heartbeat("vm-1", [])
 
@@ -147,7 +147,7 @@ def test_post_heartbeat_http_500(caplog):
 
 def test_post_heartbeat_empty_sessions():
     client = HeartbeatClient("http://localhost:8000")
-    with patch("heartbeat.heartbeat_client.requests.post") as mock_post:
+    with patch.object(client.session, "post") as mock_post:
         mock_post.return_value.status_code = 200
         mock_post.return_value.json.return_value = {"ok": True, "accepted": 0}
         result = client.post_heartbeat("vm-1", [])
@@ -157,14 +157,14 @@ def test_post_heartbeat_empty_sessions():
         "http://localhost:8000/heartbeat",
         json={"machine_id": "vm-1", "sessions": []},
         headers={"Content-Type": "application/json"},
-        timeout=10,
+        timeout=30,
     )
 
 
 def test_is_api_available_returns_false_on_connection_error(caplog):
     client = HeartbeatClient("http://localhost:8000")
     from requests.exceptions import ConnectionError as RequestsConnectionError
-    with patch("heartbeat.heartbeat_client.requests.get", side_effect=RequestsConnectionError("connection refused")):
+    with patch.object(client.session, "get", side_effect=RequestsConnectionError("connection refused")):
         result = client.is_api_available()
 
     assert result is False
@@ -173,7 +173,7 @@ def test_is_api_available_returns_false_on_connection_error(caplog):
 
 def test_is_api_available_uses_normalized_health_url():
     client = HeartbeatClient("http://localhost:8000/api/")
-    with patch("heartbeat.heartbeat_client.requests.get") as mock_get:
+    with patch.object(client.session, "get") as mock_get:
         mock_get.return_value.status_code = 200
         result = client.is_api_available()
 

@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 class HeartbeatClient:
     def __init__(self, api_url: str):
         self.api_url = api_url.rstrip("/")
+        self.session = requests.Session()
 
     def _url(self, path: str) -> str:
         return urljoin(f"{self.api_url}/", path.lstrip("/"))
@@ -21,7 +22,7 @@ class HeartbeatClient:
     def is_api_available(self) -> bool:
         url = self._url("health")
         try:
-            response = requests.get(url, timeout=5)
+            response = self.session.get(url, timeout=5)
         except requests.RequestException as exc:
             logger.warning("API health check failed at %s: %s", url, exc)
             return False
@@ -40,7 +41,7 @@ class HeartbeatClient:
         url = self._url("heartbeat")
 
         try:
-            response = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=10)
+            response = self.session.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=30)
         except requests.RequestException as exc:
             logger.warning("Failed to POST heartbeat for machine_id=%s to %s: %s", machine_id, url, exc)
             return False

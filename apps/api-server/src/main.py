@@ -89,7 +89,7 @@ async def start_stale_sweeper() -> None:
     async def sweep_loop() -> None:
         interval = max(1, settings.stale_timeout_seconds // 2)
         while True:
-            stale_detector.sweep()
+            await asyncio.to_thread(stale_detector.sweep)
             await asyncio.sleep(interval)
 
     _sweep_task = asyncio.create_task(sweep_loop())
