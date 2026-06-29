@@ -102,6 +102,10 @@ class HttpProviderAssessor(ISessionAssessor):
         elif self.provider_type == "gemini-compatible":
             if self.api_key:
                 headers["x-goog-api-key"] = self.api_key
+        elif self.provider_type == "ollama-compatible":
+            # Local Ollama-compatible endpoints usually do not need API keys.
+            # Do not send a stored key unnecessarily.
+            pass
         elif self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
 
