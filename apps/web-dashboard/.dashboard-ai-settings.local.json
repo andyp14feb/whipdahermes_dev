@@ -1,0 +1,38 @@
+{
+  "workerApiUrl": "http://localhost:8000",
+  "refreshIntervalMs": 2000,
+  "staleTimeoutSeconds": 60,
+  "aiProviderBaseUrl": "http://62.171.162.214:20128/v1",
+  "aiApiKey": "sk-654e4fa3c62bc91a-isf6fq-2126055f",
+  "aiSelectedModel": "combo_AA_team-j8mr3i53nc",
+  "aiProviderName": "9naga",
+  "themeMode": "light",
+  "templateActions": [
+    {
+      "id": "yes",
+      "label": "yes",
+      "payload": "yes"
+    },
+    {
+      "id": "continue",
+      "label": "continue",
+      "payload": "continue"
+    },
+    {
+      "id": "retry",
+      "label": "retry",
+      "payload": "retry"
+    },
+    {
+      "id": "skip",
+      "label": "skip",
+      "payload": "skip"
+    },
+    {
+      "id": "explain",
+      "label": "explain",
+      "payload": "explain"
+    }
+  ],
+  "nudgesBySession": {}
+}
