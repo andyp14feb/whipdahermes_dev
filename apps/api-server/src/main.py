@@ -69,6 +69,7 @@ query_service = QueryService(
     machine_reader=machine_repo,
     session_reader=session_repo,
     stale_timeout_seconds=settings.stale_timeout_seconds,
+    delete_session=session_service.delete_session_by_id,
 )
 app.include_router(create_query_api_router(query_service))
 app.include_router(create_assess_router(session_service, None))

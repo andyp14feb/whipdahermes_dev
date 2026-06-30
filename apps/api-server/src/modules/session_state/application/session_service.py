@@ -111,6 +111,9 @@ class SessionService:
     def list_sessions_by_machine(self, machine_id: str) -> list[Session]:
         return self.repo.list_by_machine(machine_id)
 
+    def delete_session_by_id(self, session_id: str) -> None:
+        self.repo.delete_by_id(session_id)
+
     def assess_session(
         self,
         machine_id: str,

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from sqlalchemy import delete as sa_delete
 from sqlalchemy.pool import StaticPool
 from sqlmodel import Session as SQLSession, SQLModel, create_engine, select
@@ -7,6 +8,7 @@ from sqlmodel import Session as SQLSession, SQLModel, create_engine, select
 from modules.session_state.application.ports import ISessionRepo
 from modules.session_state.domain.session import Session
 from modules.session_state.domain.snapshot import Snapshot
+from modules.shared_kernel.time_utils import parse_iso
 
 SessionModel = Session
 SnapshotModel = Snapshot
@@ -127,6 +129,30 @@ class SQLSessionRepo(ISessionRepo):
 
             db.exec(sa_delete(SnapshotModel).where(SnapshotModel.session_id.in_(stale_session_ids)))
             db.exec(sa_delete(SessionModel).where(SessionModel.session_id.in_(stale_session_ids)))
+            db.commit()
+
+    def delete_by_id(self, session_id: str) -> None:
+        with SQLSession(self.engine) as db:
+            db.exec(sa_delete(SnapshotModel).where(SnapshotModel.session_id == session_id))
+            db.exec(sa_delete(SessionModel).where(SessionModel.session_id == session_id))
+            db.commit()
+
+    def delete_sessions_older_than(self, seconds: int) -> None:
+        cutoff = datetime.now(tz=timezone.utc) - timedelta(seconds=seconds)
+        iso_cutoff = cutoff.isoformat().replace("+00:00", "Z")
+
+        with SQLSession(self.engine) as db:
+            stale_ids = list(
+                db.exec(
+                    select(SessionModel.session_id).where(
+                        SessionModel.last_seen_at < iso_cutoff
+                    )
+                ).all()
+            )
+            if not stale_ids:
+                return
+            db.exec(sa_delete(SnapshotModel).where(SnapshotModel.session_id.in_(stale_ids)))
+            db.exec(sa_delete(SessionModel).where(SessionModel.session_id.in_(stale_ids)))
             db.commit()
 
 

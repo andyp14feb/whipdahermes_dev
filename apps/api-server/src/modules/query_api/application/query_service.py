@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Callable
+
 from modules.query_api.application.ports import IMachineReader, ISessionReader
 from modules.shared_kernel.time_utils import now_utc, parse_iso
 
@@ -10,10 +12,12 @@ class QueryService:
         machine_reader: IMachineReader,
         session_reader: ISessionReader,
         stale_timeout_seconds: int = 60,
+        delete_session: Callable[[str], None] | None = None,
     ) -> None:
         self.machine_reader = machine_reader
         self.session_reader = session_reader
         self.stale_timeout_seconds = stale_timeout_seconds
+        self._delete_session = delete_session
 
     def _is_machine_stale(self, last_seen_at: str) -> bool:
         try:
@@ -80,3 +84,7 @@ class QueryService:
             "ai_assessment_reason": session.ai_assessment_reason,
             "ai_assessed_at": session.ai_assessed_at,
         }
+
+    def delete_session_by_id(self, session_id: str) -> None:
+        if self._delete_session is not None:
+            self._delete_session(session_id)

@@ -154,6 +154,44 @@ class TestSessionsRouter:
         assert response.status_code == 200
         assert response.json()["status"] == "stale"
 
+    def test_delete_session_returns_200_and_deletes(self) -> None:
+        session_reader = FakeSessionReader()
+        deleted_ids: list[str] = []
+
+        def fake_delete(session_id: str) -> None:
+            deleted_ids.append(session_id)
+
+        service = QueryService(
+            FakeMachineReader(),
+            session_reader,
+            delete_session=fake_delete,
+        )
+        session_reader.sessions["s-1"] = Session(
+            session_id="s-1",
+            machine_id="vm-1",
+            label="Session 1",
+            status="active",
+            seconds_since_change=5,
+            last_seen_at=NOW,
+        )
+        app = _build_app(service)
+        client = TestClient(app)
+
+        response = client.delete("/sessions/s-1")
+
+        assert response.status_code == 200
+        assert response.json() == {"status": "deleted", "session_id": "s-1"}
+        assert deleted_ids == ["s-1"]
+
+    def test_delete_session_noop_when_callback_not_set(self) -> None:
+        service = QueryService(FakeMachineReader(), FakeSessionReader())
+        app = _build_app(service)
+        client = TestClient(app)
+
+        response = client.delete("/sessions/nonexistent")
+
+        assert response.status_code == 200
+
 
 class FakeAssessor:
     def __init__(self, result: AssessmentResult) -> None:

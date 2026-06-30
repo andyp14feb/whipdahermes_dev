@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from sqlalchemy.pool import StaticPool
@@ -265,3 +266,88 @@ class TestSQLSessionRepo:
         assert repo.list_by_machine("vm-1") == []
         with SQLSession(repo.engine) as db:
             assert list(db.exec(select(Snapshot)).all()) == []
+
+    def test_delete_by_id_removes_session_and_snapshots(self) -> None:
+        repo = self.create_repo()
+        session = Session(
+            session_id="s-1",
+            machine_id="vm-1",
+            label="s1",
+            last_seen_at="2026-06-26T12:00:00Z",
+        )
+        repo.upsert(session)
+        repo.append_snapshot(
+            Snapshot(
+                session_id="s-1",
+                machine_id="vm-1",
+                preview="first",
+                diff_pct=0.0,
+                stable_counter=1,
+                cwd="/home",
+                captured_at="2026-06-26T12:00:00Z",
+            )
+        )
+        assert repo.get("s-1") is not None
+
+        repo.delete_by_id("s-1")
+
+        assert repo.get("s-1") is None
+        with SQLSession(repo.engine) as db:
+            assert list(db.exec(select(Snapshot)).all()) == []
+
+    def test_delete_by_id_noop_when_not_found(self) -> None:
+        repo = self.create_repo()
+        repo.delete_by_id("non-existent")  # should not raise
+
+    def test_delete_sessions_older_than_removes_stale_sessions(self) -> None:
+        repo = self.create_repo()
+        # Session seen recently (should survive)
+        repo.upsert(
+            Session(
+                session_id="s-recent",
+                machine_id="vm-1",
+                label="recent",
+                last_seen_at=datetime.now(tz=timezone.utc).isoformat().replace("+00:00", "Z"),
+            )
+        )
+        # Session seen 2 days ago (should be removed)
+        old_time = (datetime.now(tz=timezone.utc) - timedelta(days=2)).isoformat().replace("+00:00", "Z")
+        repo.upsert(
+            Session(
+                session_id="s-old",
+                machine_id="vm-1",
+                label="old",
+                last_seen_at=old_time,
+            )
+        )
+        repo.append_snapshot(
+            Snapshot(
+                session_id="s-old",
+                machine_id="vm-1",
+                preview="old output",
+                diff_pct=0.0,
+                stable_counter=1,
+                cwd="/tmp",
+                captured_at=old_time,
+            )
+        )
+
+        repo.delete_sessions_older_than(86400)  # 24h
+
+        assert repo.get("s-recent") is not None
+        assert repo.get("s-old") is None
+        with SQLSession(repo.engine) as db:
+            assert list(db.exec(select(Snapshot).where(Snapshot.session_id == "s-old")).all()) == []
+
+    def test_delete_sessions_older_than_noop_when_all_recent(self) -> None:
+        repo = self.create_repo()
+        repo.upsert(
+            Session(
+                session_id="s-1",
+                machine_id="vm-1",
+                label="s1",
+                last_seen_at=datetime.now(tz=timezone.utc).isoformat().replace("+00:00", "Z"),
+            )
+        )
+        repo.delete_sessions_older_than(86400)
+        assert repo.get("s-1") is not None

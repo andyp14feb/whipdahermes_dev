@@ -25,6 +25,7 @@ class StaleDetector:
 
     def sweep(self) -> None:
         current_time = parse_iso(now_utc())
+        self.session_repo.delete_sessions_older_than(self.cleanup_timeout_seconds)
         for machine in self.machine_service.list_machines():
             age_seconds = int(
                 (current_time - parse_iso(machine.last_seen_at)).total_seconds()

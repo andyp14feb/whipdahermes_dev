@@ -1,10 +1,12 @@
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { StatusSummary } from "../status-summary/StatusSummary";
 import type { SessionListItem } from "../../shared/types/contracts";
 import { useAppStore } from "../../shared/state/appStore";
 import { DEFAULT_NUDGE_PROMPT, useSettingsStore } from "../../shared/state/settingsStore";
 import { Button } from "../../shared/ui/Button";
 import { NudgeConfigModal } from "./NudgeConfigModal";
+import { deleteSession } from "./machineList.api";
 
 interface MachineListItemProps {
   machineId: string;
@@ -13,6 +15,7 @@ interface MachineListItemProps {
 
 export function MachineListItem({ machineId, session }: MachineListItemProps) {
   const { selectedMachineId, selectedSessionId, setSelectedSession } = useAppStore();
+  const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const sessionKey = `${machineId}:${session.session_id}`;
@@ -45,6 +48,15 @@ export function MachineListItem({ machineId, session }: MachineListItemProps) {
     setValidationError(null);
   };
 
+  const handleDelete = async () => {
+    if (!window.confirm(`Remove session "${session.label}"?`)) {
+      return;
+    }
+
+    await deleteSession(session.session_id);
+    await queryClient.invalidateQueries({ queryKey: ["sessions"] });
+  };
+
   return (
     <div className="rounded text-left text-sm">
       <button
@@ -70,6 +82,14 @@ export function MachineListItem({ machineId, session }: MachineListItemProps) {
         <Button type="button" variant="secondary" className="px-2 py-1 text-xs" onClick={() => setIsModalOpen(true)}>
           Configure
         </Button>
+        <button
+          type="button"
+          title="Remove session"
+          className="ml-auto rounded px-1.5 py-1 text-xs text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950"
+          onClick={handleDelete}
+        >
+          ×
+        </button>
         {nudgeConfig?.enabled && (
           <button
             type="button"

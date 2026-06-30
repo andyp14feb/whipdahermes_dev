@@ -40,6 +40,7 @@ class FakeMachineRepo:
 class FakeSessionRepo:
     def __init__(self) -> None:
         self.delete_machine_calls: list[str] = []
+        self.delete_stale_calls: int = 0
 
     def upsert(self, session) -> None:
         pass
@@ -64,6 +65,12 @@ class FakeSessionRepo:
 
     def delete_all_by_machine(self, machine_id: str) -> None:
         self.delete_machine_calls.append(machine_id)
+
+    def delete_by_id(self, session_id: str) -> None:
+        pass
+
+    def delete_sessions_older_than(self, seconds: int) -> None:
+        self.delete_stale_calls += 1
 
 
 def _make_machine(machine_id: str, last_seen_at: str, is_stale: bool = False) -> Machine:
@@ -147,3 +154,16 @@ class TestStaleDetector:
         assert machine_repo.mark_stale_calls == []
         assert machine_repo.delete_calls == []
         assert session_repo.delete_machine_calls == []
+
+    def test_sweep_prunes_stale_sessions_every_tick(self) -> None:
+        machine_repo = FakeMachineRepo()
+        session_repo = FakeSessionRepo()
+        now = datetime.now(tz=timezone.utc)
+        recent_time = (now - timedelta(seconds=5)).isoformat()
+        machine_repo.upsert(_make_machine("vm-1", recent_time))
+        service = MachineService(machine_repo)
+        detector = StaleDetector(service, session_repo, stale_timeout_seconds=60, cleanup_timeout_seconds=86400)
+
+        detector.sweep()
+
+        assert session_repo.delete_stale_calls == 1

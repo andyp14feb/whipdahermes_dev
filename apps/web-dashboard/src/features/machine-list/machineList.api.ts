@@ -8,3 +8,7 @@ export function fetchMachines(): Promise<MachinesResponse> {
 export function fetchSessions(): Promise<SessionsResponse> {
   return apiClient<SessionsResponse>("/sessions");
 }
+
+export function deleteSession(sessionId: string): Promise<void> {
+  return apiClient<void>(`/sessions/${sessionId}`, { method: "DELETE" });
+}

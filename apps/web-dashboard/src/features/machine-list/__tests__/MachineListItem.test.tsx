@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it } from "vitest";
 import { MachineListItem } from "../MachineListItem";
 import { useAppStore } from "../../../shared/state/appStore";
@@ -15,6 +16,13 @@ const session: SessionListItem = {
   last_seen_at: "2026-06-28T00:00:00Z",
 };
 
+function renderWithClient(ui: React.ReactElement) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
+}
+
 describe("MachineListItem", () => {
   beforeEach(() => {
     useAppStore.setState({ selectedMachineId: null, selectedSessionId: null });
@@ -24,7 +32,7 @@ describe("MachineListItem", () => {
   it("selects by machine and session identity", () => {
     useAppStore.setState({ selectedMachineId: "machine-1", selectedSessionId: "A" });
 
-    render(
+    renderWithClient(
       <>
         <MachineListItem machineId="machine-1" session={session} />
         <MachineListItem machineId="machine-2" session={{ ...session, machine_id: "machine-2" }} />
@@ -38,7 +46,7 @@ describe("MachineListItem", () => {
 
   it("toggles nudge without opening config modal", async () => {
     const user = userEvent.setup();
-    render(<MachineListItem machineId="machine-1" session={session} />);
+    renderWithClient(<MachineListItem machineId="machine-1" session={session} />);
 
     await user.click(screen.getByLabelText("Nudge this"));
 
@@ -48,7 +56,7 @@ describe("MachineListItem", () => {
 
   it("opens nudge modal from configure and validates inputs", async () => {
     const user = userEvent.setup();
-    render(<MachineListItem machineId="machine-1" session={session} />);
+    renderWithClient(<MachineListItem machineId="machine-1" session={session} />);
 
     await user.click(screen.getByRole("button", { name: "Configure" }));
     await user.clear(screen.getByLabelText("Stable-time threshold (seconds)"));
@@ -56,5 +64,20 @@ describe("MachineListItem", () => {
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     expect(screen.getByRole("alert")).toHaveTextContent("positive integers");
+  });
+
+  it("shows remove button and confirms before deleting", async () => {
+    const user = userEvent.setup();
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+
+    renderWithClient(<MachineListItem machineId="machine-1" session={session} />);
+
+    const removeBtn = screen.getByTitle("Remove session");
+    expect(removeBtn).toBeInTheDocument();
+
+    await user.click(removeBtn);
+    expect(confirmSpy).toHaveBeenCalledWith('Remove session "A"?');
+
+    confirmSpy.mockRestore();
   });
 });
