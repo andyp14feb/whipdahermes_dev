@@ -1,41 +1,15 @@
 import { useCallback, useRef, useState } from "react";
+import { apiClient } from "../../shared/api-client/apiClient";
 import { AI_PROVIDER_TYPES, useSettingsStore } from "../../shared/state/settingsStore";
-import { buildProviderUrl } from "../../shared/state/providerUrl";
 import { Button } from "../../shared/ui/Button";
 import { Card } from "../../shared/ui/Card";
 
 interface ModelOption {
   id: string;
 }
-const MODEL_ENDPOINTS_BY_PROVIDER = {
-  "openai-compatible": "/v1/models",
-  "anthropic-compatible": "/v1/models",
-  "gemini-compatible": "/v1/models",
-  "ollama-compatible": "/api/tags",
-  "9router-compatible": "/v1/models",
-} as const;
 
-function buildModelRequestHeaders(
-  providerType: (typeof AI_PROVIDER_TYPES)[number],
-  apiKey: string,
-): HeadersInit | undefined {
-  if (!apiKey) return undefined;
-  if (providerType === "anthropic-compatible") {
-    return new Headers({ "x-api-key": apiKey, "anthropic-version": "2023-06-01" });
-  }
-  if (providerType === "gemini-compatible") {
-    return new Headers({ "x-goog-api-key": apiKey });
-  }
-  return new Headers({ Authorization: `Bearer ${apiKey}` });
-}
-
-function normalizeFetchedModels(providerType: (typeof AI_PROVIDER_TYPES)[number], payload: unknown): ModelOption[] {
-  if (providerType === "ollama-compatible") {
-    const models = (payload as { models?: Array<{ name?: string }> }).models ?? [];
-    return models.map((model) => model.name?.trim()).filter((id): id is string => Boolean(id)).map((id) => ({ id }));
-  }
-  const models = (payload as { data?: ModelOption[] }).data ?? [];
-  return models.filter((model): model is ModelOption => typeof model?.id === "string");
+interface ProviderModelsResponse {
+  models: ModelOption[];
 }
 
 interface SettingsPageProps {
@@ -141,16 +115,16 @@ python3 src/main.py`;
     setIsFetchingModels(true);
     setModelsError(null);
     try {
-      const endpoint = MODEL_ENDPOINTS_BY_PROVIDER[aiProviderType];
-      const modelsUrl = buildProviderUrl(aiProviderBaseUrl, aiProviderType, endpoint);
-      const response = await fetch(modelsUrl, {
-        headers: buildModelRequestHeaders(aiProviderType, aiApiKey),
+      const payload = await apiClient<ProviderModelsResponse>("/assess/models", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          base_url: aiProviderBaseUrl,
+          provider_type: aiProviderType,
+          api_key: aiApiKey,
+        }),
       });
-      if (!response.ok) {
-        throw new Error("Unable to fetch models");
-      }
-      const payload = await response.json();
-      setModels(normalizeFetchedModels(aiProviderType, payload));
+      setModels(payload.models);
     } catch {
       setModels([]);
       setModelsError("Unable to fetch models. Check the provider URL and API key.");

@@ -83,9 +83,14 @@ describe("SettingsPage", () => {
   it("fetches and selects AI models from provider settings", async () => {
     const user = userEvent.setup();
     server.use(
-      http.get("https://provider.example/v1/models", ({ request }) => {
-        expect(request.headers.get("authorization")).toBe("Bearer test-key");
-        return HttpResponse.json({ data: [{ id: "model-a" }, { id: "model-b" }] });
+      http.post("/assess/models", async ({ request }) => {
+        const body = await request.json() as { base_url: string; provider_type: string; api_key: string };
+        expect(body).toEqual({
+          base_url: "https://provider.example",
+          provider_type: "openai-compatible",
+          api_key: "test-key",
+        });
+        return HttpResponse.json({ models: [{ id: "model-a" }, { id: "model-b" }] });
       }),
     );
     render(<SettingsPage onClose={() => undefined} />);

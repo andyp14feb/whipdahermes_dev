@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Request
+from pydantic import BaseModel
 from starlette.responses import JSONResponse
 
 from modules.query_api.application.query_service import QueryService
-from modules.session_state.adapters.ai_assessor import HttpProviderAssessor
+from modules.session_state.adapters.ai_assessor import (
+    HttpProviderAssessor,
+    fetch_provider_models,
+)
 from modules.session_state.application.ports import ISessionAssessor
 from modules.session_state.application.session_service import SessionService
 from modules.session_state.application.transition_gate import should_assess_status
@@ -49,12 +53,43 @@ class AssessNotEligible(JSONResponse):
         )
 
 
+class ProviderModelRequest(BaseModel):
+    base_url: str
+    provider_type: str = "openai-compatible"
+    api_key: str = ""
+
+
+class ProviderModelsUnavailable(JSONResponse):
+    def __init__(self, reason: str) -> None:
+        super().__init__(
+            status_code=502,
+            content={
+                "error": {
+                    "code": "PROVIDER_MODELS_UNAVAILABLE",
+                    "message": f"Unable to fetch provider models: {reason}",
+                }
+            },
+        )
+
+
 def create_assess_router(
     service: SessionService,
     assessor: ISessionAssessor | None,
     query_service: QueryService | None = None,
 ) -> APIRouter:
     router = APIRouter(prefix="/assess", tags=["assessment"])
+
+    @router.post("/models", response_model=None)
+    def fetch_models(payload: ProviderModelRequest) -> dict[str, object] | JSONResponse:
+        try:
+            models = fetch_provider_models(
+                payload.base_url,
+                payload.provider_type,
+                payload.api_key,
+            )
+        except RuntimeError as exc:
+            return ProviderModelsUnavailable(str(exc))
+        return {"models": [{"id": model_id} for model_id in models]}
 
     @router.post("/{machine_id}/{session_id}", response_model=None)
     def assess_session(

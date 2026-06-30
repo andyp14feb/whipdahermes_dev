@@ -12,6 +12,7 @@ export default defineConfig({
       "/sessions": apiProxyTarget,
       "/command": apiProxyTarget,
       "/commands": apiProxyTarget,
+      "/assess": apiProxyTarget,
     },
   },
 });

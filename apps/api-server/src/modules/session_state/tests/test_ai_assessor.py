@@ -3,9 +3,12 @@ from __future__ import annotations
 from modules.session_state.adapters import ai_assessor
 from modules.session_state.adapters.ai_assessor import (
     HttpProviderAssessor,
+    _build_models_url,
     _build_provider_url,
     _normalize_provider_base_url,
+    fetch_provider_models,
 )
+
 from modules.session_state.domain.session import Assessment, Session
 from modules.session_state.domain.snapshot import Snapshot
 
@@ -60,6 +63,33 @@ def test_build_provider_url_avoids_duplicate_v1() -> None:
     assert _build_provider_url("https://provider.example/v1", "openai-compatible") == "https://provider.example/v1/chat/completions"
     assert _build_provider_url("https://provider.example", "openai-compatible") == "https://provider.example/v1/chat/completions"
     assert _build_provider_url("http://localhost:11434/api", "ollama-compatible") == "http://localhost:11434/api/chat"
+
+
+def test_build_models_url_avoids_duplicate_v1() -> None:
+    assert _build_models_url("https://provider.example/v1", "openai-compatible") == "https://provider.example/v1/models"
+    assert _build_models_url("https://provider.example", "openai-compatible") == "https://provider.example/v1/models"
+    assert _build_models_url("http://localhost:11434/api", "ollama-compatible") == "http://localhost:11434/api/tags"
+
+
+def test_fetch_provider_models_uses_server_side_auth_header(monkeypatch) -> None:
+    captured = {}
+
+    def fake_urlopen(request, timeout: int = 15):
+        captured["url"] = request.full_url
+        captured["authorization"] = request.headers.get("Authorization")
+        return _DummyResponse(b'{"data":[{"id":"model-a"},{"id":"model-b"}]}')
+
+    monkeypatch.setattr(ai_assessor, "urlopen", fake_urlopen)
+
+    models = fetch_provider_models(
+        "https://provider.example/v1",
+        "openai-compatible",
+        "super-secret-key",
+    )
+
+    assert captured["url"] == "https://provider.example/v1/models"
+    assert captured["authorization"] == "Bearer super-secret-key"
+    assert models == ["model-a", "model-b"]
 
 
 def test_assessor_uses_normalized_url_and_bearer_header(monkeypatch) -> None:

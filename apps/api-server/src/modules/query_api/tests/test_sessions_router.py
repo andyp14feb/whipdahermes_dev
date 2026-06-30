@@ -164,6 +164,52 @@ class FakeAssessor:
 
 
 class TestAssessSessionRouter:
+    def test_models_endpoint_fetches_models_without_browser_cors(self, monkeypatch) -> None:
+        from modules.query_api.adapters.http import assess_router
+        from modules.session_state.adapters.persistence.session_repo import (
+            SQLSessionRepo,
+            create_session_engine,
+        )
+        from sqlalchemy.pool import StaticPool
+        from sqlmodel import SQLModel
+
+        captured = {}
+
+        def fake_fetch_provider_models(base_url: str, provider_type: str, api_key: str):
+            captured["base_url"] = base_url
+            captured["provider_type"] = provider_type
+            captured["api_key"] = api_key
+            return ["model-a", "model-b"]
+
+        monkeypatch.setattr(assess_router, "fetch_provider_models", fake_fetch_provider_models)
+        engine = create_session_engine(
+            "sqlite://",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+        SQLModel.metadata.create_all(engine)
+        session_service = SessionService(SQLSessionRepo(engine))
+        app = FastAPI()
+        app.include_router(assess_router.create_assess_router(session_service, None))
+        client = TestClient(app)
+
+        response = client.post(
+            "/assess/models",
+            json={
+                "base_url": "http://62.171.162.214:20128/v1",
+                "provider_type": "openai-compatible",
+                "api_key": "super-secret-key",
+            },
+        )
+
+        assert response.status_code == 200
+        assert response.json() == {"models": [{"id": "model-a"}, {"id": "model-b"}]}
+        assert captured == {
+            "base_url": "http://62.171.162.214:20128/v1",
+            "provider_type": "openai-compatible",
+            "api_key": "super-secret-key",
+        }
+
     def test_assess_endpoint_stores_and_returns_assessment(self) -> None:
         """RED: This test should fail because the endpoint does not exist yet."""
         session_reader = FakeSessionReader()

@@ -62,17 +62,74 @@ def _normalize_provider_base_url(base_url: str, provider_type: str) -> str:
 
 
 def _build_provider_url(base_url: str, provider_type: str) -> str:
-    endpoint = "/v1/chat/completions"
-    if provider_type == "ollama-compatible":
-        endpoint = "/api/chat"
+    return _build_provider_endpoint_url(base_url, provider_type, "/v1/chat/completions", "/api/chat")
+
+
+def _build_models_url(base_url: str, provider_type: str) -> str:
+    return _build_provider_endpoint_url(base_url, provider_type, "/v1/models", "/api/tags")
+
+
+def _build_provider_endpoint_url(
+    base_url: str, provider_type: str, default_endpoint: str, ollama_endpoint: str
+) -> str:
+    endpoint = ollama_endpoint if provider_type == "ollama-compatible" else default_endpoint
     normalized_base_url = _normalize_provider_base_url(base_url, provider_type)
     return urljoin(f"{normalized_base_url}/", endpoint.lstrip("/"))
+
+
+def _build_provider_headers(
+    provider_type: str, api_key: str, *, json_content: bool = False
+) -> dict[str, str]:
+    headers: dict[str, str] = {}
+    if json_content:
+        headers["Content-Type"] = "application/json"
+    if provider_type == "anthropic-compatible":
+        headers["anthropic-version"] = "2023-06-01"
+        if api_key:
+            headers["x-api-key"] = api_key
+    elif provider_type == "gemini-compatible":
+        if api_key:
+            headers["x-goog-api-key"] = api_key
+    elif provider_type == "ollama-compatible":
+        # Local Ollama-compatible endpoints usually do not need API keys.
+        # Do not send a stored key unnecessarily.
+        pass
+    elif api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    return headers
 
 
 def _redact_secret(text: str, secret: str) -> str:
     if not secret:
         return text
     return text.replace(secret, "[redacted]")
+
+
+def fetch_provider_models(
+    base_url: str,
+    provider_type: str = "openai-compatible",
+    api_key: str = "",
+) -> list[str]:
+    url = _build_models_url(base_url, provider_type)
+    req = HttpRequest(
+        url,
+        headers=_build_provider_headers(provider_type, api_key),
+        method="GET",
+    )
+    try:
+        with urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read())
+    except Exception as exc:
+        redacted_error = _redact_secret(str(exc), api_key)
+        logger.warning("Provider models call failed: %s", redacted_error)
+        raise RuntimeError(redacted_error) from exc
+
+    if provider_type == "ollama-compatible":
+        models = data.get("models", [])
+        return [model["name"].strip() for model in models if isinstance(model.get("name"), str) and model["name"].strip()]
+
+    models = data.get("data", [])
+    return [model["id"].strip() for model in models if isinstance(model.get("id"), str) and model["id"].strip()]
 
 
 def _parse_response(body: bytes) -> AssessmentResult:
@@ -119,22 +176,11 @@ class HttpProviderAssessor(ISessionAssessor):
         payload = _build_payload(session, snapshot)
         payload["model"] = self.model or "gpt-4o-mini"
 
-        headers: dict[str, str] = {
-            "Content-Type": "application/json",
-        }
-        if self.provider_type == "anthropic-compatible":
-            headers["anthropic-version"] = "2023-06-01"
-            if self.api_key:
-                headers["x-api-key"] = self.api_key
-        elif self.provider_type == "gemini-compatible":
-            if self.api_key:
-                headers["x-goog-api-key"] = self.api_key
-        elif self.provider_type == "ollama-compatible":
-            # Local Ollama-compatible endpoints usually do not need API keys.
-            # Do not send a stored key unnecessarily.
-            pass
-        elif self.api_key:
-            headers["Authorization"] = f"Bearer {self.api_key}"
+        headers = _build_provider_headers(
+            self.provider_type,
+            self.api_key,
+            json_content=True,
+        )
 
         logger.info(
             "Assessing session %s via %s provider_type=%s model=%s",
