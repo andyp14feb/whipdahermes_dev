@@ -38,6 +38,7 @@ interface Settings {
   workerApiUrl: string;
   refreshIntervalMs: number;
   staleTimeoutSeconds: number;
+  requestTimeoutMs: number;
   aiProviderBaseUrl: string;
   aiProviderType: AiProviderType;
   aiApiKey: string;
@@ -53,6 +54,7 @@ interface SettingsState extends Settings {
   setWorkerApiUrl: (url: string) => void;
   setRefreshIntervalMs: (ms: number) => void;
   setStaleTimeoutSeconds: (s: number) => void;
+  setRequestTimeoutMs: (ms: number) => void;
   setAiProviderBaseUrl: (url: string) => void;
   setAiProviderType: (providerType: AiProviderType) => void;
   setAiApiKey: (apiKey: string) => void;
@@ -82,6 +84,7 @@ const defaultSettings: Settings = {
   workerApiUrl: "http://localhost:8000",
   refreshIntervalMs: 2000,
   staleTimeoutSeconds: 60,
+  requestTimeoutMs: 40000,
   aiProviderBaseUrl: "",
   aiProviderType: "openai-compatible",
   aiApiKey: "",
@@ -154,6 +157,8 @@ function loadFromStorage(): Settings {
           parsed.refreshIntervalMs ?? defaultSettings.refreshIntervalMs,
         staleTimeoutSeconds:
           parsed.staleTimeoutSeconds ?? defaultSettings.staleTimeoutSeconds,
+        requestTimeoutMs:
+          parsed.requestTimeoutMs ?? defaultSettings.requestTimeoutMs,
         aiProviderBaseUrl:
           parsed.aiProviderBaseUrl ?? defaultSettings.aiProviderBaseUrl,
         aiProviderType: isAiProviderType(parsed.aiProviderType ?? "")
@@ -186,6 +191,7 @@ function persistCurrentSettings(get: () => SettingsState) {
     workerApiUrl,
     refreshIntervalMs,
     staleTimeoutSeconds,
+    requestTimeoutMs,
     aiProviderBaseUrl,
     aiProviderType,
     aiApiKey,
@@ -199,6 +205,7 @@ function persistCurrentSettings(get: () => SettingsState) {
     workerApiUrl,
     refreshIntervalMs,
     staleTimeoutSeconds,
+    requestTimeoutMs,
     aiProviderBaseUrl,
     aiProviderType,
     aiApiKey,
@@ -220,6 +227,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     set(withDirtyFlag({ refreshIntervalMs })),
   setStaleTimeoutSeconds: (staleTimeoutSeconds) =>
     set(withDirtyFlag({ staleTimeoutSeconds })),
+  setRequestTimeoutMs: (requestTimeoutMs) => {
+    set(withDirtyFlag({ requestTimeoutMs }));
+    persistCurrentSettings(get);
+  },
   setAiProviderBaseUrl: (aiProviderBaseUrl) => {
     set(withDirtyFlag({ aiProviderBaseUrl: normalizeProviderBaseUrl(aiProviderBaseUrl, get().aiProviderType) }));
     persistCurrentSettings(get);
@@ -350,6 +361,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       workerApiUrl,
       refreshIntervalMs,
       staleTimeoutSeconds,
+      requestTimeoutMs,
       aiProviderBaseUrl,
       aiProviderType,
       aiApiKey,
@@ -363,6 +375,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       workerApiUrl,
       refreshIntervalMs,
       staleTimeoutSeconds,
+      requestTimeoutMs,
       aiProviderBaseUrl,
       aiProviderType,
       aiApiKey,

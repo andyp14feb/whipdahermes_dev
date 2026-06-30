@@ -13,7 +13,7 @@ export function assessSession(
   machineId: string,
   sessionId: string,
 ): Promise<SessionDetail> {
-  const { aiProviderBaseUrl, aiProviderType, aiApiKey, aiSelectedModel } = useSettingsStore.getState();
+  const { aiProviderBaseUrl, aiProviderType, aiApiKey, aiSelectedModel, requestTimeoutMs } = useSettingsStore.getState();
 
   return apiClient<SessionDetail>(
     `/assess/${machineId}/${sessionId}`,
@@ -28,6 +28,6 @@ export function assessSession(
         ...(aiSelectedModel ? { "x-ai-model": aiSelectedModel } : {}),
       },
     },
-    40000,
+    requestTimeoutMs,
   );
 }

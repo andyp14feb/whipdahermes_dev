@@ -24,6 +24,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
     workerApiUrl,
     refreshIntervalMs,
     staleTimeoutSeconds,
+    requestTimeoutMs,
     aiProviderBaseUrl,
     aiProviderType,
     aiApiKey,
@@ -35,6 +36,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
     setWorkerApiUrl,
     setRefreshIntervalMs,
     setStaleTimeoutSeconds,
+    setRequestTimeoutMs,
     setAiProviderBaseUrl,
     setAiProviderType,
     setAiApiKey,
@@ -115,15 +117,20 @@ python3 src/main.py`;
     setIsFetchingModels(true);
     setModelsError(null);
     try {
-      const payload = await apiClient<ProviderModelsResponse>("/assess/models", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          base_url: aiProviderBaseUrl,
-          provider_type: aiProviderType,
-          api_key: aiApiKey,
-        }),
-      });
+      const payload = await apiClient<ProviderModelsResponse>(
+        "/assess/models",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            base_url: aiProviderBaseUrl,
+            provider_type: aiProviderType,
+            api_key: aiApiKey,
+          }),
+        },
+        requestTimeoutMs,
+      );
+
       setModels(payload.models);
     } catch {
       setModels([]);
@@ -365,6 +372,24 @@ python3 src/main.py`;
             />
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               How often the dashboard polls the API for updates (500–30000ms).
+            </p>
+          </div>
+
+          <div>
+            <label htmlFor="request-timeout-ms" className={labelClass}>Request Timeout (ms)</label>
+            <input
+              id="request-timeout-ms"
+              type="number"
+              min={5000}
+              max={300000}
+              step={5000}
+              className={fieldClass}
+              value={requestTimeoutMs}
+              onChange={(e) => setRequestTimeoutMs(Number(e.target.value))}
+            />
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              How long the dashboard waits for the AI provider before aborting
+              the request (5000–300000ms). Increase for slow models or high latency.
             </p>
           </div>
 

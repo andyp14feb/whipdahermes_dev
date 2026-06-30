@@ -17,6 +17,7 @@ describe("SettingsPage", () => {
       workerApiUrl: "http://localhost:8000",
       refreshIntervalMs: 2000,
       staleTimeoutSeconds: 60,
+      requestTimeoutMs: 40000,
       aiProviderBaseUrl: "",
       aiProviderType: "openai-compatible",
       aiApiKey: "",
@@ -29,6 +30,7 @@ describe("SettingsPage", () => {
       setWorkerApiUrl: useSettingsStore.getState().setWorkerApiUrl,
       setRefreshIntervalMs: useSettingsStore.getState().setRefreshIntervalMs,
       setStaleTimeoutSeconds: useSettingsStore.getState().setStaleTimeoutSeconds,
+      setRequestTimeoutMs: useSettingsStore.getState().setRequestTimeoutMs,
       setAiProviderBaseUrl: useSettingsStore.getState().setAiProviderBaseUrl,
       setAiApiKey: useSettingsStore.getState().setAiApiKey,
       setAiSelectedModel: useSettingsStore.getState().setAiSelectedModel,
@@ -151,6 +153,17 @@ describe("SettingsPage", () => {
 
     expect(useSettingsStore.getState().themeMode).toBe("dark");
     expect(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}").themeMode).toBe("dark");
+  });
+
+  it("persists request timeout locally and exposes it in settings", () => {
+    render(<SettingsPage onClose={() => undefined} />);
+
+    fireEvent.change(screen.getByLabelText("Request Timeout (ms)"), {
+      target: { value: "90000" },
+    });
+
+    expect(useSettingsStore.getState().requestTimeoutMs).toBe(90000);
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}").requestTimeoutMs).toBe(90000);
   });
 
   it("persists custom templates to local storage immediately", async () => {
