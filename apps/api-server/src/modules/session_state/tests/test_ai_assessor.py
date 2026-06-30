@@ -135,3 +135,22 @@ def test_assessor_redacts_api_key_from_provider_errors(monkeypatch) -> None:
     assert result.classification == Assessment.running
     assert "super-secret-key" not in result.reason
     assert "[redacted]" in result.reason
+
+
+def test_assessor_handles_unparseable_provider_body_without_raising(monkeypatch) -> None:
+    def fake_urlopen(request, timeout: int = 30):
+        return _DummyResponse(b'{"choices":[{"message":{"content":"{\\"classification\\":\\"running\\",\\"reason\\":\\"ok\\"}"}}]}\ntrailing-garbage')
+
+    monkeypatch.setattr(ai_assessor, "urlopen", fake_urlopen)
+
+    assessor = HttpProviderAssessor(
+        base_url="https://provider.example/v1",
+        api_key="super-secret-key",
+        model="model-a",
+        provider_type="openai-compatible",
+    )
+
+    result = assessor.assess_session(_session(), _snapshot())
+
+    assert result.classification == Assessment.running
+    assert result.reason == "Provider returned unparseable response"

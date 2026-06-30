@@ -15,15 +15,19 @@ export function assessSession(
 ): Promise<SessionDetail> {
   const { aiProviderBaseUrl, aiProviderType, aiApiKey, aiSelectedModel } = useSettingsStore.getState();
 
-  return apiClient<SessionDetail>(`/assess/${machineId}/${sessionId}`, {
-    method: "POST",
-    headers: {
-      ...(aiProviderType ? { "x-ai-provider-type": aiProviderType } : {}),
-      ...(aiProviderBaseUrl
-        ? { "x-ai-provider-base-url": aiProviderBaseUrl }
-        : {}),
-      ...(aiApiKey ? { "x-ai-api-key": aiApiKey } : {}),
-      ...(aiSelectedModel ? { "x-ai-model": aiSelectedModel } : {}),
+  return apiClient<SessionDetail>(
+    `/assess/${machineId}/${sessionId}`,
+    {
+      method: "POST",
+      headers: {
+        ...(aiProviderType ? { "x-ai-provider-type": aiProviderType } : {}),
+        ...(aiProviderBaseUrl
+          ? { "x-ai-provider-base-url": aiProviderBaseUrl }
+          : {}),
+        ...(aiApiKey ? { "x-ai-api-key": aiApiKey } : {}),
+        ...(aiSelectedModel ? { "x-ai-model": aiSelectedModel } : {}),
+      },
     },
-  });
+    40000,
+  );
 }

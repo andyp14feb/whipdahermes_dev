@@ -46,10 +46,11 @@ export class ApiRequestError extends Error {
 export async function apiClient<T>(
   path: string,
   init?: RequestInit,
+  timeoutMs: number = REQUEST_TIMEOUT_MS,
 ): Promise<T> {
   const url = `${BASE_URL}${path}`;
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   const response = await fetch(url, {
     headers: { Accept: "application/json", ...init?.headers },

@@ -122,6 +122,8 @@ export function SessionPreview({
       ? "AI assessor is not configured yet"
       : assessError instanceof ApiRequestError && assessError.status === 409
         ? "AI assessment only runs when a session turns stuck or waiting"
+        : assessError instanceof DOMException && assessError.name === "AbortError"
+        ? "AI assessment timed out while waiting for the provider"
         : assessError instanceof Error
           ? assessError.message
           : null;

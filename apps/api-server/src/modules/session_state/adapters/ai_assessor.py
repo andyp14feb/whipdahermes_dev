@@ -133,7 +133,11 @@ def fetch_provider_models(
 
 
 def _parse_response(body: bytes) -> AssessmentResult:
-    data = json.loads(body)
+    try:
+        raw = body.decode("utf-8").strip()
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return AssessmentResult(Assessment.running, "Provider returned unparseable response")
     choices = data.get("choices", [])
     if choices:
         content = choices[0].get("message", {}).get("content", "")
