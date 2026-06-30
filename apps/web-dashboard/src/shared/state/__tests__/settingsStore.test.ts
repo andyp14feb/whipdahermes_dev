@@ -59,6 +59,17 @@ describe("settingsStore", () => {
     expect(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}").nudgesBySession["machine-1:A"].enabled).toBe(true);
   });
 
+  it("normalizes and persists OpenAI-compatible provider URLs without duplicate v1", () => {
+    useSettingsStore.getState().setAiProviderBaseUrl("https://provider.example/v1/");
+    useSettingsStore.getState().setAiApiKey("test-key");
+    useSettingsStore.getState().setAiSelectedModel("model-a");
+
+    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
+    expect(stored.aiProviderBaseUrl).toBe("https://provider.example");
+    expect(stored.aiApiKey).toBe("test-key");
+    expect(stored.aiSelectedModel).toBe("model-a");
+  });
+
   it("stops nudging after configured count", () => {
     useSettingsStore.getState().upsertNudgeConfig("machine-1:A", {
       enabled: true,

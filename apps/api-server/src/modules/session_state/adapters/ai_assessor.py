@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 from typing import override
+from urllib.parse import urljoin
 from urllib.request import Request as HttpRequest
 from urllib.request import urlopen
 
@@ -45,6 +46,35 @@ def _build_payload(session: Session, snapshot: Snapshot | None) -> dict[str, obj
     }
 
 
+def _normalize_provider_base_url(base_url: str, provider_type: str) -> str:
+    normalized = base_url.strip().rstrip("/")
+    suffix_by_provider = {
+        "openai-compatible": "/v1",
+        "anthropic-compatible": "/v1",
+        "gemini-compatible": "/v1",
+        "9router-compatible": "/v1",
+        "ollama-compatible": "/api",
+    }
+    suffix = suffix_by_provider.get(provider_type)
+    if suffix and normalized.lower().endswith(suffix):
+        return normalized[: -len(suffix)] or normalized
+    return normalized
+
+
+def _build_provider_url(base_url: str, provider_type: str) -> str:
+    endpoint = "/v1/chat/completions"
+    if provider_type == "ollama-compatible":
+        endpoint = "/api/chat"
+    normalized_base_url = _normalize_provider_base_url(base_url, provider_type)
+    return urljoin(f"{normalized_base_url}/", endpoint.lstrip("/"))
+
+
+def _redact_secret(text: str, secret: str) -> str:
+    if not secret:
+        return text
+    return text.replace(secret, "[redacted]")
+
+
 def _parse_response(body: bytes) -> AssessmentResult:
     data = json.loads(body)
     choices = data.get("choices", [])
@@ -76,7 +106,7 @@ class HttpProviderAssessor(ISessionAssessor):
         model: str = "",
         provider_type: str = "openai-compatible",
     ) -> None:
-        self.base_url = base_url.rstrip("/")
+        self.base_url = _normalize_provider_base_url(base_url, provider_type)
         self.api_key = api_key
         self.model = model
         self.provider_type = provider_type
@@ -85,10 +115,7 @@ class HttpProviderAssessor(ISessionAssessor):
     def assess_session(
         self, session: Session, snapshot: Snapshot | None
     ) -> AssessmentResult:
-        endpoint = "/v1/chat/completions"
-        if self.provider_type == "ollama-compatible":
-            endpoint = "/api/chat"
-        url = f"{self.base_url}{endpoint}"
+        url = _build_provider_url(self.base_url, self.provider_type)
         payload = _build_payload(session, snapshot)
         payload["model"] = self.model or "gpt-4o-mini"
 
@@ -124,7 +151,8 @@ class HttpProviderAssessor(ISessionAssessor):
             with urlopen(req, timeout=30) as resp:
                 response_body = resp.read()
         except Exception as exc:
-            logger.warning("Provider assessor call failed: %s", exc)
-            return AssessmentResult(Assessment.running, f"Provider error: {exc}")
+            redacted_error = _redact_secret(str(exc), self.api_key)
+            logger.warning("Provider assessor call failed: %s", redacted_error)
+            return AssessmentResult(Assessment.running, f"Provider error: {redacted_error}")
 
         return _parse_response(response_body)

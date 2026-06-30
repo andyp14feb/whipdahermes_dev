@@ -312,6 +312,18 @@ describe("CommandPanel integration", () => {
 });
 
 describe("App", () => {
+  it("applies the dark theme to the app shell", async () => {
+    useSettingsStore.setState({ themeMode: "dark" });
+
+    render(<App />);
+
+    const main = await screen.findByRole("main");
+    expect(document.documentElement.classList.contains("dark")).toBe(true);
+    expect(main).toHaveAttribute("data-theme", "dark");
+    expect(main).toHaveStyle({ backgroundColor: "rgb(3, 7, 18)" });
+    expect(document.body).toHaveStyle({ backgroundColor: "rgb(3, 7, 18)" });
+  });
+
   it(
     "shows a connection error banner when the backend is unreachable",
     async () => {

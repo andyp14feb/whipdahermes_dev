@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { TemplateAction } from "../../features/command-panel/commandPanel.types";
+import { normalizeProviderBaseUrl } from "./providerUrl";
 
 export const STORAGE_KEY = "whipai-settings";
 
@@ -219,14 +220,29 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     set(withDirtyFlag({ refreshIntervalMs })),
   setStaleTimeoutSeconds: (staleTimeoutSeconds) =>
     set(withDirtyFlag({ staleTimeoutSeconds })),
-  setAiProviderBaseUrl: (aiProviderBaseUrl) =>
-    set(withDirtyFlag({ aiProviderBaseUrl })),
-  setAiProviderType: (aiProviderType) => set(withDirtyFlag({ aiProviderType })),
-  setAiApiKey: (aiApiKey) => set(withDirtyFlag({ aiApiKey })),
-  setAiSelectedModel: (aiSelectedModel) =>
-    set(withDirtyFlag({ aiSelectedModel })),
-  setAiProviderName: (aiProviderName) =>
-    set(withDirtyFlag({ aiProviderName })),
+  setAiProviderBaseUrl: (aiProviderBaseUrl) => {
+    set(withDirtyFlag({ aiProviderBaseUrl: normalizeProviderBaseUrl(aiProviderBaseUrl, get().aiProviderType) }));
+    persistCurrentSettings(get);
+  },
+  setAiProviderType: (aiProviderType) => {
+    set((state) => withDirtyFlag({
+      aiProviderType,
+      aiProviderBaseUrl: normalizeProviderBaseUrl(state.aiProviderBaseUrl, aiProviderType),
+    }));
+    persistCurrentSettings(get);
+  },
+  setAiApiKey: (aiApiKey) => {
+    set(withDirtyFlag({ aiApiKey }));
+    persistCurrentSettings(get);
+  },
+  setAiSelectedModel: (aiSelectedModel) => {
+    set(withDirtyFlag({ aiSelectedModel }));
+    persistCurrentSettings(get);
+  },
+  setAiProviderName: (aiProviderName) => {
+    set(withDirtyFlag({ aiProviderName }));
+    persistCurrentSettings(get);
+  },
   setThemeMode: (themeMode) => {
     set({ themeMode });
     persistCurrentSettings(get);

@@ -73,6 +73,9 @@ describe("SettingsPage", () => {
 
     expect(screen.getAllByText(/http:\/\/192\.168\.18\.68:8000/).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/git clone/)).toBeInTheDocument();
+    expect(screen.getByText(/git -C .* fetch --prune origin/)).toBeInTheDocument();
+    expect(screen.getByText(/Refusing to update .* local changes would be overwritten/)).toBeInTheDocument();
+    expect(screen.getByText(/git -C .* pull --ff-only origin main/)).toBeInTheDocument();
     expect(screen.getByText(/WORKDIR="\$\(pwd\)\/whipdahermes_dev"/)).toBeInTheDocument();
     expect(screen.getByText(/API_URL="http:\/\/192\.168\.18\.68:8000"/)).toBeInTheDocument();
   });
@@ -80,9 +83,10 @@ describe("SettingsPage", () => {
   it("fetches and selects AI models from provider settings", async () => {
     const user = userEvent.setup();
     server.use(
-      http.get("https://provider.example/v1/models", () =>
-        HttpResponse.json({ data: [{ id: "model-a" }, { id: "model-b" }] }),
-      ),
+      http.get("https://provider.example/v1/models", ({ request }) => {
+        expect(request.headers.get("authorization")).toBe("Bearer test-key");
+        return HttpResponse.json({ data: [{ id: "model-a" }, { id: "model-b" }] });
+      }),
     );
     render(<SettingsPage onClose={() => undefined} />);
 
@@ -90,7 +94,7 @@ describe("SettingsPage", () => {
       target: { value: "openai-compatible" },
     });
     fireEvent.change(screen.getByLabelText("Provider Base URL"), {
-      target: { value: "https://provider.example" },
+      target: { value: "https://provider.example/v1" },
     });
     fireEvent.change(screen.getByLabelText("API Key"), {
       target: { value: "test-key" },
@@ -99,6 +103,7 @@ describe("SettingsPage", () => {
     await user.selectOptions(await screen.findByLabelText("Selected Model"), "model-b");
 
     await waitFor(() => {
+      expect(useSettingsStore.getState().aiProviderBaseUrl).toBe("https://provider.example");
       expect(useSettingsStore.getState().aiProviderName).toBe("openai-compatible");
       expect(useSettingsStore.getState().aiSelectedModel).toBe("model-b");
     });
@@ -141,6 +146,21 @@ describe("SettingsPage", () => {
 
     expect(useSettingsStore.getState().themeMode).toBe("dark");
     expect(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}").themeMode).toBe("dark");
+  });
+
+  it("persists custom templates to local storage immediately", async () => {
+    const user = userEvent.setup();
+    render(<SettingsPage onClose={() => undefined} />);
+
+    fireEvent.change(screen.getByLabelText("New template label"), { target: { value: "custom" } });
+    fireEvent.change(screen.getByLabelText("New template payload"), { target: { value: "do the thing" } });
+    await user.click(screen.getByRole("button", { name: "Add" }));
+
+    await waitFor(() => {
+      const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
+      expect(stored.templateActions.some((action: { label: string; payload: string }) => action.label === "custom" && action.payload === "do the thing")).toBe(true);
+      expect(stored.templateActions.some((action: { id: string }) => action.id === "yes")).toBe(true);
+    });
   });
 
   it("explains that dashboard fetches use the Vite proxy, not the worker URL", () => {

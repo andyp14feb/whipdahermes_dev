@@ -186,7 +186,11 @@ export function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <main className="min-h-screen w-full bg-gray-100 p-4 text-gray-900 dark:bg-gray-950 dark:text-gray-100 sm:p-6">
+      <main
+        data-theme={themeMode}
+        className="min-h-screen w-full bg-gray-100 p-4 text-gray-900 dark:bg-gray-950 dark:text-gray-100 sm:p-6"
+        style={{ backgroundColor: themeMode === "dark" ? "#030712" : "#f3f4f6" }}
+      >
         <div className="w-full min-w-0">
           <NavBar current={view} onNavigate={setView} />
           {view === "dashboard" && <Dashboard />}

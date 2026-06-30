@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { AI_PROVIDER_TYPES, useSettingsStore } from "../../shared/state/settingsStore";
+import { buildProviderUrl } from "../../shared/state/providerUrl";
 import { Button } from "../../shared/ui/Button";
 import { Card } from "../../shared/ui/Card";
 
@@ -97,7 +98,13 @@ COMMAND_POLL_INTERVAL=5
 if [ ! -d "$WORKDIR/.git" ]; then
   git clone "$REPO_URL" "$WORKDIR"
 else
-  git -C "$WORKDIR" pull --ff-only
+  if [ -n "$(git -C "$WORKDIR" status --porcelain)" ]; then
+    echo "Refusing to update $WORKDIR: local changes would be overwritten. Commit, stash, or clean the worktree first." >&2
+    exit 1
+  fi
+  git -C "$WORKDIR" fetch --prune origin
+  git -C "$WORKDIR" checkout main
+  git -C "$WORKDIR" pull --ff-only origin main
 fi
 
 cd "$WORKDIR/apps/machine-agent"
@@ -135,8 +142,8 @@ python3 src/main.py`;
     setModelsError(null);
     try {
       const endpoint = MODEL_ENDPOINTS_BY_PROVIDER[aiProviderType];
-      const modelsUrl = new URL(endpoint, aiProviderBaseUrl);
-      const response = await fetch(modelsUrl.toString(), {
+      const modelsUrl = buildProviderUrl(aiProviderBaseUrl, aiProviderType, endpoint);
+      const response = await fetch(modelsUrl, {
         headers: buildModelRequestHeaders(aiProviderType, aiApiKey),
       });
       if (!response.ok) {
