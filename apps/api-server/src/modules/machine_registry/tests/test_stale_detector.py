@@ -155,7 +155,7 @@ class TestStaleDetector:
         assert machine_repo.delete_calls == []
         assert session_repo.delete_machine_calls == []
 
-    def test_sweep_prunes_stale_sessions_every_tick(self) -> None:
+    def test_sweep_does_not_prune_stale_sessions_while_machine_remains(self) -> None:
         machine_repo = FakeMachineRepo()
         session_repo = FakeSessionRepo()
         now = datetime.now(tz=timezone.utc)
@@ -166,4 +166,6 @@ class TestStaleDetector:
 
         detector.sweep()
 
-        assert session_repo.delete_stale_calls == 1
+        assert session_repo.delete_stale_calls == 0
+        assert session_repo.delete_machine_calls == []
+        assert "vm-1" in machine_repo.machines

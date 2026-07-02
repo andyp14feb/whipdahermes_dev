@@ -42,7 +42,7 @@ class TestQueryService:
     def test_get_machines_returns_all_machines(self) -> None:
         machine_reader = FakeMachineReader()
         session_reader = FakeSessionReader()
-        service = QueryService(machine_reader, session_reader)
+        service = QueryService(machine_reader, session_reader, stale_timeout_seconds=86400)
         machine_reader.machines["vm-1"] = Machine(
             machine_id="vm-1",
             display_name="VM 1",
@@ -79,7 +79,7 @@ class TestQueryService:
         assert result_sorted == expected_sorted
 
     def test_get_machines_returns_empty_list_when_no_machines(self) -> None:
-        service = QueryService(FakeMachineReader(), FakeSessionReader())
+        service = QueryService(FakeMachineReader(), FakeSessionReader(), stale_timeout_seconds=86400)
 
         result = service.get_machines()
 
@@ -88,7 +88,7 @@ class TestQueryService:
     def test_get_sessions_returns_all_sessions(self) -> None:
         machine_reader = FakeMachineReader()
         session_reader = FakeSessionReader()
-        service = QueryService(machine_reader, session_reader)
+        service = QueryService(machine_reader, session_reader, stale_timeout_seconds=86400)
         machine_reader.machines["vm-1"] = Machine(
             machine_id="vm-1",
             display_name="VM 1",
@@ -122,7 +122,7 @@ class TestQueryService:
         assert s2["label"] == "Session 2"
 
     def test_get_sessions_returns_empty_list_when_no_sessions(self) -> None:
-        service = QueryService(FakeMachineReader(), FakeSessionReader())
+        service = QueryService(FakeMachineReader(), FakeSessionReader(), stale_timeout_seconds=86400)
 
         result = service.get_sessions()
 
@@ -131,7 +131,7 @@ class TestQueryService:
     def test_get_sessions_from_multiple_machines(self) -> None:
         machine_reader = FakeMachineReader()
         session_reader = FakeSessionReader()
-        service = QueryService(machine_reader, session_reader)
+        service = QueryService(machine_reader, session_reader, stale_timeout_seconds=86400)
         machine_reader.machines["vm-1"] = Machine(
             machine_id="vm-1",
             display_name="VM 1",
@@ -166,7 +166,7 @@ class TestQueryService:
     def test_get_session_detail_returns_full_detail(self) -> None:
         machine_reader = FakeMachineReader()
         session_reader = FakeSessionReader()
-        service = QueryService(machine_reader, session_reader)
+        service = QueryService(machine_reader, session_reader, stale_timeout_seconds=86400)
         machine_reader.machines["vm-1"] = Machine(
             machine_id="vm-1",
             display_name="VM 1",
@@ -207,7 +207,7 @@ class TestQueryService:
         assert result["last_seen_at"] == NOW
 
     def test_get_session_detail_returns_none_for_missing_session(self) -> None:
-        service = QueryService(FakeMachineReader(), FakeSessionReader())
+        service = QueryService(FakeMachineReader(), FakeSessionReader(), stale_timeout_seconds=86400)
 
         result = service.get_session_detail("vm-1", "nonexistent")
 
@@ -216,7 +216,7 @@ class TestQueryService:
     def test_get_session_detail_returns_none_for_wrong_machine(self) -> None:
         machine_reader = FakeMachineReader()
         session_reader = FakeSessionReader()
-        service = QueryService(machine_reader, session_reader)
+        service = QueryService(machine_reader, session_reader, stale_timeout_seconds=86400)
         session_reader.sessions["s-1"] = Session(
             session_id="s-1",
             machine_id="vm-1",
@@ -233,7 +233,7 @@ class TestQueryService:
     ) -> None:
         machine_reader = FakeMachineReader()
         session_reader = FakeSessionReader()
-        service = QueryService(machine_reader, session_reader)
+        service = QueryService(machine_reader, session_reader, stale_timeout_seconds=86400)
         machine_reader.machines["vm-1"] = Machine(
             machine_id="vm-1",
             display_name="VM 1",
@@ -256,7 +256,7 @@ class TestQueryService:
     def test_stale_machine_propagates_stale_to_sessions(self) -> None:
         machine_reader = FakeMachineReader()
         session_reader = FakeSessionReader()
-        service = QueryService(machine_reader, session_reader)
+        service = QueryService(machine_reader, session_reader, stale_timeout_seconds=86400)
         machine_reader.machines["vm-1"] = Machine(
             machine_id="vm-1",
             display_name="Stale VM",
@@ -283,7 +283,7 @@ class TestQueryService:
     def test_non_stale_machine_preserves_session_status(self) -> None:
         machine_reader = FakeMachineReader()
         session_reader = FakeSessionReader()
-        service = QueryService(machine_reader, session_reader)
+        service = QueryService(machine_reader, session_reader, stale_timeout_seconds=86400)
         machine_reader.machines["vm-1"] = Machine(
             machine_id="vm-1",
             display_name="Healthy VM",
