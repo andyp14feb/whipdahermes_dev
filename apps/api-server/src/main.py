@@ -15,7 +15,6 @@ from modules.machine_registry.adapters.persistence.machine_repo import (
 )
 from modules.machine_registry.application.machine_service import MachineService
 from modules.machine_registry.application.stale_detector import StaleDetector
-from modules.machine_registry.machine_registry import create_machine_registry_module
 from modules.query_api.application.query_service import QueryService
 from modules.query_api.adapters.http.assess_router import create_assess_router
 from modules.query_api.query_api import create_query_api_router
@@ -55,7 +54,6 @@ register_ingest_module(
     machine_registry_upserter=machine_service,
     session_upserter=session_service,
 )
-create_machine_registry_module(machine_service)
 
 command_repo = SQLCommandRepo(shared_engine)
 command_service = CommandService(command_repo, session_result_updater=session_service)
@@ -66,6 +64,8 @@ query_service = QueryService(
     session_reader=session_repo,
     stale_timeout_seconds=settings.stale_timeout_seconds,
     delete_session=session_service.delete_session_by_id,
+    delete_machine=machine_service.delete_machine,
+    delete_sessions_by_machine=session_repo.delete_all_by_machine,
 )
 app.include_router(create_query_api_router(query_service))
 app.include_router(create_assess_router(session_service, None))

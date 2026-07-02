@@ -91,3 +91,61 @@ def test_execute_restart_control_command_sets_restart_flag():
     assert result.delivered is True
     assert control_state.restart_requested() is True
     control_state.clear_restart()
+
+
+def test_execute_create_session_runs_tmux_new_session():
+    executor = CommandExecutor()
+    command = Command(command_id="cmd-create", session_id="", payload="__whipai__:create_session:whipai-new")
+
+    with patch("command.executor.subprocess.run") as run:
+        result = executor.execute(command)
+
+    assert result.delivered is True
+    assert result.failure_reason is None
+    run.assert_called_once_with(
+        ["tmux", "new-session", "-d", "-s", "whipai-new"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+
+def test_execute_create_session_rejects_invalid_name():
+    executor = CommandExecutor()
+    command = Command(command_id="cmd-create-bad", session_id="", payload="__whipai__:create_session:")
+
+    with patch("command.executor.subprocess.run") as run:
+        result = executor.execute(command)
+
+    assert result.delivered is False
+    assert "invalid session name" in (result.failure_reason or "")
+    run.assert_not_called()
+
+
+def test_execute_rename_session_runs_tmux_rename():
+    executor = CommandExecutor()
+    command = Command(command_id="cmd-rename", session_id="old", payload="__whipai__:rename_session:old:new-name")
+
+    with patch("command.executor.subprocess.run") as run:
+        result = executor.execute(command)
+
+    assert result.delivered is True
+    assert result.failure_reason is None
+    run.assert_called_once_with(
+        ["tmux", "rename-session", "-t", "old", "new-name"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+
+def test_execute_rename_session_rejects_payload_without_new_name():
+    executor = CommandExecutor()
+    command = Command(command_id="cmd-rename-bad", session_id="old", payload="__whipai__:rename_session:old")
+
+    with patch("command.executor.subprocess.run") as run:
+        result = executor.execute(command)
+
+    assert result.delivered is False
+    assert result.failure_reason is not None
+    run.assert_not_called()

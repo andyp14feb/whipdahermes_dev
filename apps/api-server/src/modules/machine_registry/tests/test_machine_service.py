@@ -10,6 +10,7 @@ class FakeMachineRepo:
         self.machine = machine
         self.upsert_calls: list[Machine] = []
         self.mark_stale_calls: list[MachineId] = []
+        self.deleted_ids: list[str] = []
 
     def upsert(self, machine: Machine) -> None:
         self.machine = machine
@@ -31,6 +32,11 @@ class FakeMachineRepo:
         self.mark_stale_calls.append(machine_id)
         if self.machine is not None and self.machine.machine_id == str(machine_id):
             self.machine.is_stale = True
+
+    def delete(self, machine_id: MachineId) -> None:
+        self.deleted_ids.append(str(machine_id))
+        if self.machine is not None and self.machine.machine_id == str(machine_id):
+            self.machine = None
 
 
 class TestMachineService:
@@ -129,3 +135,25 @@ class TestMachineService:
         service.upsert_from_heartbeat(MachineId("vm-1"), "2026-06-26T12:00:00Z", 2)
 
         assert machine.is_stale is False
+
+    def test_delete_machine_removes_existing_machine(self) -> None:
+        machine = Machine(
+            machine_id="vm-1",
+            display_name="VM 1",
+            last_seen_at="2026-06-26T12:00:00Z",
+            session_count=1,
+            is_stale=False,
+        )
+        repo = FakeMachineRepo(machine)
+        service = MachineService(repo)
+
+        assert service.delete_machine(MachineId("vm-1")) is True
+        assert repo.deleted_ids == ["vm-1"]
+        assert service.get_machine(MachineId("vm-1")) is None
+
+    def test_delete_machine_returns_false_for_unknown_machine(self) -> None:
+        repo = FakeMachineRepo()
+        service = MachineService(repo)
+
+        assert service.delete_machine(MachineId("missing")) is False
+        assert repo.deleted_ids == []

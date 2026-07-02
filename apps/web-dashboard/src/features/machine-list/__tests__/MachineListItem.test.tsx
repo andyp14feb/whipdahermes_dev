@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MachineListItem } from "../MachineListItem";
 import { useAppStore } from "../../../shared/state/appStore";
 import { useSettingsStore } from "../../../shared/state/settingsStore";
@@ -72,11 +72,13 @@ describe("MachineListItem", () => {
 
     renderWithClient(<MachineListItem machineId="machine-1" session={session} />);
 
-    const removeBtn = screen.getByTitle("Remove session");
+    const removeBtn = screen.getByTitle("Remove session from list");
     expect(removeBtn).toBeInTheDocument();
 
     await user.click(removeBtn);
-    expect(confirmSpy).toHaveBeenCalledWith('Remove session "A"?');
+    expect(confirmSpy).toHaveBeenCalledWith(
+      'Remove session "A" from the displayed list only? The session may reappear on the next heartbeat.',
+    );
 
     confirmSpy.mockRestore();
   });

@@ -69,3 +69,28 @@ class TestMachineRouter:
         body = response.json()
         assert set(body.keys()) == {"machines"}
         assert isinstance(body["machines"], list)
+
+    def test_delete_machine_removes_known_machine(self) -> None:
+        client, repo = self._app_with_repo()
+        repo.upsert(
+            Machine(
+                machine_id="vm-1",
+                display_name="VM 1",
+                last_seen_at="2026-06-24T08:15:00Z",
+                session_count=3,
+            )
+        )
+
+        response = client.delete("/machines/vm-1")
+
+        assert response.status_code == 200
+        assert response.json() == {"status": "deleted", "machine_id": "vm-1"}
+        assert client.get("/machines").json() == {"machines": []}
+
+    def test_delete_machine_returns_not_found_when_unknown(self) -> None:
+        client, _ = self._app_with_repo()
+
+        response = client.delete("/machines/missing")
+
+        assert response.status_code == 200
+        assert response.json() == {"status": "not_found", "machine_id": "missing"}

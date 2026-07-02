@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from fastapi import APIRouter
 
 from modules.machine_registry.adapters.http.machine_router import create_machine_router
@@ -15,5 +17,8 @@ def create_machine_repo(database_url: str = "sqlite:///./whipai.db", **engine_kw
     return SQLMachineRepo(engine)
 
 
-def create_machine_registry_module(service: MachineService) -> APIRouter:
-    return create_machine_router(service)
+def create_machine_registry_module(
+    service: MachineService,
+    delete_sessions_by_machine: Callable[[str], None] | None = None,
+) -> APIRouter:
+    return create_machine_router(service, delete_sessions_by_machine)

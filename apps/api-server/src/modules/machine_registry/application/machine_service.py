@@ -43,3 +43,10 @@ class MachineService:
 
     def mark_stale(self, machine_id: MachineId) -> None:
         self.repo.mark_stale(machine_id)
+
+    def delete_machine(self, machine_id: MachineId) -> bool:
+        existing = self.repo.get(machine_id)
+        if existing is None:
+            return False
+        self.repo.delete(machine_id)
+        return True

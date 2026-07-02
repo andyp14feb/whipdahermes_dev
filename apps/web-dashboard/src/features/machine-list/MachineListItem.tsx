@@ -6,7 +6,7 @@ import { useAppStore } from "../../shared/state/appStore";
 import { DEFAULT_NUDGE_PROMPT, useSettingsStore } from "../../shared/state/settingsStore";
 import { Button } from "../../shared/ui/Button";
 import { NudgeConfigModal } from "./NudgeConfigModal";
-import { deleteSession } from "./machineList.api";
+import { deleteSession, enqueueRenameTmuxSession } from "./machineList.api";
 
 interface MachineListItemProps {
   machineId: string;
@@ -18,6 +18,7 @@ export function MachineListItem({ machineId, session }: MachineListItemProps) {
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [actionFeedback, setActionFeedback] = useState<string | null>(null);
   const sessionKey = `${machineId}:${session.session_id}`;
   const nudgeConfig = useSettingsStore((s) => s.nudgesBySession[sessionKey]);
   const setNudgeEnabled = useSettingsStore((s) => s.setNudgeEnabled);
@@ -49,12 +50,41 @@ export function MachineListItem({ machineId, session }: MachineListItemProps) {
   };
 
   const handleDelete = async () => {
-    if (!window.confirm(`Remove session "${session.label}"?`)) {
+    if (!window.confirm(`Remove session "${session.label}" from the displayed list only? The session may reappear on the next heartbeat.`)) {
       return;
     }
 
-    await deleteSession(session.session_id);
-    await queryClient.invalidateQueries({ queryKey: ["sessions"] });
+    try {
+      setActionFeedback(null);
+      await deleteSession(session.session_id);
+      await queryClient.invalidateQueries({ queryKey: ["sessions"] });
+    } catch (error) {
+      setActionFeedback(error instanceof Error ? error.message : "Failed to remove session from list.");
+    }
+  };
+
+  const handleRenameSession = async () => {
+    const newName = window.prompt("Rename tmux session to", session.session_id)?.trim();
+    if (!newName) {
+      return;
+    }
+    if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(newName)) {
+      setActionFeedback("Session name must start with a letter or number and contain only letters, numbers, dot, underscore, or hyphen.");
+      return;
+    }
+    if (newName === session.session_id) {
+      setActionFeedback("New session name is the same as the current name.");
+      return;
+    }
+
+    try {
+      setActionFeedback(null);
+      await enqueueRenameTmuxSession(machineId, session.session_id, newName);
+      window.alert("Rename tmux session request queued. The next heartbeat confirms the rename and refreshes the list.");
+      await queryClient.invalidateQueries({ queryKey: ["sessions"] });
+    } catch (error) {
+      setActionFeedback(error instanceof Error ? error.message : "Failed to request rename.");
+    }
   };
 
   return (
@@ -69,7 +99,8 @@ export function MachineListItem({ machineId, session }: MachineListItemProps) {
           <StatusSummary status={session.status} secondsSinceChange={session.seconds_since_change} />
         </div>
       </button>
-      <div className="mt-2 flex items-center gap-2 px-3">
+      <div className="mt-2 space-y-2 px-3">
+        <div className="flex flex-wrap items-center gap-2">
           <label className="flex items-center gap-1 text-xs text-gray-700 dark:text-gray-300">
             <input
               type="checkbox"
@@ -78,27 +109,31 @@ export function MachineListItem({ machineId, session }: MachineListItemProps) {
             />
             Nudge this
           </label>
-
-        <Button type="button" variant="secondary" className="px-2 py-1 text-xs" onClick={() => setIsModalOpen(true)}>
-          Configure
-        </Button>
-        <button
-          type="button"
-          title="Remove session"
-          className="ml-auto rounded px-1.5 py-1 text-xs text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950"
-          onClick={handleDelete}
-        >
-          ×
-        </button>
-        {nudgeConfig?.enabled && (
+          <Button type="button" variant="secondary" className="px-2 py-1 text-xs" onClick={() => setIsModalOpen(true)}>
+            Configure
+          </Button>
+          <Button type="button" variant="secondary" className="px-2 py-1 text-xs" onClick={handleRenameSession}>
+            Rename
+          </Button>
           <button
             type="button"
-            className="text-xs text-blue-700 underline"
-            onClick={() => incrementNudgeCount(sessionKey)}
+            title="Remove session from list"
+            className="ml-auto rounded px-1.5 py-1 text-xs text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950"
+            onClick={handleDelete}
           >
-            Mark nudge sent ({nudgeConfig.nudgesSent}/{nudgeConfig.maxNudges})
+            ×
           </button>
-        )}
+          {nudgeConfig?.enabled && (
+            <button
+              type="button"
+              className="text-xs text-blue-700 underline"
+              onClick={() => incrementNudgeCount(sessionKey)}
+            >
+              Mark nudge sent ({nudgeConfig.nudgesSent}/{nudgeConfig.maxNudges})
+            </button>
+          )}
+        </div>
+        {actionFeedback && <p role="alert" className="text-xs text-red-600">{actionFeedback}</p>}
       </div>
       <NudgeConfigModal
         machineId={machineId}

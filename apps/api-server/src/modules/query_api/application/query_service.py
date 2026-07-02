@@ -13,11 +13,15 @@ class QueryService:
         session_reader: ISessionReader,
         stale_timeout_seconds: int = 60,
         delete_session: Callable[[str], None] | None = None,
+        delete_machine: Callable[[str], bool] | None = None,
+        delete_sessions_by_machine: Callable[[str], None] | None = None,
     ) -> None:
         self.machine_reader = machine_reader
         self.session_reader = session_reader
         self.stale_timeout_seconds = stale_timeout_seconds
         self._delete_session = delete_session
+        self._delete_machine = delete_machine
+        self._delete_sessions_by_machine = delete_sessions_by_machine
 
     def _is_machine_stale(self, last_seen_at: str) -> bool:
         try:
@@ -89,3 +93,11 @@ class QueryService:
     def delete_session_by_id(self, session_id: str) -> None:
         if self._delete_session is not None:
             self._delete_session(session_id)
+
+    def delete_machine_by_id(self, machine_id: str) -> bool:
+        deleted = False
+        if self._delete_machine is not None:
+            deleted = self._delete_machine(machine_id)
+        if self._delete_sessions_by_machine is not None:
+            self._delete_sessions_by_machine(machine_id)
+        return deleted

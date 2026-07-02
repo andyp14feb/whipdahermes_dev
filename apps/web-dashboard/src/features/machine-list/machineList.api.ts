@@ -12,3 +12,31 @@ export function fetchSessions(): Promise<SessionsResponse> {
 export function deleteSession(sessionId: string): Promise<void> {
   return apiClient<void>(`/sessions/${sessionId}`, { method: "DELETE" });
 }
+
+export function deleteMachine(machineId: string): Promise<{ status: string; machine_id: string }> {
+  return apiClient(`/machines/${encodeURIComponent(machineId)}`, { method: "DELETE" });
+}
+
+export function enqueueCreateTmuxSession(machineId: string, sessionName: string): Promise<{ command_id: string; state: string; target: string }> {
+  return apiClient("/command", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ machine_id: machineId, session_id: sessionName, payload: `__whipai__:create_session:${sessionName}` }),
+  });
+}
+
+export function enqueueRenameTmuxSession(
+  machineId: string,
+  currentSessionName: string,
+  newSessionName: string,
+): Promise<{ command_id: string; state: string; target: string }> {
+  return apiClient("/command", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      machine_id: machineId,
+      session_id: currentSessionName,
+      payload: `__whipai__:rename_session:${currentSessionName}:${newSessionName}`,
+    }),
+  });
+}
