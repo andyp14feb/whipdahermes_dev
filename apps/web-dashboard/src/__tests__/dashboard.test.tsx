@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
@@ -102,6 +102,7 @@ beforeEach(() => {
     layoutCount: 1,
   });
   localStorage.removeItem("whipai-settings");
+  localStorage.removeItem("whipai.machineList.manualOrder");
   vi.restoreAllMocks();
 
   server.use(
@@ -134,6 +135,93 @@ describe("MachineList", () => {
 
     expect(useAppStore.getState().selectedMachineId).toBe("machine-1");
     expect(useAppStore.getState().selectedSessionId).toBe("session-1");
+  });
+
+  it("sorts machine cards by name and direction", async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.get("/machines", () => HttpResponse.json({
+        machines: [
+          { machine_id: "beta", display_name: "Beta", last_seen_at: "2026-06-26T10:00:00Z", session_count: 0, is_stale: false },
+          { machine_id: "alpha", display_name: "Alpha", last_seen_at: "2026-06-26T11:00:00Z", session_count: 0, is_stale: false },
+        ],
+      })),
+      http.get("/sessions", () => HttpResponse.json({ sessions: [] })),
+    );
+
+    renderWithClient(<MachineList />);
+    await user.click(await screen.findByRole("button", { name: "Name" }));
+
+    expect(screen.getAllByRole("heading", { level: 3 }).map((heading) => heading.textContent)).toEqual([
+      "Alpha(0)",
+      "Beta(0)",
+    ]);
+
+    await user.click(screen.getByRole("button", { name: /asc/i }));
+
+    expect(screen.getAllByRole("heading", { level: 3 }).map((heading) => heading.textContent)).toEqual([
+      "Beta(0)",
+      "Alpha(0)",
+    ]);
+  });
+
+  it("sorts machine cards by last registered time", async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.get("/machines", () => HttpResponse.json({
+        machines: [
+          { machine_id: "new", display_name: "New", last_seen_at: "2026-06-26T12:00:00Z", session_count: 0, is_stale: false },
+          { machine_id: "old", display_name: "Old", last_seen_at: "2026-06-26T09:00:00Z", session_count: 0, is_stale: false },
+        ],
+      })),
+      http.get("/sessions", () => HttpResponse.json({ sessions: [] })),
+    );
+
+    renderWithClient(<MachineList />);
+    await user.click(await screen.findByRole("button", { name: "Last registered" }));
+
+    expect(screen.getAllByRole("heading", { level: 3 }).map((heading) => heading.textContent)).toEqual([
+      "Old(0)",
+      "New(0)",
+    ]);
+
+    await user.click(screen.getByRole("button", { name: /asc/i }));
+
+    expect(screen.getAllByRole("heading", { level: 3 }).map((heading) => heading.textContent)).toEqual([
+      "New(0)",
+      "Old(0)",
+    ]);
+  });
+
+  it("allows dragging machine cards into a manual order and persists it", async () => {
+    server.use(
+      http.get("/machines", () => HttpResponse.json({
+        machines: [
+          { machine_id: "alpha", display_name: "Alpha", last_seen_at: "2026-06-26T09:00:00Z", session_count: 0, is_stale: false },
+          { machine_id: "beta", display_name: "Beta", last_seen_at: "2026-06-26T10:00:00Z", session_count: 0, is_stale: false },
+          { machine_id: "gamma", display_name: "Gamma", last_seen_at: "2026-06-26T11:00:00Z", session_count: 0, is_stale: false },
+        ],
+      })),
+      http.get("/sessions", () => HttpResponse.json({ sessions: [] })),
+    );
+
+    renderWithClient(<MachineList />);
+    await screen.findByText("Alpha");
+
+    fireEvent.dragStart(screen.getByTestId("machine-card-gamma"));
+    fireEvent.dragOver(screen.getByTestId("machine-card-alpha"));
+    fireEvent.dragEnd(screen.getByTestId("machine-card-gamma"));
+
+    expect(screen.getAllByRole("heading", { level: 3 }).map((heading) => heading.textContent)).toEqual([
+      "Gamma(0)",
+      "Alpha(0)",
+      "Beta(0)",
+    ]);
+    expect(JSON.parse(localStorage.getItem("whipai.machineList.manualOrder") ?? "[]")).toEqual([
+      "gamma",
+      "alpha",
+      "beta",
+    ]);
   });
 });
 

@@ -1,14 +1,15 @@
-interface CardProps {
-  children: React.ReactNode;
+import type { HTMLAttributes, ReactNode } from "react";
+
+interface CardProps extends HTMLAttributes<HTMLDivElement> {
+  children: ReactNode;
   className?: string;
-  onClick?: () => void;
 }
 
-export function Card({ children, className = "", onClick }: CardProps) {
+export function Card({ children, className = "", ...props }: CardProps) {
   return (
     <div
       className={`rounded-lg border border-gray-200 bg-white shadow-sm transition-colors dark:border-gray-800 dark:bg-gray-900 ${className}`}
-      onClick={onClick}
+      {...props}
     >
       {children}
     </div>
