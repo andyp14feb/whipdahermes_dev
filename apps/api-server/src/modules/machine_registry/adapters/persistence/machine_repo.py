@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from sqlalchemy import delete as sa_delete
+from sqlalchemy import delete as sa_delete, event
+from sqlalchemy.pool import NullPool, StaticPool
 from sqlmodel import Session, SQLModel, create_engine, select
-from sqlalchemy.pool import StaticPool
 
 from modules.machine_registry.application.ports import IMachineRepo
 from modules.machine_registry.domain.machine import Machine
 from modules.shared_kernel.ids import MachineId
+from modules.shared_kernel.sqlite_write_lock import sqlite_write_lock
 
 
 MachineModel = Machine
@@ -18,7 +19,7 @@ class SQLMachineRepo(IMachineRepo):
         SQLModel.metadata.create_all(self.engine)
 
     def upsert(self, machine: Machine) -> None:
-        with Session(self.engine) as session:
+        with sqlite_write_lock(), Session(self.engine) as session:
             session.merge(machine)
             session.commit()
 
@@ -32,7 +33,7 @@ class SQLMachineRepo(IMachineRepo):
             return list(session.exec(statement).all())
 
     def update_session_count(self, machine_id: MachineId, count: int) -> None:
-        with Session(self.engine) as session:
+        with sqlite_write_lock(), Session(self.engine) as session:
             machine = session.get(MachineModel, str(machine_id))
             if machine is None:
                 return
@@ -41,7 +42,7 @@ class SQLMachineRepo(IMachineRepo):
             session.commit()
 
     def mark_stale(self, machine_id: MachineId) -> None:
-        with Session(self.engine) as session:
+        with sqlite_write_lock(), Session(self.engine) as session:
             machine = session.get(MachineModel, str(machine_id))
             if machine is None:
                 return
@@ -50,15 +51,15 @@ class SQLMachineRepo(IMachineRepo):
             session.commit()
 
     def delete(self, machine_id: MachineId) -> None:
-        with Session(self.engine) as session:
+        with sqlite_write_lock(), Session(self.engine) as session:
             stmt = sa_delete(MachineModel).where(MachineModel.machine_id == str(machine_id))
             session.exec(stmt)
             session.commit()
 
 
-def create_machine_engine(url: str = "sqlite:///./whipai.db", **engine_kwargs):
+def _sqlite_engine_kwargs(url: str) -> dict[str, object]:
     if url == "sqlite://":
-        default_kwargs = {
+        return {
             "connect_args": {
                 "check_same_thread": False,
                 "timeout": 10,
@@ -66,23 +67,32 @@ def create_machine_engine(url: str = "sqlite:///./whipai.db", **engine_kwargs):
             },
             "poolclass": StaticPool,
         }
-    elif url.startswith("sqlite"):
-        default_kwargs = {
+    if url.startswith("sqlite"):
+        return {
             "connect_args": {
                 "check_same_thread": False,
-                "timeout": 10,
+                "timeout": 30,
                 "isolation_level": None,
             },
+            "poolclass": NullPool,
         }
-    else:
-        default_kwargs = {}
+    return {}
 
-    engine = create_engine(url, **(default_kwargs | engine_kwargs))
 
-    if url.startswith("sqlite"):
-        with engine.connect() as conn:
-            conn.exec_driver_sql("PRAGMA journal_mode=WAL")
-            conn.exec_driver_sql("PRAGMA busy_timeout=5000")
-            conn.commit()
+def _configure_sqlite_engine(engine) -> None:
+    if engine.url.get_backend_name() != "sqlite":
+        return
 
+    @event.listens_for(engine, "connect")
+    def _set_sqlite_pragmas(dbapi_connection, _connection_record) -> None:
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA busy_timeout=30000")
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+
+
+def create_machine_engine(url: str = "sqlite:///./whipai.db", **engine_kwargs):
+    engine = create_engine(url, **(_sqlite_engine_kwargs(url) | engine_kwargs))
+    _configure_sqlite_engine(engine)
     return engine

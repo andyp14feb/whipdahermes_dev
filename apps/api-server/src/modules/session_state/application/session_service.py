@@ -32,7 +32,8 @@ class SessionService:
         self, machine_id: MachineId, sessions: list[SessionSnapshot]
     ) -> None:
         now = now_utc()
-        self.repo.delete_missing_by_machine(str(machine_id), {snap.session_id for snap in sessions})
+        records: list[tuple[Session, Snapshot]] = []
+        assessment_candidates: list[tuple[Session, Snapshot, str]] = []
         for snap in sessions:
             previous = self.repo.get(snap.session_id)
             old_status: str | None = previous.status if previous else None
@@ -46,7 +47,6 @@ class SessionService:
                 last_seen_at=now,
                 cwd=snap.cwd or "",
             )
-            self.repo.upsert(session)
 
             snapshot_record = Snapshot(
                 session_id=snap.session_id,
@@ -57,26 +57,31 @@ class SessionService:
                 cwd=snap.cwd or "",
                 captured_at=snap.captured_at,
             )
+
             if self.classifier:
                 status = self.classifier.classify_session(session, snapshot_record)
-                self.repo.update_status(snap.session_id, status.value)
+                session.status = status.value
                 new_status = status.value
             else:
                 new_status = "unknown"
 
-            self.repo.append_snapshot(snapshot_record)
+            records.append((session, snapshot_record))
 
             if (
                 self.assessor is not None
                 and should_assess_transition(old_status, new_status)
                 and should_assess_status(new_status)
             ):
-                refreshed = self.repo.get(snap.session_id)
-                if refreshed is not None:
-                    latest_snapshot = self.repo.get_latest_snapshot(snap.session_id)
-                    assess_and_update_session(
-                        self.repo, self.assessor, refreshed, latest_snapshot, now_utc()
-                    )
+                assessment_candidates.append((session, snapshot_record, now))
+
+        self.repo.batch_upsert_heartbeat(
+            str(machine_id), {snap.session_id for snap in sessions}, records
+        )
+
+        for session, snapshot_record, assessed_at in assessment_candidates:
+            assess_and_update_session(
+                self.repo, self.assessor, session, snapshot_record, assessed_at
+            )
 
     def upsert_from_command_result(
         self,

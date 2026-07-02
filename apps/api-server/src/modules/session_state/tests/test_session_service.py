@@ -19,6 +19,17 @@ class FakeSessionRepo:
         self.sessions[session.session_id] = session
         self.upsert_calls.append(session)
 
+    def batch_upsert_heartbeat(
+        self,
+        machine_id: str,
+        active_session_ids: set[str],
+        records: list[tuple[Session, Snapshot]],
+    ) -> None:
+        self.mark_missing_by_machine_as_stale(machine_id, active_session_ids)
+        for session, snapshot in records:
+            self.upsert(session)
+            self.snapshots.append(snapshot)
+
     def get(self, session_id: str) -> Session | None:
         return self.sessions.get(session_id)
 
@@ -68,9 +79,11 @@ class FakeSessionRepo:
             if snapshot.machine_id != machine_id
         ]
 
-    def delete_missing_by_machine(self, machine_id: str, session_ids: set[str]) -> None:
+    def mark_missing_by_machine_as_stale(self, machine_id: str, session_ids: set[str]) -> None:
         if not session_ids:
-            self.delete_all_by_machine(machine_id)
+            for sid, session in self.sessions.items():
+                if session.machine_id == machine_id:
+                    session.status = "stale"
             return
         stale_session_ids = [
             session_id
@@ -78,12 +91,7 @@ class FakeSessionRepo:
             if session.machine_id == machine_id and session_id not in session_ids
         ]
         for session_id in stale_session_ids:
-            del self.sessions[session_id]
-        self.snapshots = [
-            snapshot
-            for snapshot in self.snapshots
-            if snapshot.machine_id != machine_id or snapshot.session_id in session_ids
-        ]
+            self.sessions[session_id].status = "stale"
 
 
 class TestSessionService:
@@ -349,7 +357,7 @@ class TestSessionService:
         assert repo.sessions["s-stable-3s"].seconds_since_change == 3
         assert repo.sessions["s-stable-15s"].seconds_since_change == 15
 
-    def test_upsert_removes_stale_sessions_missing_from_next_heartbeat(self) -> None:
+    def test_upsert_marks_stale_sessions_missing_from_next_heartbeat(self) -> None:
         repo = FakeSessionRepo()
         service = SessionService(repo)
 
@@ -395,7 +403,8 @@ class TestSessionService:
             ],
         )
 
-        assert "session-a" not in repo.sessions
+        assert "session-a" in repo.sessions
+        assert repo.sessions["session-a"].status == "stale"
         assert "session-b" in repo.sessions
 
     def test_upsert_appends_a_snapshot_record(self) -> None:

@@ -42,9 +42,10 @@ class QueryService:
 
     def get_sessions(self) -> dict[str, list[dict[str, object]]]:
         sessions = self.session_reader.list_all()
+        machines_by_id = {machine.machine_id: machine for machine in self.machine_reader.list_all()}
         result = []
         for session in sessions:
-            machine = self.machine_reader.get(session.machine_id)
+            machine = machines_by_id.get(session.machine_id)
             status = session.status
             if machine is not None and self._is_machine_stale(machine.last_seen_at):
                 status = "stale"

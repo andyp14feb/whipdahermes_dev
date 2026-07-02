@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 from sqlmodel import Session, SQLModel, create_engine, select
-from sqlalchemy.pool import StaticPool
 
+from modules.machine_registry.adapters.persistence.machine_repo import (
+    _configure_sqlite_engine,
+    _sqlite_engine_kwargs,
+)
 from modules.command_router.application.ports import ICommandRepo
 from modules.command_router.domain.command import Command, CommandState
 from modules.command_router.domain.command_state import CommandStateMachine
 from modules.shared_kernel.ids import CommandId
+from modules.shared_kernel.sqlite_write_lock import sqlite_write_lock
 from modules.shared_kernel.time_utils import now_utc
 
 
@@ -32,7 +36,7 @@ class SQLCommandRepo(ICommandRepo):
             requested_at=now,
             accepted_at=now,
         )
-        with Session(self.engine) as session:
+        with sqlite_write_lock(), Session(self.engine) as session:
             session.add(command)
             session.commit()
             session.refresh(command)
@@ -56,7 +60,7 @@ class SQLCommandRepo(ICommandRepo):
         state: str,
         **kwargs: object,
     ) -> Command:
-        with Session(self.engine) as session:
+        with sqlite_write_lock(), Session(self.engine) as session:
             command = session.get(CommandModel, command_id)
             if command is None:
                 raise ValueError(f"Command {command_id} not found")
@@ -71,32 +75,6 @@ class SQLCommandRepo(ICommandRepo):
 
 
 def create_command_engine(url: str = "sqlite://", **engine_kwargs):
-    if url == "sqlite://":
-        default_kwargs = {
-            "connect_args": {
-                "check_same_thread": False,
-                "timeout": 10,
-                "isolation_level": None,
-            },
-            "poolclass": StaticPool,
-        }
-    elif url.startswith("sqlite"):
-        default_kwargs = {
-            "connect_args": {
-                "check_same_thread": False,
-                "timeout": 10,
-                "isolation_level": None,
-            },
-        }
-    else:
-        default_kwargs = {}
-
-    engine = create_engine(url, **(default_kwargs | engine_kwargs))
-
-    if url.startswith("sqlite"):
-        with engine.connect() as conn:
-            conn.exec_driver_sql("PRAGMA journal_mode=WAL")
-            conn.exec_driver_sql("PRAGMA busy_timeout=5000")
-            conn.commit()
-
+    engine = create_engine(url, **(_sqlite_engine_kwargs(url) | engine_kwargs))
+    _configure_sqlite_engine(engine)
     return engine

@@ -15,4 +15,16 @@ export default defineConfig({
       "/assess": apiProxyTarget,
     },
   },
+  preview: {
+    port: 3000,
+    host: "0.0.0.0",
+    allowedHosts: true,
+    proxy: {
+      "/machines": apiProxyTarget,
+      "/sessions": apiProxyTarget,
+      "/command": apiProxyTarget,
+      "/commands": apiProxyTarget,
+      "/assess": apiProxyTarget,
+    },
+  },
 });

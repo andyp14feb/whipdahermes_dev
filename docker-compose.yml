@@ -42,9 +42,9 @@ services:
       API_URL: http://api-server:8000
       INTERVAL: 2
       COMMAND_POLL_INTERVAL: 5
-      TMUX_SOCKET: /host-tmux/default
+      TMUX_SOCKET: ${TMUX_SOCKET:-/host-tmux/default}
     volumes:
-      - /tmp/tmux-1000:/host-tmux
+      - ${TMUX_HOST_DIR:-/tmp/tmux-1000}:/host-tmux
     depends_on:
       api-server:
         condition: service_healthy

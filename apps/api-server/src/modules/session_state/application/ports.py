@@ -25,6 +25,13 @@ class ISessionAssessor(Protocol):
 class ISessionRepo(Protocol):
     def upsert(self, session: Session) -> None: ...
 
+    def batch_upsert_heartbeat(
+        self,
+        machine_id: str,
+        active_session_ids: set[str],
+        records: list[tuple[Session, Snapshot]],
+    ) -> None: ...
+
     def get(self, session_id: str) -> Session | None: ...
 
     def list_by_machine(self, machine_id: str) -> list[Session]: ...
@@ -47,7 +54,7 @@ class ISessionRepo(Protocol):
 
     def delete_all_by_machine(self, machine_id: str) -> None: ...
 
-    def delete_missing_by_machine(
+    def mark_missing_by_machine_as_stale(
         self, machine_id: str, session_ids: set[str]
     ) -> None: ...
 

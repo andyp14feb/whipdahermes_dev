@@ -21,11 +21,9 @@ from modules.query_api.adapters.http.assess_router import create_assess_router
 from modules.query_api.query_api import create_query_api_router
 from modules.session_state.adapters.persistence.session_repo import (
     SQLSessionRepo,
-    create_session_engine,
 )
 from modules.command_router.adapters.persistence.command_repo import (
     SQLCommandRepo,
-    create_command_engine,
 )
 from modules.command_router.application.command_service import CommandService
 from modules.command_router.command_router import create_command_router_module
@@ -44,12 +42,11 @@ app.add_middleware(
 )
 
 database_url = settings.database_url.get_secret_value()
-machine_engine = create_machine_engine(database_url)
-machine_repo = SQLMachineRepo(machine_engine)
+shared_engine = create_machine_engine(database_url)
+machine_repo = SQLMachineRepo(shared_engine)
 machine_service = MachineService(machine_repo)
 
-session_engine = create_session_engine(database_url)
-session_repo = SQLSessionRepo(session_engine)
+session_repo = SQLSessionRepo(shared_engine)
 detection_service = create_detection_module()
 session_service = create_session_state_module(session_repo, detection_service)
 
@@ -60,8 +57,7 @@ register_ingest_module(
 )
 create_machine_registry_module(machine_service)
 
-command_engine = create_command_engine(database_url)
-command_repo = SQLCommandRepo(command_engine)
+command_repo = SQLCommandRepo(shared_engine)
 command_service = CommandService(command_repo, session_result_updater=session_service)
 app.include_router(create_command_router_module(command_service))
 
