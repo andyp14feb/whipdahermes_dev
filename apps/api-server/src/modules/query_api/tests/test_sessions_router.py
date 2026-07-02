@@ -156,10 +156,10 @@ class TestSessionsRouter:
 
     def test_delete_session_returns_200_and_deletes(self) -> None:
         session_reader = FakeSessionReader()
-        deleted_ids: list[str] = []
+        deleted_ids: list[tuple[str, str]] = []
 
-        def fake_delete(session_id: str) -> None:
-            deleted_ids.append(session_id)
+        def fake_delete(machine_id: str, session_id: str) -> None:
+            deleted_ids.append((machine_id, session_id))
 
         service = QueryService(
             FakeMachineReader(),
@@ -177,18 +177,18 @@ class TestSessionsRouter:
         app = _build_app(service)
         client = TestClient(app)
 
-        response = client.delete("/sessions/s-1")
+        response = client.delete("/sessions/vm-1/s-1")
 
         assert response.status_code == 200
-        assert response.json() == {"status": "deleted", "session_id": "s-1"}
-        assert deleted_ids == ["s-1"]
+        assert response.json() == {"status": "deleted", "machine_id": "vm-1", "session_id": "s-1"}
+        assert deleted_ids == [("vm-1", "s-1")]
 
     def test_delete_session_noop_when_callback_not_set(self) -> None:
         service = QueryService(FakeMachineReader(), FakeSessionReader())
         app = _build_app(service)
         client = TestClient(app)
 
-        response = client.delete("/sessions/nonexistent")
+        response = client.delete("/sessions/vm-1/nonexistent")
 
         assert response.status_code == 200
 
@@ -287,7 +287,7 @@ class TestAssessSessionRouter:
         repo = SQLSessionRepo(engine)
         session_service = SessionService(repo)
         session_service.repo.upsert(session)
-        session_service.repo.append_snapshot(Snapshot(
+        session_service.repo.append_snapshot("vm-1", Snapshot(
             session_id="s-1",
             machine_id="vm-1",
             preview="Proceed? [y/N]",

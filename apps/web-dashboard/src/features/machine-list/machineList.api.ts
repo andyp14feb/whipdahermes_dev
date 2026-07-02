@@ -9,8 +9,8 @@ export function fetchSessions(): Promise<SessionsResponse> {
   return apiClient<SessionsResponse>("/sessions");
 }
 
-export function deleteSession(sessionId: string): Promise<void> {
-  return apiClient<void>(`/sessions/${sessionId}`, { method: "DELETE" });
+export function deleteSession(machineId: string, sessionId: string): Promise<void> {
+  return apiClient<void>(`/sessions/${encodeURIComponent(machineId)}/${encodeURIComponent(sessionId)}`, { method: "DELETE" });
 }
 
 export function deleteMachine(machineId: string): Promise<{ status: string; machine_id: string }> {

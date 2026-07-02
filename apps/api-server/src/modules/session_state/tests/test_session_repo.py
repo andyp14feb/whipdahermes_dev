@@ -33,7 +33,7 @@ class TestSQLSessionRepo:
 
         repo.upsert(session)
 
-        assert repo.get("miniwa") == session
+        assert repo.get("vm-1", "miniwa") == session
 
     def test_upsert_updates_existing_record(self) -> None:
         repo = self.create_repo()
@@ -55,7 +55,7 @@ class TestSQLSessionRepo:
 
         repo.upsert(updated)
 
-        fetched = repo.get("miniwa")
+        fetched = repo.get("vm-1", "miniwa")
         assert fetched is not None
         assert fetched.status == "active"
         assert fetched.last_seen_at == "2026-06-26T12:05:00Z"
@@ -73,7 +73,7 @@ class TestSQLSessionRepo:
             captured_at="2026-06-26T12:00:00Z",
         )
 
-        repo.append_snapshot(snapshot)
+        repo.append_snapshot("vm-1", snapshot)
 
         with SQLSession(repo.engine) as db:
             snapshots = list(db.exec(select(Snapshot)).all())
@@ -136,9 +136,9 @@ class TestSQLSessionRepo:
         )
         repo.upsert(session)
 
-        repo.update_status("miniwa", "active")
+        repo.update_status("vm-1", "miniwa", "active")
 
-        fetched = repo.get("miniwa")
+        fetched = repo.get("vm-1", "miniwa")
         assert fetched is not None
         assert fetched.status == "active"
         assert fetched.last_seen_at == "2026-06-26T12:00:00Z"  # unchanged
@@ -147,7 +147,7 @@ class TestSQLSessionRepo:
     def test_update_status_noop_for_missing_session(self) -> None:
         repo = self.create_repo()
 
-        repo.update_status("non-existent", "active")  # should not raise
+        repo.update_status("vm-1", "non-existent", "active")  # should not raise
 
     def test_sqlite_repo_adds_missing_assessment_columns_for_existing_db(self) -> None:
         db_path = Path("/tmp/hermes-verify-session-repo-migration.db")
@@ -165,18 +165,18 @@ class TestSQLSessionRepo:
         engine = create_engine(f"sqlite:///{db_path}")
         repo = SQLSessionRepo(engine)
 
-        fetched = repo.get("s-1")
+        fetched = repo.get("vm-1", "s-1")
         assert fetched is not None
         assert fetched.ai_assessment is None
 
         repo.update_assessment(
-            "s-1",
+            "vm-1", "s-1",
             "waiting",
             "manual verification",
             "2026-06-26T12:00:10Z",
         )
 
-        updated = repo.get("s-1")
+        updated = repo.get("vm-1", "s-1")
         assert updated is not None
         assert updated.ai_assessment == "waiting"
 
@@ -207,10 +207,10 @@ class TestSQLSessionRepo:
             cwd="/home/user",
             captured_at="2026-06-26T12:05:00Z",
         )
-        repo.append_snapshot(s1)
-        repo.append_snapshot(s2)
+        repo.append_snapshot("vm-1", s1)
+        repo.append_snapshot("vm-1", s2)
 
-        result = repo.get_latest_snapshot("miniwa")
+        result = repo.get_latest_snapshot("vm-1", "miniwa")
 
         assert result is not None
         assert result.preview == "second"
@@ -218,7 +218,7 @@ class TestSQLSessionRepo:
     def test_get_latest_snapshot_returns_none_when_no_snapshots(self) -> None:
         repo = self.create_repo()
 
-        result = repo.get_latest_snapshot("nonexistent")
+        result = repo.get_latest_snapshot("vm-1", "nonexistent")
 
         assert result is None
 
@@ -248,7 +248,7 @@ class TestSQLSessionRepo:
             last_seen_at="2026-06-26T12:00:00Z",
         )
         repo.upsert(session)
-        repo.append_snapshot(
+        repo.append_snapshot("vm-1",
             Snapshot(
                 session_id="s-1",
                 machine_id="vm-1",
@@ -262,7 +262,7 @@ class TestSQLSessionRepo:
 
         repo.delete_all_by_machine("vm-1")
 
-        assert repo.get("s-1") is None
+        assert repo.get("vm-1", "s-1") is None
         assert repo.list_by_machine("vm-1") == []
         with SQLSession(repo.engine) as db:
             assert list(db.exec(select(Snapshot)).all()) == []
@@ -276,7 +276,7 @@ class TestSQLSessionRepo:
             last_seen_at="2026-06-26T12:00:00Z",
         )
         repo.upsert(session)
-        repo.append_snapshot(
+        repo.append_snapshot("vm-1",
             Snapshot(
                 session_id="s-1",
                 machine_id="vm-1",
@@ -287,17 +287,17 @@ class TestSQLSessionRepo:
                 captured_at="2026-06-26T12:00:00Z",
             )
         )
-        assert repo.get("s-1") is not None
+        assert repo.get("vm-1", "s-1") is not None
 
-        repo.delete_by_id("s-1")
+        repo.delete_by_id("vm-1", "s-1")
 
-        assert repo.get("s-1") is None
+        assert repo.get("vm-1", "s-1") is None
         with SQLSession(repo.engine) as db:
             assert list(db.exec(select(Snapshot)).all()) == []
 
     def test_delete_by_id_noop_when_not_found(self) -> None:
         repo = self.create_repo()
-        repo.delete_by_id("non-existent")  # should not raise
+        repo.delete_by_id("vm-1", "non-existent")  # should not raise
 
     def test_delete_sessions_older_than_removes_stale_sessions(self) -> None:
         repo = self.create_repo()
@@ -320,7 +320,7 @@ class TestSQLSessionRepo:
                 last_seen_at=old_time,
             )
         )
-        repo.append_snapshot(
+        repo.append_snapshot("vm-1",
             Snapshot(
                 session_id="s-old",
                 machine_id="vm-1",
@@ -334,8 +334,8 @@ class TestSQLSessionRepo:
 
         repo.delete_sessions_older_than(86400)  # 24h
 
-        assert repo.get("s-recent") is not None
-        assert repo.get("s-old") is None
+        assert repo.get("vm-1", "s-recent") is not None
+        assert repo.get("vm-1", "s-old") is None
         with SQLSession(repo.engine) as db:
             assert list(db.exec(select(Snapshot).where(Snapshot.session_id == "s-old")).all()) == []
 
@@ -350,4 +350,4 @@ class TestSQLSessionRepo:
             )
         )
         repo.delete_sessions_older_than(86400)
-        assert repo.get("s-1") is not None
+        assert repo.get("vm-1", "s-1") is not None

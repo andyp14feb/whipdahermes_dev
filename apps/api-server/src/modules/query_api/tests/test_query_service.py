@@ -30,10 +30,13 @@ class FakeSessionReader:
     def list_all(self) -> list[Session]:
         return list(self.sessions.values())
 
-    def get(self, session_id: str) -> Session | None:
-        return self.sessions.get(session_id)
+    def get(self, machine_id: str, session_id: str) -> Session | None:
+        session = self.sessions.get(session_id)
+        if session is not None and session.machine_id != machine_id:
+            return None
+        return session
 
-    def get_latest_snapshot(self, session_id: str) -> Snapshot | None:
+    def get_latest_snapshot(self, machine_id: str, session_id: str) -> Snapshot | None:
         snaps = self.snapshots.get(session_id, [])
         return snaps[-1] if snaps else None
 

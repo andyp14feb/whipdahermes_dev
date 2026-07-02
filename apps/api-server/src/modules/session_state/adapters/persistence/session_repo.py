@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from sqlalchemy import delete as sa_delete
+from sqlalchemy import delete as sa_delete, inspect
 from sqlmodel import Session as SQLSession, SQLModel, create_engine, select
 
 from modules.machine_registry.adapters.persistence.machine_repo import (
@@ -39,13 +39,50 @@ class SQLSessionRepo(ISessionRepo):
             dbapi_conn = conn.connection.driver_connection
             cursor = dbapi_conn.cursor()
             cursor.execute(f"PRAGMA table_info({session_table})")
-            existing_columns = {row[1] for row in cursor.fetchall()}
+            table_info = cursor.fetchall()
+            existing_columns = {row[1] for row in table_info}
 
             for column_name, column_type in required_columns.items():
                 if column_name not in existing_columns:
                     cursor.execute(
                         f"ALTER TABLE {session_table} ADD COLUMN {column_name} {column_type}"
                     )
+                    existing_columns.add(column_name)
+
+            primary_key_columns = [row[1] for row in sorted(table_info, key=lambda row: row[5]) if row[5] > 0]
+            if primary_key_columns == ["session_id"]:
+                cursor.execute("ALTER TABLE sessions RENAME TO sessions_legacy")
+                cursor.execute(
+                    """
+                    CREATE TABLE sessions (
+                        machine_id VARCHAR NOT NULL,
+                        session_id VARCHAR NOT NULL,
+                        label VARCHAR NOT NULL,
+                        status VARCHAR NOT NULL,
+                        seconds_since_change INTEGER NOT NULL,
+                        last_seen_at VARCHAR NOT NULL,
+                        cwd VARCHAR NOT NULL,
+                        ai_assessment TEXT,
+                        ai_assessment_reason TEXT,
+                        ai_assessed_at TEXT,
+                        PRIMARY KEY (machine_id, session_id)
+                    )
+                    """
+                )
+                cursor.execute("CREATE INDEX IF NOT EXISTS ix_sessions_machine_id ON sessions (machine_id)")
+                cursor.execute(
+                    """
+                    INSERT OR REPLACE INTO sessions (
+                        machine_id, session_id, label, status, seconds_since_change,
+                        last_seen_at, cwd, ai_assessment, ai_assessment_reason, ai_assessed_at
+                    )
+                    SELECT
+                        machine_id, session_id, label, status, seconds_since_change,
+                        last_seen_at, cwd, ai_assessment, ai_assessment_reason, ai_assessed_at
+                    FROM sessions_legacy
+                    """
+                )
+                cursor.execute("DROP TABLE sessions_legacy")
             dbapi_conn.commit()
 
     def upsert(self, session: Session) -> None:
@@ -75,9 +112,9 @@ class SQLSessionRepo(ISessionRepo):
                 db.add(snapshot)
             db.commit()
 
-    def get(self, session_id: str) -> Session | None:
+    def get(self, machine_id: str, session_id: str) -> Session | None:
         with SQLSession(self.engine) as db:
-            return db.get(SessionModel, session_id)
+            return db.get(SessionModel, (machine_id, session_id))
 
     def list_by_machine(self, machine_id: str) -> list[Session]:
         with SQLSession(self.engine) as db:
@@ -91,25 +128,28 @@ class SQLSessionRepo(ISessionRepo):
             statement = select(SessionModel)
             return list(db.exec(statement).all())
 
-    def append_snapshot(self, snapshot: Snapshot) -> None:
+    def append_snapshot(self, machine_id: str, snapshot: Snapshot) -> None:
         with sqlite_write_lock(), SQLSession(self.engine) as db:
             db.add(snapshot)
             db.flush()
             db.commit()
 
-    def get_latest_snapshot(self, session_id: str) -> Snapshot | None:
+    def get_latest_snapshot(self, machine_id: str, session_id: str) -> Snapshot | None:
         with SQLSession(self.engine) as db:
             statement = (
                 select(SnapshotModel)
-                .where(SnapshotModel.session_id == session_id)
+                .where(
+                    SnapshotModel.machine_id == machine_id,
+                    SnapshotModel.session_id == session_id,
+                )
                 .order_by(SnapshotModel.snapshot_id.desc())
                 .limit(1)
             )
             return db.exec(statement).first()
 
-    def update_status(self, session_id: str, status: str) -> None:
+    def update_status(self, machine_id: str, session_id: str, status: str) -> None:
         with sqlite_write_lock(), SQLSession(self.engine) as db:
-            session = db.get(SessionModel, session_id)
+            session = db.get(SessionModel, (machine_id, session_id))
             if session is None:
                 return
             session.status = status
@@ -118,13 +158,14 @@ class SQLSessionRepo(ISessionRepo):
 
     def update_assessment(
         self,
+        machine_id: str,
         session_id: str,
         assessment: str,
         reason: str,
         assessed_at: str,
     ) -> None:
         with sqlite_write_lock(), SQLSession(self.engine) as db:
-            session = db.get(SessionModel, session_id)
+            session = db.get(SessionModel, (machine_id, session_id))
             if session is None:
                 return
             session.ai_assessment = assessment
@@ -168,10 +209,10 @@ class SQLSessionRepo(ISessionRepo):
                 db.add(session)
             db.commit()
 
-    def delete_by_id(self, session_id: str) -> None:
+    def delete_by_id(self, machine_id: str, session_id: str) -> None:
         with sqlite_write_lock(), SQLSession(self.engine) as db:
-            db.exec(sa_delete(SnapshotModel).where(SnapshotModel.session_id == session_id))
-            db.exec(sa_delete(SessionModel).where(SessionModel.session_id == session_id))
+            db.exec(sa_delete(SnapshotModel).where(SnapshotModel.machine_id == machine_id, SnapshotModel.session_id == session_id))
+            db.exec(sa_delete(SessionModel).where(SessionModel.machine_id == machine_id, SessionModel.session_id == session_id))
             db.commit()
 
     def delete_sessions_older_than(self, seconds: int) -> None:

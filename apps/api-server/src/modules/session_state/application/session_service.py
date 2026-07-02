@@ -35,7 +35,7 @@ class SessionService:
         records: list[tuple[Session, Snapshot]] = []
         assessment_candidates: list[tuple[Session, Snapshot, str]] = []
         for snap in sessions:
-            previous = self.repo.get(snap.session_id)
+            previous = self.repo.get(str(machine_id), snap.session_id)
             old_status: str | None = previous.status if previous else None
 
             session = Session(
@@ -89,7 +89,7 @@ class SessionService:
         session_id: str,
         status_update: str | None = None,
     ) -> None:
-        session = self.repo.get(session_id)
+        session = self.repo.get(machine_id, session_id)
         if session is None:
             session = Session(
                 session_id=session_id,
@@ -105,10 +105,10 @@ class SessionService:
         self.repo.upsert(session)
 
     def update_status(self, machine_id: str, session_id: str, status: str) -> None:
-        self.repo.update_status(session_id, status)
+        self.repo.update_status(machine_id, session_id, status)
 
     def get_session(self, machine_id: str, session_id: str) -> Session | None:
-        return self.repo.get(session_id)
+        return self.repo.get(machine_id, session_id)
 
     def list_sessions(self) -> list[Session]:
         return self.repo.list_all()
@@ -116,8 +116,8 @@ class SessionService:
     def list_sessions_by_machine(self, machine_id: str) -> list[Session]:
         return self.repo.list_by_machine(machine_id)
 
-    def delete_session_by_id(self, session_id: str) -> None:
-        self.repo.delete_by_id(session_id)
+    def delete_session_by_id(self, machine_id: str, session_id: str) -> None:
+        self.repo.delete_by_id(machine_id, session_id)
 
     def assess_session(
         self,
@@ -125,9 +125,9 @@ class SessionService:
         session_id: str,
         assessor: ISessionAssessor,
     ) -> Session | None:
-        session = self.repo.get(session_id)
+        session = self.repo.get(machine_id, session_id)
         if session is None or session.machine_id != machine_id:
             return None
-        snapshot = self.repo.get_latest_snapshot(session_id)
+        snapshot = self.repo.get_latest_snapshot(machine_id, session_id)
         assessed_at = now_utc()
         return assess_and_update_session(self.repo, assessor, session, snapshot, assessed_at)

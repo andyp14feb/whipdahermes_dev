@@ -30,7 +30,7 @@ class FakeSessionRepo:
             self.upsert(session)
             self.snapshots.append(snapshot)
 
-    def get(self, session_id: str) -> Session | None:
+    def get(self, machine_id: str, session_id: str) -> Session | None:
         return self.sessions.get(session_id)
 
     def list_by_machine(self, machine_id: str) -> list[Session]:
@@ -41,20 +41,21 @@ class FakeSessionRepo:
     def list_all(self) -> list[Session]:
         return list(self.sessions.values())
 
-    def append_snapshot(self, snapshot: Snapshot) -> None:
+    def append_snapshot(self, machine_id: str, snapshot: Snapshot) -> None:
         self.snapshots.append(snapshot)
 
-    def get_latest_snapshot(self, session_id: str) -> Snapshot | None:
+    def get_latest_snapshot(self, machine_id: str, session_id: str) -> Snapshot | None:
         matching = [s for s in self.snapshots if s.session_id == session_id]
         return matching[-1] if matching else None
 
-    def update_status(self, session_id: str, status: str) -> None:
+    def update_status(self, machine_id: str, session_id: str, status: str) -> None:
         self.status_updates.append((session_id, status))
         if session_id in self.sessions:
             self.sessions[session_id].status = status
 
     def update_assessment(
         self,
+        machine_id: str,
         session_id: str,
         assessment: str,
         reason: str,
@@ -759,7 +760,7 @@ class TestAutoAssessOnTransition:
 
         assert assessor.last_session is not None
         assert assessor.last_session.session_id == "s-1"
-        updated = repo.get("s-1")
+        updated = repo.get("vm-1", "s-1")
         assert updated is not None
         assert updated.ai_assessment == "stuck"
         assert updated.ai_assessment_reason == "No output"
@@ -796,7 +797,7 @@ class TestAutoAssessOnTransition:
 
         assert assessor.last_session is not None
         assert assessor.last_session.session_id == "s-1"
-        updated = repo.get("s-1")
+        updated = repo.get("vm-1", "s-1")
         assert updated is not None
         assert updated.ai_assessment == "waiting"
 
@@ -831,7 +832,7 @@ class TestAutoAssessOnTransition:
         )
 
         assert assessor.last_session is not None
-        updated = repo.get("s-1")
+        updated = repo.get("vm-1", "s-1")
         assert updated is not None
         assert updated.ai_assessment == "waiting"
 
@@ -865,7 +866,7 @@ class TestAutoAssessOnTransition:
         )
 
         assert assessor.last_session is None
-        updated = repo.get("s-1")
+        updated = repo.get("vm-1", "s-1")
         assert updated is not None
         assert updated.ai_assessment is None
 
@@ -890,7 +891,7 @@ class TestAutoAssessOnTransition:
             ],
         )
 
-        updated = repo.get("s-1")
+        updated = repo.get("vm-1", "s-1")
         assert updated is not None
         assert updated.ai_assessment is None
 

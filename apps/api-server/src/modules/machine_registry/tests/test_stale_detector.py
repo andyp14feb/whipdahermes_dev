@@ -54,19 +54,19 @@ class FakeSessionRepo:
     def list_all(self) -> list:
         return []
 
-    def append_snapshot(self, snapshot) -> None:
+    def append_snapshot(self, machine_id: str, snapshot) -> None:
         pass
 
-    def get_latest_snapshot(self, session_id: str) -> None:
+    def get_latest_snapshot(self, machine_id: str, session_id: str) -> None:
         return None
 
-    def update_status(self, session_id: str, status: str) -> None:
+    def update_status(self, machine_id: str, session_id: str, status: str) -> None:
         pass
 
     def delete_all_by_machine(self, machine_id: str) -> None:
         self.delete_machine_calls.append(machine_id)
 
-    def delete_by_id(self, session_id: str) -> None:
+    def delete_by_id(self, machine_id: str, session_id: str) -> None:
         pass
 
     def delete_sessions_older_than(self, seconds: int) -> None:

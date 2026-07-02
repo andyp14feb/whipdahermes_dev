@@ -12,7 +12,7 @@ class QueryService:
         machine_reader: IMachineReader,
         session_reader: ISessionReader,
         stale_timeout_seconds: int = 60,
-        delete_session: Callable[[str], None] | None = None,
+        delete_session: Callable[[str, str], None] | None = None,
         delete_machine: Callable[[str], bool] | None = None,
         delete_sessions_by_machine: Callable[[str], None] | None = None,
     ) -> None:
@@ -68,10 +68,10 @@ class QueryService:
     def get_session_detail(
         self, machine_id: str, session_id: str
     ) -> dict[str, object] | None:
-        session = self.session_reader.get(session_id)
-        if session is None or session.machine_id != machine_id:
+        session = self.session_reader.get(machine_id, session_id)
+        if session is None:
             return None
-        snapshot = self.session_reader.get_latest_snapshot(session_id)
+        snapshot = self.session_reader.get_latest_snapshot(machine_id, session_id)
         machine = self.machine_reader.get(machine_id)
         status = session.status
         if machine is not None and self._is_machine_stale(machine.last_seen_at):
@@ -90,9 +90,9 @@ class QueryService:
             "ai_assessed_at": session.ai_assessed_at,
         }
 
-    def delete_session_by_id(self, session_id: str) -> None:
+    def delete_session_by_id(self, machine_id: str, session_id: str) -> None:
         if self._delete_session is not None:
-            self._delete_session(session_id)
+            self._delete_session(machine_id, session_id)
 
     def delete_machine_by_id(self, machine_id: str) -> bool:
         deleted = False

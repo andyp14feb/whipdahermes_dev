@@ -56,7 +56,7 @@ export function MachineListItem({ machineId, session }: MachineListItemProps) {
 
     try {
       setActionFeedback(null);
-      await deleteSession(session.session_id);
+      await deleteSession(machineId, session.session_id);
       await queryClient.invalidateQueries({ queryKey: ["sessions"] });
     } catch (error) {
       setActionFeedback(error instanceof Error ? error.message : "Failed to remove session from list.");
