@@ -157,3 +157,11 @@ class TestMachineService:
 
         assert service.delete_machine(MachineId("missing")) is False
         assert repo.deleted_ids == []
+
+    def test_delete_machine_does_not_call_repo_delete_for_unknown_machine(self) -> None:
+        repo = FakeMachineRepo()
+        service = MachineService(repo)
+
+        service.delete_machine(MachineId("missing"))
+
+        assert repo.deleted_ids == []

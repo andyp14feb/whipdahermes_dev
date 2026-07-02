@@ -149,3 +149,27 @@ def test_execute_rename_session_rejects_payload_without_new_name():
     assert result.delivered is False
     assert result.failure_reason is not None
     run.assert_not_called()
+
+
+def test_execute_rename_session_rejects_invalid_current_name():
+    executor = CommandExecutor()
+    command = Command(command_id="cmd-rename-bad-current", session_id="old", payload="__whipai__:rename_session::new-name")
+
+    with patch("command.executor.subprocess.run") as run:
+        result = executor.execute(command)
+
+    assert result.delivered is False
+    assert "invalid current session name" in (result.failure_reason or "")
+    run.assert_not_called()
+
+
+def test_execute_rename_session_rejects_invalid_new_name():
+    executor = CommandExecutor()
+    command = Command(command_id="cmd-rename-bad-new", session_id="old", payload="__whipai__:rename_session:old:")
+
+    with patch("command.executor.subprocess.run") as run:
+        result = executor.execute(command)
+
+    assert result.delivered is False
+    assert "invalid new session name" in (result.failure_reason or "")
+    run.assert_not_called()

@@ -73,6 +73,8 @@ MAGIC_CONTROL_PAYLOADS = {
 }
 
 TMUX_SESSION_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
+CREATE_SESSION_PREFIX = "__whipai__:create_session:"
+RENAME_SESSION_PREFIX = "__whipai__:rename_session:"
 
 
 def _is_valid_tmux_session_name(name: str) -> bool:
@@ -84,8 +86,7 @@ class CommandExecutor:
         self.tmux_socket = tmux_socket
 
     def _execute_create_session(self, command: Command) -> ExecutionResult:
-        parts = command.payload.split(":", 2)
-        session_name = parts[2] if len(parts) > 2 else ""
+        session_name = command.payload[len(CREATE_SESSION_PREFIX) :]
         if not _is_valid_tmux_session_name(session_name):
             reason = f"invalid session name: {session_name!r}"
             logger.warning("create_session rejected for command_id=%s: %s", command.command_id, reason)
@@ -107,13 +108,17 @@ class CommandExecutor:
         return ExecutionResult(command_id=command.command_id, delivered=True, failure_reason=None)
 
     def _execute_rename_session(self, command: Command) -> ExecutionResult:
-        parts = command.payload.split(":", 3)
-        if len(parts) < 4:
+        payload_suffix = command.payload[len(RENAME_SESSION_PREFIX) :]
+        parts = payload_suffix.split(":")
+        if len(parts) != 2:
             reason = "rename_session payload must be __whipai__:rename_session:<current>:<new>"
             logger.warning("rename_session rejected for command_id=%s: %s", command.command_id, reason)
             return ExecutionResult(command_id=command.command_id, delivered=False, failure_reason=reason)
-        current_name = parts[2]
-        new_name = parts[3]
+        current_name, new_name = parts
+        if not _is_valid_tmux_session_name(current_name):
+            reason = f"invalid current session name: {current_name!r}"
+            logger.warning("rename_session rejected for command_id=%s: %s", command.command_id, reason)
+            return ExecutionResult(command_id=command.command_id, delivered=False, failure_reason=reason)
         if not _is_valid_tmux_session_name(new_name):
             reason = f"invalid new session name: {new_name!r}"
             logger.warning("rename_session rejected for command_id=%s: %s", command.command_id, reason)
@@ -144,10 +149,10 @@ class CommandExecutor:
                 logger.warning("Control command '%s' failed for command_id=%s: %s", command.payload, command.command_id, exc)
                 return ExecutionResult(command_id=command.command_id, delivered=False, failure_reason=str(exc))
 
-        if command.payload.startswith("__whipai__:create_session:"):
+        if command.payload.startswith(CREATE_SESSION_PREFIX):
             return self._execute_create_session(command)
 
-        if command.payload.startswith("__whipai__:rename_session:"):
+        if command.payload.startswith(RENAME_SESSION_PREFIX):
             return self._execute_rename_session(command)
 
         try:
