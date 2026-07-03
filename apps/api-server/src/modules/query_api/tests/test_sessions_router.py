@@ -154,6 +154,37 @@ class TestSessionsRouter:
         assert response.status_code == 200
         assert response.json()["status"] == "stale"
 
+    def test_get_session_detail_stale_machine_adds_elapsed_idle_time(self, monkeypatch) -> None:
+        import modules.query_api.application.query_service as query_service_module
+
+        monkeypatch.setattr(query_service_module, "now_utc", lambda: "2026-07-03T09:00:00Z")
+        machine_reader = FakeMachineReader()
+        session_reader = FakeSessionReader()
+        service = QueryService(machine_reader, session_reader, stale_timeout_seconds=60)
+        machine_reader.machines["vm-1"] = Machine(
+            machine_id="vm-1",
+            display_name="Stale VM",
+            last_seen_at="2026-07-03T08:00:00Z",
+            session_count=1,
+            is_stale=True,
+        )
+        session_reader.sessions["s-1"] = Session(
+            session_id="s-1",
+            machine_id="vm-1",
+            label="Old Session",
+            status="stable",
+            seconds_since_change=120,
+            last_seen_at="2026-07-03T08:00:00Z",
+        )
+        app = _build_app(service)
+        client = TestClient(app)
+
+        response = client.get("/sessions/vm-1/s-1")
+
+        assert response.status_code == 200
+        assert response.json()["status"] == "stale"
+        assert response.json()["seconds_since_change"] == 3720
+
     def test_delete_session_returns_200_and_deletes(self) -> None:
         session_reader = FakeSessionReader()
         deleted_ids: list[tuple[str, str]] = []

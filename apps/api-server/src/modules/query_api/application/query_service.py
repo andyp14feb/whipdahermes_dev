@@ -44,6 +44,16 @@ class QueryService:
             ]
         }
 
+    def _seconds_since_change(self, session, machine) -> int:
+        seconds = session.seconds_since_change
+        if machine is None or not self._is_machine_stale(machine.last_seen_at):
+            return seconds
+        try:
+            elapsed = int((parse_iso(now_utc()) - parse_iso(session.last_seen_at)).total_seconds())
+        except (ValueError, TypeError):
+            return seconds
+        return max(seconds, seconds + max(0, elapsed))
+
     def get_sessions(self) -> dict[str, list[dict[str, object]]]:
         sessions = self.session_reader.list_all()
         machines_by_id = {machine.machine_id: machine for machine in self.machine_reader.list_all()}
@@ -59,7 +69,7 @@ class QueryService:
                     "session_id": session.session_id,
                     "label": session.label,
                     "status": status,
-                    "seconds_since_change": session.seconds_since_change,
+                    "seconds_since_change": self._seconds_since_change(session, machine),
                     "last_seen_at": session.last_seen_at,
                 }
             )
@@ -81,7 +91,7 @@ class QueryService:
             "session_id": session.session_id,
             "label": session.label,
             "status": status,
-            "seconds_since_change": session.seconds_since_change,
+            "seconds_since_change": self._seconds_since_change(session, machine),
             "preview": snapshot.preview if snapshot else "",
             "cwd": session.cwd,
             "last_seen_at": session.last_seen_at,

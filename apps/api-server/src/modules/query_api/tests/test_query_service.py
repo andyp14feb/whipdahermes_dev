@@ -283,6 +283,38 @@ class TestQueryService:
         assert detail_result is not None
         assert detail_result["status"] == "stale"
 
+    def test_stale_machine_adds_elapsed_time_to_session_idle_seconds(self, monkeypatch) -> None:
+        import modules.query_api.application.query_service as query_service_module
+
+        monkeypatch.setattr(query_service_module, "now_utc", lambda: "2026-07-03T09:00:00Z")
+        machine_reader = FakeMachineReader()
+        session_reader = FakeSessionReader()
+        service = QueryService(machine_reader, session_reader, stale_timeout_seconds=60)
+        machine_reader.machines["vm-1"] = Machine(
+            machine_id="vm-1",
+            display_name="Stale VM",
+            last_seen_at="2026-07-03T08:00:00Z",
+            session_count=1,
+            is_stale=True,
+        )
+        session_reader.sessions["s-1"] = Session(
+            session_id="s-1",
+            machine_id="vm-1",
+            label="Old Session",
+            status="stable",
+            seconds_since_change=120,
+            last_seen_at="2026-07-03T08:00:00Z",
+        )
+
+        sessions_result = service.get_sessions()
+        detail_result = service.get_session_detail("vm-1", "s-1")
+
+        assert sessions_result["sessions"][0]["status"] == "stale"
+        assert sessions_result["sessions"][0]["seconds_since_change"] == 3720
+        assert detail_result is not None
+        assert detail_result["status"] == "stale"
+        assert detail_result["seconds_since_change"] == 3720
+
     def test_non_stale_machine_preserves_session_status(self) -> None:
         machine_reader = FakeMachineReader()
         session_reader = FakeSessionReader()
