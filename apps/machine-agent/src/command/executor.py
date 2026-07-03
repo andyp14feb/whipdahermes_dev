@@ -109,7 +109,7 @@ class CommandExecutor:
 
     def _execute_rename_session(self, command: Command) -> ExecutionResult:
         payload_suffix = command.payload[len(RENAME_SESSION_PREFIX) :]
-        parts = payload_suffix.split(":")
+        parts = payload_suffix.split(":", 1)
         if len(parts) != 2:
             reason = "rename_session payload must be __whipai__:rename_session:<current>:<new>"
             logger.warning("rename_session rejected for command_id=%s: %s", command.command_id, reason)

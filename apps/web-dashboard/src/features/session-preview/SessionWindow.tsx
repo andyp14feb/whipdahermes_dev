@@ -5,7 +5,7 @@ import { Card } from "../../shared/ui/Card";
 import { SessionPreview } from "./SessionPreview";
 import { useAppStore } from "../../shared/state/appStore";
 import { Button } from "../../shared/ui/Button";
-import { fetchSessions } from "../machine-list/machineList.api";
+import { fetchMachines, fetchSessions } from "../machine-list/machineList.api";
 import { useSettingsStore } from "../../shared/state/settingsStore";
 
 interface SessionWindowProps {
@@ -28,16 +28,37 @@ export function SessionWindow({ index }: SessionWindowProps) {
     refetchInterval: refreshIntervalMs,
   });
 
+  const machinesQuery = useQuery({
+    queryKey: ["machines"],
+    queryFn: fetchMachines,
+    refetchInterval: refreshIntervalMs,
+  });
+
   const selectedValue = slot.machineId && slot.sessionId
     ? `${slot.machineId}::${slot.sessionId}`
     : "";
 
+  const machineDisplayNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const machine of machinesQuery.data?.machines ?? []) {
+      map.set(machine.machine_id, machine.display_name || machine.machine_id);
+    }
+    return map;
+  }, [machinesQuery.data?.machines]);
+
   const options = useMemo(
-    () => (sessionsQuery.data?.sessions ?? []).map((session) => ({
-      value: `${session.machine_id}::${session.session_id}`,
-      label: `${session.label} — ${session.machine_id}/${session.session_id}`,
-    })),
-    [sessionsQuery.data?.sessions],
+    () =>
+      (sessionsQuery.data?.sessions ?? [])
+        .map((session) => {
+          const machineName = machineDisplayNameById.get(session.machine_id) || session.machine_id;
+          const sessionName = session.label || session.session_id;
+          return {
+            value: `${session.machine_id}::${session.session_id}`,
+            label: `[${machineName}]--[${sessionName}]`,
+          };
+        })
+        .sort((left, right) => left.label.localeCompare(right.label, undefined, { sensitivity: "base" })),
+    [sessionsQuery.data?.sessions, machineDisplayNameById],
   );
 
   const startResize = (event: React.PointerEvent<HTMLDivElement>) => {

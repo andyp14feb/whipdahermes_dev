@@ -199,4 +199,17 @@ describe("Multi-window dashboard", () => {
     expect(screen.getByText("Command Actions")).toBeInTheDocument();
     expect(screen.getByText("Layout:")).toBeInTheDocument();
   }, 30000);
+
+  it("renders watched session selector options from machine display names and session labels", async () => {
+    useAppStore.setState({
+      layoutCount: 1,
+    });
+
+    render(<App />);
+
+    await screen.findByRole("option", { name: "[Alpha]--[Frontend Agent]" });
+    await screen.findByRole("option", { name: "[Bravo]--[API Agent]" });
+    await screen.findByRole("option", { name: "[Charlie]--[Build Agent]" });
+    await screen.findByRole("option", { name: "[Delta]--[Data Agent]" });
+  });
 });
