@@ -36,14 +36,35 @@ class SessionService:
         assessment_candidates: list[tuple[Session, Snapshot, str]] = []
         for snap in sessions:
             previous = self.repo.get(str(machine_id), snap.session_id)
+            previous_snapshot = self.repo.get_latest_snapshot(str(machine_id), snap.session_id)
             old_status: str | None = previous.status if previous else None
+            preview = snap.preview or ""
+            previous_preview = previous_snapshot.preview if previous_snapshot else None
+            is_restart_zero_baseline = (
+                previous is not None
+                and previous_snapshot is not None
+                and snap.seconds_since_change == 0
+                and snap.stable_counter == 0
+                and preview == previous_preview
+            )
+            seconds_since_change = (
+                previous.seconds_since_change
+                if is_restart_zero_baseline
+                else snap.seconds_since_change
+            )
+            stable_counter = (
+                previous_snapshot.stable_counter
+                if is_restart_zero_baseline
+                else snap.stable_counter
+            )
+            initial_status = previous.status if previous is not None else "unknown"
 
             session = Session(
                 session_id=snap.session_id,
                 machine_id=str(machine_id),
                 label=snap.label,
-                status="unknown",
-                seconds_since_change=snap.seconds_since_change,
+                status=initial_status,
+                seconds_since_change=seconds_since_change,
                 last_seen_at=now,
                 cwd=snap.cwd or "",
             )
@@ -51,9 +72,9 @@ class SessionService:
             snapshot_record = Snapshot(
                 session_id=snap.session_id,
                 machine_id=str(machine_id),
-                preview=snap.preview or "",
-                diff_pct=snap.diff_pct,
-                stable_counter=snap.stable_counter,
+                preview=preview,
+                diff_pct=0.0 if is_restart_zero_baseline else snap.diff_pct,
+                stable_counter=stable_counter,
                 cwd=snap.cwd or "",
                 captured_at=snap.captured_at,
             )

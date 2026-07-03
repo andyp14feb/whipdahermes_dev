@@ -190,6 +190,51 @@ class TestSessionService:
         assert s.seconds_since_change == 6
         assert isinstance(s.seconds_since_change, int)
 
+    def test_restart_preserves_previous_idle_time_when_agent_resets_to_zero(self) -> None:
+        repo = FakeSessionRepo()
+        service = SessionService(repo)
+
+        repo.sessions["miniwa"] = Session(
+            session_id="miniwa",
+            machine_id="vm-1",
+            label="miniwa",
+            status="stable",
+            seconds_since_change=42,
+            last_seen_at="2026-06-26T12:00:00Z",
+            cwd="/home/user",
+        )
+        repo.snapshots.append(
+            Snapshot(
+                session_id="miniwa",
+                machine_id="vm-1",
+                preview="steady output",
+                diff_pct=0.0,
+                stable_counter=14,
+                cwd="/home/user",
+                captured_at="2026-06-26T12:00:00Z",
+            )
+        )
+
+        service.upsert_from_heartbeat(
+            MachineId("vm-1"),
+            [
+                SessionSnapshot(
+                    session_id="miniwa",
+                    label="miniwa",
+                    preview="steady output",
+                    seconds_since_change=0,
+                    diff_pct=100.0,
+                    stable_counter=0,
+                    cwd="/home/user",
+                    captured_at="2026-06-26T12:05:00Z",
+                )
+            ],
+        )
+
+        s = repo.sessions["miniwa"]
+        assert s.seconds_since_change == 42
+        assert s.status == "stable"
+
     def test_different_sessions_get_different_stable_counters(self) -> None:
         """Per-session stable counter: two sessions in the same heartbeat must not
         share the same seconds_since_change when their agent-reported values differ."""
