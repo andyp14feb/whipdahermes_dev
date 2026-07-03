@@ -101,8 +101,6 @@ beforeEach(() => {
   });
 
   server.use(
-    http.get("*/machines", () => HttpResponse.json(multiMachineMachines)),
-    http.get("*/sessions", () => HttpResponse.json(multiMachineSessions)),
     http.get("*/sessions/:machineId/:sessionId", ({ params }) => {
       const { machineId, sessionId } = params as {
         machineId: string;
@@ -119,6 +117,8 @@ beforeEach(() => {
         { status: 404 },
       );
     }),
+    http.get("*/machines", () => HttpResponse.json(multiMachineMachines)),
+    http.get("*/sessions", () => HttpResponse.json(multiMachineSessions)),
     http.post("*/assess/:machineId/:sessionId", ({ params }) => {
       const { machineId, sessionId } = params as {
         machineId: string;

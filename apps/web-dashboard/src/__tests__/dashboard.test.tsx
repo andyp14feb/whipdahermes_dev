@@ -127,6 +127,45 @@ describe("MachineList", () => {
     expect(screen.getByText("API Agent")).toBeInTheDocument();
   });
 
+  it("queues a new tmux session request with prompted or generated name", async () => {
+    const user = userEvent.setup();
+    const promptSpy = vi.spyOn(window, "prompt").mockReturnValue("new-agent");
+    const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
+
+    server.use(
+      http.post("/command", async ({ request }) => {
+        const body = (await request.json()) as { machine_id: string; session_id: string; payload: string };
+        expect(body).toEqual({
+          machine_id: "machine-1",
+          session_id: "new-agent",
+          payload: "__whipai__:create_session:new-agent",
+        });
+        return HttpResponse.json({ command_id: "cmd-create", state: "accepted", target: "machine-1/new-agent" });
+      }),
+    );
+
+    renderWithClient(<MachineList />);
+    await user.click(await screen.findByRole("button", { name: "New tmux" }));
+
+    expect(promptSpy).toHaveBeenCalledWith("New tmux session name (blank for default)", "");
+    expect(alertSpy).toHaveBeenCalledWith(
+      "Create tmux session request queued (cmd-create). The next heartbeat confirms registration.",
+    );
+  });
+
+  it("confirms machine delete as list-only removal that may reappear on heartbeat", async () => {
+    const user = userEvent.setup();
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+
+    renderWithClient(<MachineList />);
+    const removeButtons = await screen.findAllByTitle("Remove machine from list");
+    await user.click(removeButtons[0]);
+
+    expect(confirmSpy).toHaveBeenCalledWith(
+      'Remove machine "machine-1" from the displayed list only? This does not stop machine-agent or kill tmux sessions. It may reappear on the next heartbeat.',
+    );
+  });
+
   it("updates the store when a session is clicked", async () => {
     const user = userEvent.setup();
     renderWithClient(<MachineList />);
@@ -297,7 +336,7 @@ describe("Polling refresh behavior", () => {
       render(<App />);
 
       expect(await screen.findByText("machine-1/session-1")).toBeInTheDocument();
-      expect(await screen.findByText("Frontend Agent")).toBeInTheDocument();
+      expect(await screen.findByRole("heading", { name: "Frontend Agent" })).toBeInTheDocument();
       expect(await screen.findByText("/workspace/frontend")).toBeInTheDocument();
 
       server.use(
