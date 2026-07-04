@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
@@ -261,6 +261,45 @@ describe("MachineList", () => {
       "alpha",
       "beta",
     ]);
+  });
+
+  it("adds session order controls and sorts sessions by name, status, and stable time", async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.get("/machines", () => HttpResponse.json({
+        machines: [
+          { machine_id: "alpha", display_name: "Alpha", last_seen_at: "2026-06-26T09:00:00Z", session_count: 4, is_stale: false },
+        ],
+      })),
+      http.get("/sessions", () => HttpResponse.json({
+        sessions: [
+          { machine_id: "alpha", session_id: "s1", label: "Zulu", status: "stale", seconds_since_change: 10, last_seen_at: "2026-06-26T09:00:00Z" },
+          { machine_id: "alpha", session_id: "s2", label: "Alpha", status: "active", seconds_since_change: 300, last_seen_at: "2026-06-26T09:00:00Z" },
+          { machine_id: "alpha", session_id: "s3", label: "Mike", status: "stable", seconds_since_change: 200, last_seen_at: "2026-06-26T09:00:00Z" },
+          { machine_id: "alpha", session_id: "s4", label: "Bravo", status: "waiting_input", seconds_since_change: 100, last_seen_at: "2026-06-26T09:00:00Z" },
+        ],
+      })),
+    );
+
+    renderWithClient(<MachineList />);
+    const card = await screen.findByTestId("machine-card-alpha");
+
+    expect(screen.getByText("Session order")).toBeInTheDocument();
+    const getLabels = () => within(card).getAllByRole("button").map((button) => button.textContent ?? "").filter((text) => ["Zulu", "Alpha", "Mike", "Bravo"].some((label) => text.includes(label))).map((text) => {
+      const match = text.match(/(Zulu|Alpha|Mike|Bravo)/);
+      return match?.[1] ?? text;
+    });
+
+    expect(getLabels()).toEqual(["Zulu", "Alpha", "Mike", "Bravo"]);
+
+    await user.click(screen.getAllByRole("button", { name: "Name" }).at(-1)!);
+    expect(getLabels()).toEqual(["Alpha", "Bravo", "Mike", "Zulu"]);
+
+    await user.click(screen.getByRole("button", { name: "Status" }));
+    expect(getLabels()).toEqual(["Alpha", "Mike", "Bravo", "Zulu"]);
+
+    await user.click(screen.getByRole("button", { name: "Stable time" }));
+    expect(getLabels()).toEqual(["Zulu", "Bravo", "Mike", "Alpha"]);
   });
 });
 

@@ -1,13 +1,14 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { deleteMachine, enqueueCreateTmuxSession, fetchMachines, fetchSessions } from "./machineList.api";
-import type { MachineWithSessions } from "./machineList.types";
+import type { MachineWithSessions, SessionListItem } from "./machineList.types";
 import { MachineListItem } from "./MachineListItem";
 import { Card } from "../../shared/ui/Card";
 import { Button } from "../../shared/ui/Button";
 import { useSettingsStore } from "../../shared/state/settingsStore";
 
 type MachineSortMode = "manual" | "name" | "last_seen";
+type SessionSortMode = "manual" | "name" | "status" | "stable_time";
 type SortDirection = "asc" | "desc";
 
 const MACHINE_ORDER_STORAGE_KEY = "whipai.machineList.manualOrder";
@@ -81,6 +82,40 @@ function sortMachineGroups(
   });
 }
 
+const STATUS_ORDER = {
+  active: 0,
+  stable: 1,
+  waiting: 2,
+  waiting_input: 2,
+  stuck: 3,
+  stale: 4,
+  unknown: 5,
+};
+
+function sortSessions(
+  sessions: SessionListItem[],
+  mode: SessionSortMode,
+  direction: SortDirection,
+): SessionListItem[] {
+  const dir = direction === "asc" ? 1 : -1;
+  if (mode === "manual") {
+    return sessions;
+  }
+
+  return [...sessions].sort((a, b) => {
+    const primary = mode === "name"
+      ? a.label.localeCompare(b.label, undefined, { numeric: true, sensitivity: "base" })
+      : mode === "status"
+        ? (STATUS_ORDER[a.status] ?? STATUS_ORDER.unknown) - (STATUS_ORDER[b.status] ?? STATUS_ORDER.unknown)
+        : a.seconds_since_change - b.seconds_since_change;
+
+    if (primary !== 0) {
+      return primary * dir;
+    }
+    return a.label.localeCompare(b.label, undefined, { numeric: true, sensitivity: "base" });
+  });
+}
+
 export function MachineList() {
   const refreshIntervalMs = useSettingsStore((s) => s.refreshIntervalMs);
   const queryClient = useQueryClient();
@@ -89,6 +124,8 @@ export function MachineList() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [sortMode, setSortMode] = useState<MachineSortMode>("manual");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+  const [sessionSortMode, setSessionSortMode] = useState<SessionSortMode>("manual");
+  const [sessionDirection, setSessionDirection] = useState<SortDirection>("asc");
   const [manualMachineOrder, setManualMachineOrder] = useState<string[]>(loadManualMachineOrder);
   const [draggingMachineId, setDraggingMachineId] = useState<string | null>(null);
 
@@ -124,8 +161,11 @@ export function MachineList() {
   }, [machines, sessions]);
 
   const orderedMachineGroups = useMemo(
-    () => sortMachineGroups(machineGroups, sortMode, sortDirection, manualMachineOrder),
-    [machineGroups, manualMachineOrder, sortDirection, sortMode],
+    () => sortMachineGroups(machineGroups, sortMode, sortDirection, manualMachineOrder).map((machine) => ({
+      ...machine,
+      sessions: sortSessions(machine.sessions, sessionSortMode, sessionDirection),
+    })),
+    [machineGroups, manualMachineOrder, sessionDirection, sessionSortMode, sortDirection, sortMode],
   );
 
   const updateManualOrder = (machineIds: string[]) => {
@@ -267,6 +307,57 @@ export function MachineList() {
           <p className="text-xs text-gray-500 dark:text-gray-400">
             Drag machine cards to set a custom order, or sort by name / last registered time.
           </p>
+          <div className="border-t border-gray-200 pt-2 dark:border-gray-800">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                Session order
+              </span>
+              <Button
+                type="button"
+                variant="secondary"
+                className="px-2 py-1 text-xs"
+                onClick={() => setSessionDirection((direction) => (direction === "asc" ? "desc" : "asc"))}
+                disabled={sessionSortMode === "manual"}
+                title={sessionSortMode === "manual" ? "Direction applies to name, status, and stable time sorting." : "Toggle ascending/descending order"}
+              >
+                {sessionDirection === "asc" ? "Asc ↑" : "Desc ↓"}
+              </Button>
+            </div>
+            <div className="mt-2 grid grid-cols-4 gap-2">
+              <Button
+                type="button"
+                variant={sessionSortMode === "manual" ? "primary" : "secondary"}
+                className="px-2 py-1 text-xs"
+                onClick={() => setSessionSortMode("manual")}
+              >
+                Manual
+              </Button>
+              <Button
+                type="button"
+                variant={sessionSortMode === "name" ? "primary" : "secondary"}
+                className="px-2 py-1 text-xs"
+                onClick={() => setSessionSortMode("name")}
+              >
+                Name
+              </Button>
+              <Button
+                type="button"
+                variant={sessionSortMode === "status" ? "primary" : "secondary"}
+                className="px-2 py-1 text-xs"
+                onClick={() => setSessionSortMode("status")}
+              >
+                Status
+              </Button>
+              <Button
+                type="button"
+                variant={sessionSortMode === "stable_time" ? "primary" : "secondary"}
+                className="px-2 py-1 text-xs"
+                onClick={() => setSessionSortMode("stable_time")}
+              >
+                Stable time
+              </Button>
+            </div>
+          </div>
         </div>
       </Card>
       {createError && <p role="alert" className="text-xs text-red-600">{createError}</p>}
