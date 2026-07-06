@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MachineListItem } from "../MachineListItem";
+import * as machineListApi from "../machineList.api";
 import { useAppStore } from "../../../shared/state/appStore";
 import { useSettingsStore } from "../../../shared/state/settingsStore";
 import type { SessionListItem } from "../../../shared/types/contracts";
@@ -81,5 +82,27 @@ describe("MachineListItem", () => {
     );
 
     confirmSpy.mockRestore();
+  });
+
+  it("allows colonated tmux rename names", async () => {
+    const user = userEvent.setup();
+    const promptSpy = vi.spyOn(window, "prompt").mockReturnValue("0.0:tmuxagent");
+    const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => undefined);
+    const renameSpy = vi.spyOn(machineListApi, "enqueueRenameTmuxSession").mockResolvedValue({
+      command_id: "cmd-rename",
+      state: "accepted",
+      target: "machine-1:A",
+    });
+
+    renderWithClient(<MachineListItem machineId="machine-1" session={session} />);
+
+    await user.click(screen.getByRole("button", { name: "Rename" }));
+
+    expect(renameSpy).toHaveBeenCalledWith("machine-1", "A", "0.0:tmuxagent");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+    promptSpy.mockRestore();
+    alertSpy.mockRestore();
+    renameSpy.mockRestore();
   });
 });

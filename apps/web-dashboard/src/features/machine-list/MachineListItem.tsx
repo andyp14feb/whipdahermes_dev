@@ -68,8 +68,8 @@ export function MachineListItem({ machineId, session }: MachineListItemProps) {
     if (!newName) {
       return;
     }
-    if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(newName)) {
-      setActionFeedback("Session name must start with a letter or number and contain only letters, numbers, dot, underscore, or hyphen.");
+    if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$/.test(newName)) {
+      setActionFeedback("Session name must start with a letter or number and contain only letters, numbers, dot, underscore, hyphen, or colon.");
       return;
     }
     if (newName === session.session_id) {

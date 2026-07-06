@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import socket
 from dataclasses import dataclass
 
 
@@ -19,14 +20,14 @@ def _default_tmux_socket() -> str:
 
 
 def load_config() -> AgentConfig:
-    machine_id = os.getenv("MACHINE_ID", "").strip()
+    machine_id = os.getenv("MACHINE_ID", "").strip() or socket.gethostname().strip()
     api_url = os.getenv("API_URL", "").strip()
     interval_raw = os.getenv("INTERVAL", "2").strip()
     command_poll_interval_raw = os.getenv("COMMAND_POLL_INTERVAL", "5").strip()
     tmux_socket = os.getenv("TMUX_SOCKET", _default_tmux_socket()).strip() or None
 
     if not machine_id or not api_url:
-        raise SystemExit("MACHINE_ID and API_URL must be set")
+        raise SystemExit("API_URL must be set")
 
     try:
         interval = int(interval_raw)

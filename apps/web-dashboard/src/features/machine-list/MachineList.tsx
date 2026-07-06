@@ -197,7 +197,7 @@ export function MachineList() {
     updateManualOrder(moveItem(currentIds, fromIndex, toIndex));
   };
 
-  const safeName = (value: string) => /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(value);
+  const safeName = (value: string) => /^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$/.test(value);
   const defaultSessionName = () => `whipai-${new Date().toISOString().replace(/[-:]/g, "").slice(0, 15)}`;
 
   const handleCreateSession = async (machineId: string) => {

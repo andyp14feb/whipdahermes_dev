@@ -265,7 +265,7 @@ The compose stack starts:
 
 - `api-server` on `http://localhost:8000`
 - `web-dashboard` on `http://localhost:3000`
-- `machine-agent` with `MACHINE_ID=vm-local` and `API_URL=http://api-server:8000`
+- `machine-agent` with `MACHINE_ID` defaulting to the container hostname (or an explicit override) and `API_URL=http://api-server:8000`
 
 SQLite data is persisted under `./data/hcp.db`. The API server marks machines stale after `STALE_TIMEOUT_SECONDS` without a heartbeat and removes long-gone stale records after `CLEANUP_TIMEOUT_SECONDS`.
 
@@ -467,7 +467,7 @@ Adjust paths, user, and environment variables to match your setup.
 
 | Variable | Required | Default | Description |
 | --- | --- | --- | --- |
-| `MACHINE_ID` | yes | (none) | Unique identifier for this machine, shown in dashboard |
+| `MACHINE_ID` | no | hostname | Unique identifier for this machine, shown in dashboard |
 | `API_URL` | yes | (none) | Base URL of the central API server, e.g. `http://192.168.1.100:8000` |
 | `INTERVAL` | no | `2` | Seconds between heartbeat sends |
 | `COMMAND_POLL_INTERVAL` | no | `5` | Seconds between command poll requests |
@@ -476,7 +476,7 @@ Adjust paths, user, and environment variables to match your setup.
 
 | Problem | Solution |
 | --- | --- |
-| `MACHINE_ID and API_URL must be set` | Export both environment variables before starting |
+| `API_URL must be set` | Export `API_URL` before starting; `MACHINE_ID` falls back to the host name |
 | Heartbeat fails with connection error | Verify `API_URL` is correct and port 8000 is reachable (`curl` test) |
 | No sessions appear on dashboard | Ensure tmux sessions exist on the remote machine (`tmux ls`) |
 | Machine shows as stale on dashboard | Check the agent is running and heartbeats are not blocked by firewall |

@@ -36,7 +36,7 @@ export function enqueueRenameTmuxSession(
     body: JSON.stringify({
       machine_id: machineId,
       session_id: currentSessionName,
-      payload: `__whipai__:rename_session:${currentSessionName}:${newSessionName}`,
+      payload: `__whipai__:rename_session:${currentSessionName}|${newSessionName}`,
     }),
   });
 }

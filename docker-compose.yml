@@ -38,7 +38,7 @@ services:
     init: true
     restart: unless-stopped
     environment:
-      MACHINE_ID: vm-local
+      MACHINE_ID: ${MACHINE_ID:-${HOSTNAME:-machine-agent}}
       API_URL: http://api-server:8000
       INTERVAL: 2
       COMMAND_POLL_INTERVAL: 5

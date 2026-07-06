@@ -1,4 +1,5 @@
 import os
+import socket
 import pytest
 from config import AgentConfig, load_config
 
@@ -37,19 +38,19 @@ def test_load_config_default_interval(monkeypatch):
     assert config.interval == 2
 
 
-def test_load_config_raises_on_missing_machine_id(monkeypatch):
+def test_load_config_uses_hostname_when_machine_id_missing(monkeypatch):
     monkeypatch.delenv("MACHINE_ID", raising=False)
     monkeypatch.setenv("API_URL", "http://localhost:8000")
 
-    with pytest.raises(SystemExit, match="MACHINE_ID and API_URL must be set"):
-        load_config()
+    config = load_config()
+    assert config.machine_id == socket.gethostname()
 
 
 def test_load_config_raises_on_missing_api_url(monkeypatch):
     monkeypatch.setenv("MACHINE_ID", "vm-1")
     monkeypatch.delenv("API_URL", raising=False)
 
-    with pytest.raises(SystemExit, match="MACHINE_ID and API_URL must be set"):
+    with pytest.raises(SystemExit, match="API_URL must be set"):
         load_config()
 
 
@@ -57,7 +58,7 @@ def test_load_config_raises_on_both_missing(monkeypatch):
     monkeypatch.delenv("MACHINE_ID", raising=False)
     monkeypatch.delenv("API_URL", raising=False)
 
-    with pytest.raises(SystemExit, match="MACHINE_ID and API_URL must be set"):
+    with pytest.raises(SystemExit, match="API_URL must be set"):
         load_config()
 
 
