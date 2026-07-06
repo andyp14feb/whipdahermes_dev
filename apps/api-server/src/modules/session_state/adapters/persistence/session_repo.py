@@ -5,6 +5,9 @@ from sqlalchemy import delete as sa_delete, inspect
 from sqlmodel import Session as SQLSession, SQLModel, create_engine, select
 
 from modules.machine_registry.adapters.persistence.machine_repo import (
+    DEPRECATED_LOCAL_MACHINE_ID,
+    REAL_WORKER_PREFIX,
+    MachineModel,
     _configure_sqlite_engine,
     _sqlite_engine_kwargs,
 )
@@ -125,8 +128,27 @@ class SQLSessionRepo(ISessionRepo):
 
     def list_all(self) -> list[Session]:
         with SQLSession(self.engine) as db:
-            statement = select(SessionModel)
+            statement = select(SessionModel).where(
+                SessionModel.machine_id != DEPRECATED_LOCAL_MACHINE_ID
+            )
             return list(db.exec(statement).all())
+
+    def delete_deprecated_local_machine_sessions(self) -> None:
+        with sqlite_write_lock(), SQLSession(self.engine) as db:
+            real_worker_exists = db.exec(
+                select(MachineModel.machine_id).where(
+                    MachineModel.machine_id.like(f"{REAL_WORKER_PREFIX}%")
+                )
+            ).first() is not None
+            if not real_worker_exists:
+                return
+            db.exec(
+                sa_delete(SnapshotModel).where(SnapshotModel.machine_id == DEPRECATED_LOCAL_MACHINE_ID)
+            )
+            db.exec(
+                sa_delete(SessionModel).where(SessionModel.machine_id == DEPRECATED_LOCAL_MACHINE_ID)
+            )
+            db.commit()
 
     def append_snapshot(self, machine_id: str, snapshot: Snapshot) -> None:
         with sqlite_write_lock(), SQLSession(self.engine) as db:

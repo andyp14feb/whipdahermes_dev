@@ -11,6 +11,8 @@ from modules.shared_kernel.sqlite_write_lock import sqlite_write_lock
 
 
 MachineModel = Machine
+DEPRECATED_LOCAL_MACHINE_ID = "vm-local"
+REAL_WORKER_PREFIX = "worker-"
 
 
 class SQLMachineRepo(IMachineRepo):
@@ -29,8 +31,21 @@ class SQLMachineRepo(IMachineRepo):
 
     def list_all(self) -> list[Machine]:
         with Session(self.engine) as session:
-            statement = select(MachineModel)
+            statement = select(MachineModel).where(MachineModel.machine_id != DEPRECATED_LOCAL_MACHINE_ID)
             return list(session.exec(statement).all())
+
+    def delete_by_id(self, machine_id: str) -> None:
+        self.delete(machine_id)
+
+    def delete_deprecated_local_machine_rows(self) -> None:
+        with sqlite_write_lock(), Session(self.engine) as session:
+            real_worker_exists = session.exec(
+                select(MachineModel.machine_id).where(MachineModel.machine_id.like(f"{REAL_WORKER_PREFIX}%"))
+            ).first() is not None
+            if not real_worker_exists:
+                return
+            session.exec(sa_delete(MachineModel).where(MachineModel.machine_id == DEPRECATED_LOCAL_MACHINE_ID))
+            session.commit()
 
     def update_session_count(self, machine_id: MachineId, count: int) -> None:
         with sqlite_write_lock(), Session(self.engine) as session:

@@ -46,6 +46,8 @@ machine_repo = SQLMachineRepo(shared_engine)
 machine_service = MachineService(machine_repo)
 
 session_repo = SQLSessionRepo(shared_engine)
+machine_repo.delete_deprecated_local_machine_rows()
+session_repo.delete_deprecated_local_machine_sessions()
 detection_service = create_detection_module()
 session_service = create_session_state_module(session_repo, detection_service)
 

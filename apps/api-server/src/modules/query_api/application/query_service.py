@@ -5,6 +5,9 @@ from typing import Callable
 from modules.query_api.application.ports import IMachineReader, ISessionReader
 from modules.shared_kernel.time_utils import now_utc, parse_iso
 
+DEPRECATED_LOCAL_MACHINE_ID = "vm-local"
+REAL_WORKER_PREFIX = "worker-"
+
 
 class QueryService:
     def __init__(
@@ -29,8 +32,16 @@ class QueryService:
         except (ValueError, TypeError):
             return False
 
+    def _has_real_worker_machine(self, machines) -> bool:
+        return any(machine.machine_id.startswith(REAL_WORKER_PREFIX) for machine in machines)
+
+    def _filter_deprecated_local_machine(self, machines):
+        if not self._has_real_worker_machine(machines):
+            return machines
+        return [machine for machine in machines if machine.machine_id != DEPRECATED_LOCAL_MACHINE_ID]
+
     def get_machines(self) -> dict[str, list[dict[str, object]]]:
-        machines = self.machine_reader.list_all()
+        machines = self._filter_deprecated_local_machine(self.machine_reader.list_all())
         return {
             "machines": [
                 {
@@ -55,8 +66,14 @@ class QueryService:
         return max(seconds, seconds + max(0, elapsed))
 
     def get_sessions(self) -> dict[str, list[dict[str, object]]]:
-        sessions = self.session_reader.list_all()
-        machines_by_id = {machine.machine_id: machine for machine in self.machine_reader.list_all()}
+        machines = self.machine_reader.list_all()
+        hide_deprecated_local_machine = self._has_real_worker_machine(machines)
+        sessions = [
+            session
+            for session in self.session_reader.list_all()
+            if not hide_deprecated_local_machine or session.machine_id != DEPRECATED_LOCAL_MACHINE_ID
+        ]
+        machines_by_id = {machine.machine_id: machine for machine in machines}
         result = []
         for session in sessions:
             machine = machines_by_id.get(session.machine_id)

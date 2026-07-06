@@ -338,3 +338,83 @@ class TestQueryService:
         result = service.get_sessions()
 
         assert result["sessions"][0]["status"] == "active"
+
+    def test_get_machines_hides_vm_local_when_worker_exists(self) -> None:
+        machine_reader = FakeMachineReader()
+        session_reader = FakeSessionReader()
+        service = QueryService(machine_reader, session_reader, stale_timeout_seconds=86400)
+        machine_reader.machines["vm-local"] = Machine(
+            machine_id="vm-local",
+            display_name="vm-local",
+            last_seen_at=NOW,
+            session_count=1,
+        )
+        machine_reader.machines["worker-vbox68"] = Machine(
+            machine_id="worker-vbox68",
+            display_name="worker-vbox68",
+            last_seen_at=NOW,
+            session_count=1,
+        )
+        machine_reader.machines["worker-vbox070"] = Machine(
+            machine_id="worker-vbox070",
+            display_name="worker-vbox070",
+            last_seen_at=NOW,
+            session_count=1,
+        )
+
+        result = service.get_machines()
+
+        machine_ids = sorted(machine["machine_id"] for machine in result["machines"])
+        assert machine_ids == ["worker-vbox070", "worker-vbox68"]
+
+    def test_get_sessions_hides_vm_local_when_worker_exists(self) -> None:
+        machine_reader = FakeMachineReader()
+        session_reader = FakeSessionReader()
+        service = QueryService(machine_reader, session_reader, stale_timeout_seconds=86400)
+        machine_reader.machines["vm-local"] = Machine(
+            machine_id="vm-local",
+            display_name="vm-local",
+            last_seen_at=NOW,
+            session_count=1,
+        )
+        machine_reader.machines["worker-vbox68"] = Machine(
+            machine_id="worker-vbox68",
+            display_name="worker-vbox68",
+            last_seen_at=NOW,
+            session_count=1,
+        )
+        machine_reader.machines["worker-vbox070"] = Machine(
+            machine_id="worker-vbox070",
+            display_name="worker-vbox070",
+            last_seen_at=NOW,
+            session_count=1,
+        )
+        session_reader.sessions["s-local"] = Session(
+            session_id="s-local",
+            machine_id="vm-local",
+            label="local",
+            status="active",
+            seconds_since_change=5,
+            last_seen_at=NOW,
+        )
+        session_reader.sessions["s-68"] = Session(
+            session_id="s-68",
+            machine_id="worker-vbox68",
+            label="worker 68",
+            status="active",
+            seconds_since_change=5,
+            last_seen_at=NOW,
+        )
+        session_reader.sessions["s-70"] = Session(
+            session_id="s-70",
+            machine_id="worker-vbox070",
+            label="worker 70",
+            status="active",
+            seconds_since_change=5,
+            last_seen_at=NOW,
+        )
+
+        result = service.get_sessions()
+
+        machine_ids = sorted(session["machine_id"] for session in result["sessions"])
+        assert machine_ids == ["worker-vbox070", "worker-vbox68"]
