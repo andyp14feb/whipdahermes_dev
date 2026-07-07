@@ -25,7 +25,7 @@ class FakeSessionRepo:
         active_session_ids: set[str],
         records: list[tuple[Session, Snapshot]],
     ) -> None:
-        self.mark_missing_by_machine_as_stale(machine_id, active_session_ids)
+        self.delete_missing_by_machine(machine_id, active_session_ids)
         for session, snapshot in records:
             self.upsert(session)
             self.snapshots.append(snapshot)
@@ -80,19 +80,19 @@ class FakeSessionRepo:
             if snapshot.machine_id != machine_id
         ]
 
-    def mark_missing_by_machine_as_stale(self, machine_id: str, session_ids: set[str]) -> None:
-        if not session_ids:
-            for sid, session in self.sessions.items():
-                if session.machine_id == machine_id:
-                    session.status = "stale"
-            return
-        stale_session_ids = [
+    def delete_missing_by_machine(self, machine_id: str, active_session_ids: set[str]) -> None:
+        missing_ids = [
             session_id
-            for session_id, session in self.sessions.items()
-            if session.machine_id == machine_id and session_id not in session_ids
+            for session_id, session in list(self.sessions.items())
+            if session.machine_id == machine_id and session_id not in active_session_ids
         ]
-        for session_id in stale_session_ids:
-            self.sessions[session_id].status = "stale"
+        for session_id in missing_ids:
+            del self.sessions[session_id]
+        self.snapshots = [
+            snapshot
+            for snapshot in self.snapshots
+            if not (snapshot.machine_id == machine_id and snapshot.session_id in missing_ids)
+        ]
 
 
 class TestSessionService:
@@ -403,7 +403,7 @@ class TestSessionService:
         assert repo.sessions["s-stable-3s"].seconds_since_change == 3
         assert repo.sessions["s-stable-15s"].seconds_since_change == 15
 
-    def test_upsert_marks_stale_sessions_missing_from_next_heartbeat(self) -> None:
+    def test_upsert_removes_sessions_missing_from_next_heartbeat(self) -> None:
         repo = FakeSessionRepo()
         service = SessionService(repo)
 
@@ -435,22 +435,19 @@ class TestSessionService:
 
         service.upsert_from_heartbeat(
             MachineId("vm-1"),
-            [
-                SessionSnapshot(
-                    session_id="session-b",
-                    label="session-b",
-                    preview="",
-                    seconds_since_change=6,
-                    diff_pct=0.0,
-                    stable_counter=2,
-                    cwd="",
-                    captured_at="2026-06-26T12:00:03Z",
-                )
-            ],
+            [SessionSnapshot(
+                session_id="session-b",
+                label="session-b",
+                preview="",
+                seconds_since_change=6,
+                diff_pct=0.0,
+                stable_counter=2,
+                cwd="",
+                captured_at="2026-06-26T12:00:03Z",
+            )],
         )
 
-        assert "session-a" in repo.sessions
-        assert repo.sessions["session-a"].status == "stale"
+        assert "session-a" not in repo.sessions
         assert "session-b" in repo.sessions
 
     def test_upsert_appends_a_snapshot_record(self) -> None:
@@ -970,3 +967,207 @@ class TestAutoAssessOnTransition:
         )
 
         assert assessor.last_session is None
+
+
+class TestLiveHeartbeatCleanup:
+    def test_session_disappearing_from_next_heartbeat_is_removed(self) -> None:
+        repo = FakeSessionRepo()
+        service = SessionService(repo)
+
+        service.upsert_from_heartbeat(
+            MachineId("vm-1"),
+            [
+                SessionSnapshot(
+                    session_id="session-a",
+                    label="session-a",
+                    preview="first",
+                    seconds_since_change=0,
+                    diff_pct=0.0,
+                    stable_counter=0,
+                    cwd="/tmp/a",
+                    captured_at="2026-06-26T12:00:00Z",
+                ),
+                SessionSnapshot(
+                    session_id="session-b",
+                    label="session-b",
+                    preview="first",
+                    seconds_since_change=0,
+                    diff_pct=0.0,
+                    stable_counter=0,
+                    cwd="/tmp/b",
+                    captured_at="2026-06-26T12:00:00Z",
+                ),
+            ],
+        )
+
+        service.upsert_from_heartbeat(
+            MachineId("vm-1"),
+            [
+                SessionSnapshot(
+                    session_id="session-a",
+                    label="session-a",
+                    preview="second",
+                    seconds_since_change=3,
+                    diff_pct=0.0,
+                    stable_counter=1,
+                    cwd="/tmp/a",
+                    captured_at="2026-06-26T12:00:03Z",
+                ),
+            ],
+        )
+
+        assert "session-a" in repo.sessions
+        assert "session-b" not in repo.sessions
+
+    def test_sessions_for_other_machines_are_preserved(self) -> None:
+        repo = FakeSessionRepo()
+        service = SessionService(repo)
+
+        service.upsert_from_heartbeat(
+            MachineId("vm-1"),
+            [
+                SessionSnapshot(
+                    session_id="session-a",
+                    label="session-a",
+                    preview="",
+                    seconds_since_change=0,
+                    diff_pct=0.0,
+                    stable_counter=0,
+                    cwd="",
+                    captured_at="2026-06-26T12:00:00Z",
+                ),
+            ],
+        )
+        service.upsert_from_heartbeat(
+            MachineId("vm-2"),
+            [
+                SessionSnapshot(
+                    session_id="session-b",
+                    label="session-b",
+                    preview="",
+                    seconds_since_change=0,
+                    diff_pct=0.0,
+                    stable_counter=0,
+                    cwd="",
+                    captured_at="2026-06-26T12:00:00Z",
+                ),
+            ],
+        )
+
+        service.upsert_from_heartbeat(
+            MachineId("vm-1"),
+            [
+                SessionSnapshot(
+                    session_id="session-c",
+                    label="session-c",
+                    preview="",
+                    seconds_since_change=0,
+                    diff_pct=0.0,
+                    stable_counter=0,
+                    cwd="",
+                    captured_at="2026-06-26T12:00:03Z",
+                ),
+            ],
+        )
+
+        assert "session-a" not in repo.sessions
+        assert "session-c" in repo.sessions
+        assert "session-b" in repo.sessions
+        assert repo.sessions["session-b"].machine_id == "vm-2"
+
+    def test_empty_heartbeat_removes_only_that_machine_sessions(self) -> None:
+        repo = FakeSessionRepo()
+        service = SessionService(repo)
+
+        service.upsert_from_heartbeat(
+            MachineId("vm-1"),
+            [
+                SessionSnapshot(
+                    session_id="session-a",
+                    label="session-a",
+                    preview="",
+                    seconds_since_change=0,
+                    diff_pct=0.0,
+                    stable_counter=0,
+                    cwd="",
+                    captured_at="2026-06-26T12:00:00Z",
+                ),
+            ],
+        )
+        service.upsert_from_heartbeat(
+            MachineId("vm-2"),
+            [
+                SessionSnapshot(
+                    session_id="session-b",
+                    label="session-b",
+                    preview="",
+                    seconds_since_change=0,
+                    diff_pct=0.0,
+                    stable_counter=0,
+                    cwd="",
+                    captured_at="2026-06-26T12:00:00Z",
+                ),
+            ],
+        )
+
+        service.upsert_from_heartbeat(MachineId("vm-1"), [])
+
+        assert repo.list_by_machine("vm-1") == []
+        assert "session-b" in repo.sessions
+        assert repo.sessions["session-b"].machine_id == "vm-2"
+
+    def test_machine_stale_timeout_still_works_for_non_heartbeat_machines(self) -> None:
+        from datetime import datetime, timedelta, timezone
+        from modules.machine_registry.domain.machine import Machine
+        from modules.query_api.application.query_service import QueryService
+
+        class FakeMachineReader:
+            def __init__(self) -> None:
+                self.machines: dict[str, Machine] = {}
+
+            def list_all(self) -> list[Machine]:
+                return list(self.machines.values())
+
+            def get(self, machine_id: str) -> Machine | None:
+                return self.machines.get(machine_id)
+
+        class FakeSessionReader:
+            def __init__(self) -> None:
+                self.sessions: dict[str, Session] = {}
+
+            def list_all(self) -> list[Session]:
+                return list(self.sessions.values())
+
+            def get(self, machine_id: str, session_id: str) -> Session | None:
+                session = self.sessions.get(session_id)
+                if session is not None and session.machine_id != machine_id:
+                    return None
+                return session
+
+            def get_latest_snapshot(self, machine_id: str, session_id: str) -> Snapshot | None:
+                return None
+
+        machine_reader = FakeMachineReader()
+        session_reader = FakeSessionReader()
+        service = QueryService(machine_reader, session_reader, stale_timeout_seconds=60)
+
+        stale_time = (datetime.now(tz=timezone.utc) - timedelta(minutes=10)).isoformat().replace("+00:00", "Z")
+        machine_reader.machines["vm-stale"] = Machine(
+            machine_id="vm-stale",
+            display_name="Stale VM",
+            last_seen_at=stale_time,
+            session_count=1,
+            is_stale=True,
+        )
+        session_reader.sessions["session-stale"] = Session(
+            session_id="session-stale",
+            machine_id="vm-stale",
+            label="Old Session",
+            status="stable",
+            last_seen_at=stale_time,
+        )
+
+        result = service.get_sessions()
+
+        assert len(result["sessions"]) == 1
+        assert result["sessions"][0]["status"] == "stale"

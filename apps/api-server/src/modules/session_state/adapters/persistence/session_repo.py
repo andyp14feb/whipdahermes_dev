@@ -100,16 +100,29 @@ class SQLSessionRepo(ISessionRepo):
         records: list[tuple[Session, Snapshot]],
     ) -> None:
         with sqlite_write_lock(), SQLSession(self.engine) as db:
-            stale_stmt = select(SessionModel).where(
+            missing_stmt = select(SessionModel).where(
                 SessionModel.machine_id == machine_id
             )
             if active_session_ids:
-                stale_stmt = stale_stmt.where(
+                missing_stmt = missing_stmt.where(
                     SessionModel.session_id.not_in(active_session_ids)
                 )
-            for stale_session in db.exec(stale_stmt).all():
-                stale_session.status = "stale"
-                db.add(stale_session)
+            missing_session_ids = [
+                session.session_id for session in db.exec(missing_stmt).all()
+            ]
+            if missing_session_ids:
+                db.exec(
+                    sa_delete(SnapshotModel).where(
+                        SnapshotModel.machine_id == machine_id,
+                        SnapshotModel.session_id.in_(missing_session_ids),
+                    )
+                )
+                db.exec(
+                    sa_delete(SessionModel).where(
+                        SessionModel.machine_id == machine_id,
+                        SessionModel.session_id.in_(missing_session_ids),
+                    )
+                )
             for session, snapshot in records:
                 db.merge(session)
                 db.add(snapshot)

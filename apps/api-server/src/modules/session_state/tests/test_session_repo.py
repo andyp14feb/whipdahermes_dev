@@ -339,6 +339,128 @@ class TestSQLSessionRepo:
         with SQLSession(repo.engine) as db:
             assert list(db.exec(select(Snapshot).where(Snapshot.session_id == "s-old")).all()) == []
 
+    def test_batch_upsert_heartbeat_removes_missing_sessions_for_same_machine(self) -> None:
+        repo = self.create_repo()
+        repo.upsert(
+            Session(
+                session_id="session-a",
+                machine_id="vm-1",
+                label="session-a",
+                status="active",
+                last_seen_at="2026-06-26T12:00:00Z",
+            )
+        )
+        repo.upsert(
+            Session(
+                session_id="session-b",
+                machine_id="vm-1",
+                label="session-b",
+                status="active",
+                last_seen_at="2026-06-26T12:00:00Z",
+            )
+        )
+        repo.append_snapshot("vm-1", Snapshot(
+            session_id="session-a",
+            machine_id="vm-1",
+            preview="a",
+            diff_pct=0.0,
+            stable_counter=1,
+            cwd="/tmp/a",
+            captured_at="2026-06-26T12:00:00Z",
+        ))
+        repo.append_snapshot("vm-1", Snapshot(
+            session_id="session-b",
+            machine_id="vm-1",
+            preview="b",
+            diff_pct=0.0,
+            stable_counter=1,
+            cwd="/tmp/b",
+            captured_at="2026-06-26T12:00:00Z",
+        ))
+
+        repo.batch_upsert_heartbeat(
+            "vm-1",
+            {"session-a"},
+            [
+                (
+                    Session(
+                        session_id="session-a",
+                        machine_id="vm-1",
+                        label="session-a",
+                        status="active",
+                        last_seen_at="2026-06-26T12:00:03Z",
+                    ),
+                    Snapshot(
+                        session_id="session-a",
+                        machine_id="vm-1",
+                        preview="a2",
+                        diff_pct=0.0,
+                        stable_counter=2,
+                        cwd="/tmp/a",
+                        captured_at="2026-06-26T12:00:03Z",
+                    ),
+                )
+            ],
+        )
+
+        assert repo.get("vm-1", "session-a") is not None
+        assert repo.get("vm-1", "session-b") is None
+        with SQLSession(repo.engine) as db:
+            remaining = list(db.exec(select(Snapshot).where(Snapshot.machine_id == "vm-1")).all())
+        assert {(snapshot.session_id, snapshot.preview) for snapshot in remaining} == {
+            ("session-a", "a"),
+            ("session-a", "a2"),
+        }
+
+    def test_batch_upsert_heartbeat_empty_sessions_removes_only_that_machine_sessions(self) -> None:
+        repo = self.create_repo()
+        repo.upsert(
+            Session(
+                session_id="session-a",
+                machine_id="vm-1",
+                label="session-a",
+                status="active",
+                last_seen_at="2026-06-26T12:00:00Z",
+            )
+        )
+        repo.upsert(
+            Session(
+                session_id="session-b",
+                machine_id="vm-2",
+                label="session-b",
+                status="active",
+                last_seen_at="2026-06-26T12:00:00Z",
+            )
+        )
+        repo.append_snapshot("vm-1", Snapshot(
+            session_id="session-a",
+            machine_id="vm-1",
+            preview="a",
+            diff_pct=0.0,
+            stable_counter=1,
+            cwd="/tmp/a",
+            captured_at="2026-06-26T12:00:00Z",
+        ))
+        repo.append_snapshot("vm-2", Snapshot(
+            session_id="session-b",
+            machine_id="vm-2",
+            preview="b",
+            diff_pct=0.0,
+            stable_counter=1,
+            cwd="/tmp/b",
+            captured_at="2026-06-26T12:00:00Z",
+        ))
+
+        repo.batch_upsert_heartbeat("vm-1", set(), [])
+
+        assert repo.get("vm-1", "session-a") is None
+        assert repo.get("vm-2", "session-b") is not None
+        with SQLSession(repo.engine) as db:
+            remaining = list(db.exec(select(Snapshot)).all())
+        assert {(snapshot.machine_id, snapshot.session_id) for snapshot in remaining} == {
+            ("vm-2", "session-b"),
+        }
+
     def test_delete_sessions_older_than_noop_when_all_recent(self) -> None:
         repo = self.create_repo()
         repo.upsert(
