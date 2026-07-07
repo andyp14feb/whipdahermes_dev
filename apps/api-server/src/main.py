@@ -74,7 +74,7 @@ async def cleanup_stale_sessions(
     from pathlib import Path
     import sqlite3
 
-    DB_PATH = Path("/home/andy/workspace/repositories/whipdahermes/whipdahermes_dev/data/hcp.db")
+    DB_PATH = Path("/data/hcp.db")
     if not DB_PATH.is_file():
         raise HTTPException(status_code=404, detail="DB not found")
 
