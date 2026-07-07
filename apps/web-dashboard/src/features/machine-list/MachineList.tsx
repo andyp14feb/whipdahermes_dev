@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { deleteMachine, enqueueCreateTmuxSession, fetchMachines, fetchSessions } from "./machineList.api";
+import { cleanupStaleSessions, deleteMachine, enqueueCreateTmuxSession, fetchMachines, fetchSessions } from "./machineList.api";
 import type { MachineWithSessions, SessionListItem } from "./machineList.types";
 import { MachineListItem } from "./MachineListItem";
 import { Card } from "../../shared/ui/Card";
@@ -128,6 +128,24 @@ export function MachineList() {
   const [sessionDirection, setSessionDirection] = useState<SortDirection>("asc");
   const [manualMachineOrder, setManualMachineOrder] = useState<string[]>(loadManualMachineOrder);
   const [draggingMachineId, setDraggingMachineId] = useState<string | null>(null);
+  const [isCleaningUp, setIsCleaningUp] = useState(false);
+  const [cleanupMessage, setCleanupMessage] = useState<string | null>(null);
+
+  const handleCleanup = async () => {
+    setIsCleaningUp(true);
+    setCleanupMessage(null);
+    try {
+      const result = await cleanupStaleSessions(undefined); // uses default threshold (300s)
+      setCleanupMessage(result.message);
+      // Refetch data to reflect the deletions immediately
+      await queryClient.invalidateQueries({ queryKey: ["machines"] });
+      await queryClient.invalidateQueries({ queryKey: ["sessions"] });
+    } catch (err) {
+      setCleanupMessage(`Cleanup failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setIsCleaningUp(false);
+    }
+  };
 
   const machinesQuery = useQuery({
     queryKey: ["machines"],
@@ -360,6 +378,18 @@ export function MachineList() {
           </div>
         </div>
       </Card>
+      <div className="flex items-center gap-2">
+        <Button
+          type="button"
+          variant="secondary"
+          className="px-2 py-1 text-xs"
+          disabled={isCleaningUp}
+          onClick={handleCleanup}
+        >
+          {isCleaningUp ? "Cleaning…" : "Cleanup Now"}
+        </Button>
+        {cleanupMessage && <p role="status" className="text-xs text-gray-500 dark:text-gray-400">{cleanupMessage}</p>}
+      </div>
       {createError && <p role="alert" className="text-xs text-red-600">{createError}</p>}
       {deleteError && <p role="alert" className="text-xs text-red-600">{deleteError}</p>}
       {orderedMachineGroups.map((machine) => (

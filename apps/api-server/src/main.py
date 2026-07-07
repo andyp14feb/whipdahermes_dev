@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
+from fastapi import APIRouter, HTTPException, status
 from modules.detection.detection import create_detection_module
 from modules.ingest.ingest import register_ingest_module
 from modules.machine_registry.adapters.persistence.machine_repo import (
@@ -48,6 +49,62 @@ machine_service = MachineService(machine_repo)
 session_repo = SQLSessionRepo(shared_engine)
 machine_repo.delete_deprecated_local_machine_rows()
 session_repo.delete_deprecated_local_machine_sessions()
+
+# ----------------------------------------------------------------------
+# Admin-only endpoint for immediate cleanup of stale sessions
+# ----------------------------------------------------------------------
+admin_router = APIRouter(prefix="/admin", tags=["admin"])
+
+@admin_router.post(
+    "/session-cleanup",
+    status_code=status.HTTP_200_OK,
+    summary="Delete all sessions older than the configured stale timeout"
+)
+async def cleanup_stale_sessions(
+    threshold_seconds: int = 300,
+) -> dict[str, object]:
+    """
+    Immediate bulk‑delete of stale sessions.
+    - `threshold_seconds` controls how old a session must be to be removed.
+      The default (300 s) matches the server‑wide stale‑timeout setting.
+    - Only intended for admin / debugging use – the UI will expose a
+      button that calls this endpoint.
+    """
+    import datetime
+    from pathlib import Path
+    import sqlite3
+
+    DB_PATH = Path("/home/andy/workspace/repositories/whipdahermes/whipdahermes_dev/data/hcp.db")
+    if not DB_PATH.is_file():
+        raise HTTPException(status_code=404, detail="DB not found")
+
+    now_ts = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
+    deleted = 0
+
+    with sqlite3.connect(DB_PATH) as conn:
+        cur = conn.cursor()
+        # Pull all sessions that have a recorded change time
+        cur.execute(
+            "SELECT machine_id, session_id, seconds_since_change FROM sessions "
+            "WHERE seconds_since_change IS NOT NULL"
+        )
+        rows = cur.fetchall()
+        for machine_id, session_id, seconds_since_change in rows:
+            if now_ts - seconds_since_change > threshold_seconds:
+                cur.execute(
+                    "DELETE FROM sessions WHERE machine_id=? AND session_id=?",
+                    (machine_id, session_id),
+                )
+                deleted += 1
+        conn.commit()
+
+    return {
+        "status": "ok",
+        "deleted": deleted,
+        "message": f"Deleted {deleted} stale session(s)",
+    }
+
+app.include_router(admin_router)
 detection_service = create_detection_module()
 session_service = create_session_state_module(session_repo, detection_service)
 
