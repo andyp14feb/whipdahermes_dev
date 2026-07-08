@@ -112,9 +112,10 @@ export function SessionWindow({ index }: SessionWindowProps) {
 
   return (
     <Card
+      style={isActive ? { borderColor: "var(--theme-primary)" } : undefined}
       className={`flex min-h-[30rem] flex-col gap-2 p-2 transition-colors sm:p-3 ${
         isActive
-          ? "border-blue-300 bg-white ring-2 ring-blue-300 dark:border-blue-500 dark:bg-gray-900"
+          ? "theme-ring bg-white ring-2 dark:bg-gray-900"
           : "bg-gray-50 opacity-80 dark:bg-gray-950 dark:opacity-90"
       }`}
       onClick={() => setActiveWindow(index)}

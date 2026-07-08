@@ -142,7 +142,8 @@ export function MachineListItem({ machineId, session }: MachineListItemProps) {
       <button
         type="button"
         onClick={() => setSelectedSession(machineId, session.session_id)}
-        className={`w-full rounded px-3 py-2 text-left transition-colors ${isSelected ? "bg-blue-50 ring-1 ring-blue-300 dark:bg-blue-950 dark:ring-blue-700" : "hover:bg-gray-50 dark:hover:bg-gray-900"}`}
+        style={isSelected ? { backgroundColor: "var(--theme-bg-soft)" } : undefined}
+        className={`w-full rounded px-3 py-2 text-left transition-colors ${isSelected ? "theme-ring ring-1" : "hover:bg-gray-50 dark:hover:bg-gray-900"}`}
       >
         <div className="flex items-center justify-between gap-2">
           <span className="truncate font-medium text-gray-800 dark:text-gray-100">{session.label}</span>

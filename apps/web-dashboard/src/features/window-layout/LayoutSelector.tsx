@@ -15,9 +15,10 @@ export function LayoutSelector() {
             key={count}
             type="button"
             onClick={() => setLayoutCount(count)}
+            style={layoutCount === count ? { backgroundColor: "var(--theme-primary)" } : undefined}
             className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
               layoutCount === count
-                ? "bg-blue-600 text-white shadow-sm"
+                ? "text-white shadow-sm"
                 : "text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
             }`}
           >

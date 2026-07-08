@@ -108,7 +108,7 @@ function NavBar({ current, onNavigate }: { current: "dashboard" | "settings"; on
         type="button"
         className={`text-sm font-medium ${
           current === "dashboard"
-            ? "text-blue-600 underline underline-offset-4"
+            ? "theme-text underline underline-offset-4"
             : "text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
         }`}
         onClick={() => onNavigate("dashboard")}
@@ -119,7 +119,7 @@ function NavBar({ current, onNavigate }: { current: "dashboard" | "settings"; on
         type="button"
         className={`text-sm font-medium ${
           current === "settings"
-            ? "text-blue-600 underline underline-offset-4"
+            ? "theme-text underline underline-offset-4"
             : "text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
         }`}
         onClick={() => onNavigate("settings")}
