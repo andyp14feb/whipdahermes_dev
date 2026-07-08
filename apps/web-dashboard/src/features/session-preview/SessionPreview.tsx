@@ -1,10 +1,9 @@
 import { useEffect, useRef } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ApiRequestError } from "../../shared/api-client/apiClient";
+import { useQuery } from "@tanstack/react-query";
 import { useAppStore } from "../../shared/state/appStore";
 import { useSettingsStore } from "../../shared/state/settingsStore";
 import type { StatusValue } from "../../shared/types/contracts";
-import { assessSession, fetchSessionDetail } from "./sessionPreview.api";
+import { fetchSessionDetail } from "./sessionPreview.api";
 import { PreviewPanel } from "./PreviewPanel";
 import { Card } from "../../shared/ui/Card";
 
@@ -12,6 +11,7 @@ interface SessionPreviewProps {
   machineId?: string | null;
   sessionId?: string | null;
   heightPx?: number;
+  onAutoAssess?: () => void;
 }
 
 const assessStatuses = new Set<StatusValue>(["stuck", "waiting", "waiting_input"]);
@@ -20,12 +20,8 @@ function shouldAssessTransition(
   previousStatus: StatusValue | null,
   nextStatus: StatusValue,
 ): boolean {
-  if (previousStatus === null) {
-    return false;
-  }
-  if (previousStatus === nextStatus) {
-    return false;
-  }
+  if (previousStatus === null) return false;
+  if (previousStatus === nextStatus) return false;
   return assessStatuses.has(nextStatus);
 }
 
@@ -33,11 +29,11 @@ export function SessionPreview({
   machineId: propMachineId,
   sessionId: propSessionId,
   heightPx,
+  onAutoAssess,
 }: SessionPreviewProps) {
   const storeMachineId = useAppStore((s) => s.selectedMachineId);
   const storeSessionId = useAppStore((s) => s.selectedSessionId);
   const refreshIntervalMs = useSettingsStore((s) => s.refreshIntervalMs);
-  const queryClient = useQueryClient();
   const lastStatusRef = useRef<StatusValue | null>(null);
 
   const machineId = propMachineId !== undefined ? propMachineId : storeMachineId;
@@ -50,39 +46,20 @@ export function SessionPreview({
     refetchInterval: refreshIntervalMs,
   });
 
-  const assessMutation = useMutation({
-    mutationFn: () => assessSession(machineId!, sessionId!),
-    onSuccess: (data) => {
-      queryClient.setQueryData(
-        ["session-detail", machineId, sessionId],
-        query.data ? { ...query.data, ...data } : data,
-      );
-    },
-  });
-
   useEffect(() => {
-    if (!machineId || !sessionId) {
+    if (!machineId || !sessionId || !onAutoAssess) {
       lastStatusRef.current = null;
       return;
     }
     const currentStatus = query.data?.status;
-    if (!currentStatus) {
-      return;
-    }
+    if (!currentStatus) return;
+
     const previousStatus = lastStatusRef.current;
-    if (
-      shouldAssessTransition(previousStatus, currentStatus) &&
-      !assessMutation.isPending
-    ) {
-      assessMutation.mutate();
+    if (shouldAssessTransition(previousStatus, currentStatus)) {
+      onAutoAssess();
     }
     lastStatusRef.current = currentStatus;
-  }, [assessMutation, machineId, query.data?.status, sessionId]);
-
-  const handleAssess = () => {
-    if (!machineId || !sessionId) return;
-    assessMutation.mutate();
-  };
+  }, [machineId, onAutoAssess, query.data?.status, sessionId]);
 
   if (!machineId || !sessionId) {
     return (
@@ -116,24 +93,9 @@ export function SessionPreview({
     );
   }
 
-  const assessError = assessMutation.error;
-  const assessErrorMessage =
-    assessError instanceof ApiRequestError && assessError.status === 503
-      ? "AI assessor is not configured yet"
-      : assessError instanceof ApiRequestError && assessError.status === 409
-        ? "AI assessment only runs when a session turns stuck or waiting"
-        : assessError instanceof DOMException && assessError.name === "AbortError"
-        ? "AI assessment timed out while waiting for the provider"
-        : assessError instanceof Error
-          ? assessError.message
-          : null;
-
   return (
     <PreviewPanel
       session={query.data}
-      onAssess={handleAssess}
-      isAssessing={assessMutation.isPending}
-      assessError={assessErrorMessage}
       heightPx={heightPx}
     />
   );

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { StatusSummary } from "../status-summary/StatusSummary";
 import type { SessionListItem } from "../../shared/types/contracts";
@@ -7,6 +7,7 @@ import { DEFAULT_NUDGE_PROMPT, useSettingsStore } from "../../shared/state/setti
 import { Button } from "../../shared/ui/Button";
 import { NudgeConfigModal } from "./NudgeConfigModal";
 import { deleteSession, enqueueRenameTmuxSession } from "./machineList.api";
+import { sendCommand } from "../command-panel/commandPanel.api";
 
 interface MachineListItemProps {
   machineId: string;
@@ -24,6 +25,7 @@ export function MachineListItem({ machineId, session }: MachineListItemProps) {
   const setNudgeEnabled = useSettingsStore((s) => s.setNudgeEnabled);
   const upsertNudgeConfig = useSettingsStore((s) => s.upsertNudgeConfig);
   const incrementNudgeCount = useSettingsStore((s) => s.incrementNudgeCount);
+  const nudgeAttemptRef = useRef<string | null>(null);
   const [stableTimeSeconds, setStableTimeSeconds] = useState(
     String(nudgeConfig?.stableTimeSeconds ?? 60),
   );
@@ -31,6 +33,54 @@ export function MachineListItem({ machineId, session }: MachineListItemProps) {
   const [customPrompt, setCustomPrompt] = useState(nudgeConfig?.customPrompt ?? "");
   const isSelected =
     selectedMachineId === machineId && selectedSessionId === session.session_id;
+
+  useEffect(() => {
+    if (!nudgeConfig?.enabled) {
+      nudgeAttemptRef.current = null;
+      return;
+    }
+    const isEligibleStatus = session.status === "stable" || session.status === "waiting" || session.status === "waiting_input" || session.status === "stuck";
+    const thresholdReached = session.seconds_since_change >= nudgeConfig.stableTimeSeconds;
+    const hasRemainingNudges = nudgeConfig.nudgesSent < nudgeConfig.maxNudges;
+    const stableBucket = Math.floor(session.seconds_since_change / nudgeConfig.stableTimeSeconds);
+    const attemptKey = `${session.status}:${stableBucket}`;
+
+    if (!isEligibleStatus || !thresholdReached || !hasRemainingNudges) {
+      if (!thresholdReached || !isEligibleStatus) {
+        nudgeAttemptRef.current = null;
+      }
+      return;
+    }
+
+    if (nudgeAttemptRef.current === attemptKey) {
+      return;
+    }
+    nudgeAttemptRef.current = attemptKey;
+
+    void (async () => {
+      try {
+        await sendCommand(
+          machineId,
+          session.session_id,
+          nudgeConfig.customPrompt?.trim() || DEFAULT_NUDGE_PROMPT,
+        );
+        incrementNudgeCount(sessionKey);
+        setActionFeedback(`Nudge sent to ${session.label}.`);
+      } catch (error) {
+        nudgeAttemptRef.current = null;
+        setActionFeedback(error instanceof Error ? error.message : "Failed to send nudge.");
+      }
+    })();
+  }, [
+    incrementNudgeCount,
+    machineId,
+    nudgeConfig,
+    session.label,
+    session.seconds_since_change,
+    session.session_id,
+    session.status,
+    sessionKey,
+  ]);
 
   const handleSave = () => {
     const stable = Number(stableTimeSeconds);

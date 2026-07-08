@@ -4,7 +4,7 @@ import Convert from "ansi-to-html";
 interface TerminalViewProps {
   output: string;
   className?: string;
-  maxHeightPx?: number;
+  heightPx?: number;
 }
 
 const converter = new Convert({
@@ -30,7 +30,7 @@ const converter = new Convert({
   escapeXML: true,
 });
 
-export function TerminalView({ output, className = "", maxHeightPx = 384 }: TerminalViewProps) {
+export function TerminalView({ output, className = "", heightPx = 384 }: TerminalViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -45,7 +45,7 @@ export function TerminalView({ output, className = "", maxHeightPx = 384 }: Term
     <div
       ref={containerRef}
       className={`overflow-auto rounded border border-gray-700 bg-[#1e1e1e] p-3 font-mono text-sm leading-relaxed ${className}`}
-      style={{ maxHeight: `${maxHeightPx}px` }}
+      style={{ height: `${heightPx}px` }}
     >
       <div
         dangerouslySetInnerHTML={{ __html: html }}

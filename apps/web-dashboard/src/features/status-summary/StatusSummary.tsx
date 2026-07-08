@@ -5,11 +5,12 @@ import { IdleTimer } from "./IdleTimer";
 interface StatusSummaryProps {
   status: StatusValue;
   secondsSinceChange: number;
+  className?: string;
 }
 
-export function StatusSummary({ status, secondsSinceChange }: StatusSummaryProps) {
+export function StatusSummary({ status, secondsSinceChange, className = "" }: StatusSummaryProps) {
   return (
-    <div className="flex items-center gap-2">
+    <div className={`flex items-center gap-2 ${className}`}>
       <StatusBadge status={status} />
       <IdleTimer seconds={secondsSinceChange} />
     </div>
