@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { TemplateAction } from "../../features/command-panel/commandPanel.types";
 import { normalizeProviderBaseUrl } from "./providerUrl";
+import { DEFAULT_COLOR_THEME, isColorThemeId } from "./colorThemes";
 
 export const STORAGE_KEY = "whipai-settings";
 
@@ -45,6 +46,7 @@ interface Settings {
   aiSelectedModel: string;
   aiProviderName: string;
   themeMode: ThemeMode;
+  colorTheme: string;
   templateActions: TemplateAction[];
   nudgesBySession: Record<string, NudgeConfig>;
 }
@@ -61,6 +63,7 @@ interface SettingsState extends Settings {
   setAiSelectedModel: (model: string) => void;
   setAiProviderName: (provider: string) => void;
   setThemeMode: (themeMode: ThemeMode) => void;
+  setColorTheme: (colorTheme: string) => void;
   addTemplateAction: (template: Omit<TemplateAction, "id">) => void;
   updateTemplateAction: (id: string, template: Omit<TemplateAction, "id">) => void;
   deleteTemplateAction: (id: string) => void;
@@ -91,6 +94,7 @@ const defaultSettings: Settings = {
   aiSelectedModel: "",
   aiProviderName: "",
   themeMode: "light",
+  colorTheme: DEFAULT_COLOR_THEME,
   templateActions: DEFAULT_TEMPLATE_ACTIONS,
   nudgesBySession: {},
 };
@@ -170,6 +174,9 @@ function loadFromStorage(): Settings {
         aiProviderName:
           parsed.aiProviderName ?? defaultSettings.aiProviderName,
         themeMode: parsed.themeMode === "dark" ? "dark" : defaultSettings.themeMode,
+        colorTheme: isColorThemeId(parsed.colorTheme ?? "")
+          ? parsed.colorTheme!
+          : defaultSettings.colorTheme,
         templateActions: normalizeTemplateActions(parsed.templateActions),
         nudgesBySession: normalizeNudges(parsed.nudgesBySession),
       };
@@ -198,6 +205,7 @@ function persistCurrentSettings(get: () => SettingsState) {
     aiSelectedModel,
     aiProviderName,
     themeMode,
+    colorTheme,
     templateActions,
     nudgesBySession,
   } = get();
@@ -212,6 +220,7 @@ function persistCurrentSettings(get: () => SettingsState) {
     aiSelectedModel,
     aiProviderName,
     themeMode,
+    colorTheme,
     templateActions,
     nudgesBySession,
   });
@@ -256,6 +265,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
   setThemeMode: (themeMode) => {
     set({ themeMode });
+    persistCurrentSettings(get);
+  },
+  setColorTheme: (colorTheme) => {
+    set({ colorTheme });
     persistCurrentSettings(get);
   },
   addTemplateAction: (template) => {
@@ -368,6 +381,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       aiSelectedModel,
       aiProviderName,
       themeMode,
+      colorTheme,
       templateActions,
       nudgesBySession,
     } = get();
@@ -382,6 +396,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       aiSelectedModel,
       aiProviderName,
       themeMode,
+      colorTheme,
       templateActions,
       nudgesBySession,
     });

@@ -1,8 +1,9 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { apiClient } from "../../shared/api-client/apiClient";
 import { AI_PROVIDER_TYPES, useSettingsStore } from "../../shared/state/settingsStore";
 import { Button } from "../../shared/ui/Button";
 import { Card } from "../../shared/ui/Card";
+import { ColorThemePicker } from "./ColorThemePicker";
 
 interface ModelOption {
   id: string;
@@ -31,6 +32,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
     aiSelectedModel,
     aiProviderName,
     themeMode,
+    colorTheme,
     templateActions,
     isDirty,
     setWorkerApiUrl,
@@ -43,6 +45,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
     setAiSelectedModel,
     setAiProviderName,
     setThemeMode,
+    setColorTheme,
     addTemplateAction,
     updateTemplateAction,
     deleteTemplateAction,
@@ -56,7 +59,13 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
   const [modelsError, setModelsError] = useState<string | null>(null);
   const [templateLabel, setTemplateLabel] = useState("");
   const [templatePayload, setTemplatePayload] = useState("");
+  const [colorThemeConfirmed, setColorThemeConfirmed] = useState(colorTheme);
+  const [savedThemeFlash, setSavedThemeFlash] = useState(false);
   const scriptRef = useRef<HTMLPreElement>(null);
+
+  useEffect(() => {
+      document.documentElement.dataset.colorTheme = colorTheme;
+    }, [colorTheme]);
 
   const workerScript = `#!/usr/bin/env bash
 set -euo pipefail
@@ -138,7 +147,7 @@ python3 src/main.py`;
     } finally {
       setIsFetchingModels(false);
     }
-  }, [aiApiKey, aiProviderBaseUrl, aiProviderType]);
+  }, [aiApiKey, aiProviderBaseUrl, aiProviderType, requestTimeoutMs]);
 
   const handleAddTemplate = () => {
     const label = templateLabel.trim();
@@ -147,6 +156,30 @@ python3 src/main.py`;
     addTemplateAction({ label, payload });
     setTemplateLabel("");
     setTemplatePayload("");
+  };
+
+  const handleThemeModeChange = (nextMode: "dark" | "light") => {
+    setThemeMode(nextMode);
+    const modeThemeId = nextMode === "dark" ? "dark-mode" : "light-mode";
+    setColorThemeConfirmed(modeThemeId);
+    setColorTheme(modeThemeId);
+    document.documentElement.dataset.colorTheme = modeThemeId;
+  };
+
+  const handlePreviewColorTheme = (themeId: string) => {
+    setColorThemeConfirmed(themeId);
+    document.documentElement.dataset.colorTheme = themeId;
+    if (themeId === "dark-mode") { setThemeMode("dark"); return; }
+    if (themeId === "light-mode") { setThemeMode("light"); }
+  };
+
+  const handleSaveColorTheme = () => {
+    setColorTheme(colorThemeConfirmed);
+    document.documentElement.dataset.colorTheme = colorThemeConfirmed;
+    if (colorThemeConfirmed === "dark-mode") { setThemeMode("dark"); }
+    else if (colorThemeConfirmed === "light-mode") { setThemeMode("light"); }
+    setSavedThemeFlash(true);
+    window.setTimeout(() => setSavedThemeFlash(false), 1500);
   };
 
   return (
@@ -162,22 +195,51 @@ python3 src/main.py`;
         <h2 className="mb-4 text-lg font-semibold text-gray-900 dark:text-gray-100">
           Appearance
         </h2>
-        <div>
-          <label htmlFor="theme-mode" className={labelClass}>
-            Theme
-          </label>
-          <select
-            id="theme-mode"
-            className={fieldClass}
-            value={themeMode}
-            onChange={(e) => setThemeMode(e.target.value === "dark" ? "dark" : "light")}
-          >
-            <option value="light">Light</option>
-            <option value="dark">Dark</option>
-          </select>
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            Theme changes are saved locally immediately.
-          </p>
+        <div className="space-y-4">
+          <div>
+            <label htmlFor="theme-mode" className={labelClass}>
+              Theme
+            </label>
+            <select
+              id="theme-mode"
+              className={fieldClass}
+              value={themeMode}
+              onChange={(e) => handleThemeModeChange(e.target.value === "dark" ? "dark" : "light")}
+            >
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+            </select>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              Theme changes are saved locally immediately.
+            </p>
+          </div>
+
+          <div>
+            <span className={labelClass}>Color theme</span>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              Pick a palette to preview it across the dashboard. Click Save to confirm.
+            </p>
+            <div className="mt-3">
+              <ColorThemePicker
+                selected={colorThemeConfirmed}
+                onSelect={handlePreviewColorTheme}
+              />
+            </div>
+            <div className="mt-3 flex items-center gap-3">
+              <Button
+                type="button"
+                onClick={handleSaveColorTheme}
+                disabled={colorThemeConfirmed === colorTheme}
+              >
+                Save color theme
+              </Button>
+              {savedThemeFlash && (
+                <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                  Color theme saved.
+                </span>
+              )}
+            </div>
+          </div>
         </div>
       </Card>
 
@@ -261,7 +323,7 @@ python3 src/main.py`;
               id="ai-provider-type"
               className={fieldClass}
               value={aiProviderType}
-              onChange={(e) => setAiProviderType(e.target.value as (typeof AI_PROVIDER_TYPES)[number])}
+              onChange={(e) => setAiProviderType(e.target.value as typeof AI_PROVIDER_TYPES[number])}
             >
               {AI_PROVIDER_TYPES.map((providerType) => (
                 <option key={providerType} value={providerType}>
@@ -269,19 +331,22 @@ python3 src/main.py`;
                 </option>
               ))}
             </select>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              Supports OpenAI-compatible, Anthropic-compatible, Gemini-compatible, Ollama-compatible, and 9Router-compatible endpoints.
+            </p>
           </div>
 
           <div>
-            <label htmlFor="ai-provider-name" className={labelClass}>
+            <label htmlFor="provider-name" className={labelClass}>
               Provider Name
             </label>
             <input
-              id="ai-provider-name"
+              id="provider-name"
               type="text"
               className={fieldClass}
               value={aiProviderName}
               onChange={(e) => setAiProviderName(e.target.value)}
-              placeholder="openai"
+              placeholder="openai-compatible"
             />
           </div>
 
@@ -295,11 +360,8 @@ python3 src/main.py`;
               className={fieldClass}
               value={aiProviderBaseUrl}
               onChange={(e) => setAiProviderBaseUrl(e.target.value)}
-              placeholder="https://api.openai.com"
+              placeholder="https://provider.example/v1"
             />
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              Supports OpenAI-compatible, Anthropic-compatible, Gemini-compatible, Ollama-compatible, and 9Router-compatible endpoints.
-            </p>
           </div>
 
           <div>
@@ -388,8 +450,7 @@ python3 src/main.py`;
               onChange={(e) => setRequestTimeoutMs(Number(e.target.value))}
             />
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              How long the dashboard waits for the AI provider before aborting
-              the request (5000–300000ms). Increase for slow models or high latency.
+              How long the dashboard waits for the AI provider before aborting the request (5000–300000ms). Increase for slow models or high latency.
             </p>
           </div>
 
@@ -408,15 +469,6 @@ python3 src/main.py`;
             </p>
           </div>
         </div>
-
-        <div className="mt-6 flex gap-3">
-          <Button onClick={save} disabled={!isDirty}>
-            Save &amp; Reload
-          </Button>
-          <Button variant="secondary" onClick={reset}>
-            Reset to Defaults
-          </Button>
-        </div>
       </Card>
 
       <Card className="p-6 dark:border-gray-800 dark:bg-gray-950">
@@ -433,20 +485,27 @@ python3 src/main.py`;
           with a unique machine ID. Adjust the <code>cd</code> path to match
           where you deploy the repo on the worker.
         </p>
-
         <pre
           ref={scriptRef}
           className="max-h-80 overflow-auto rounded border border-gray-200 bg-gray-50 p-4 font-mono text-xs text-gray-800 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-100"
         >
           {workerScript}
         </pre>
-
         <div className="mt-3">
           <Button variant="secondary" onClick={copyScript}>
             {copied ? "Copied!" : "Copy Script"}
           </Button>
         </div>
       </Card>
+
+      <div className="flex items-center justify-end gap-3 pb-8">
+        <Button onClick={save} disabled={!isDirty}>
+          Save &amp; Reload
+        </Button>
+        <Button variant="secondary" onClick={reset}>
+          Reset to Defaults
+        </Button>
+      </div>
     </div>
   );
 }

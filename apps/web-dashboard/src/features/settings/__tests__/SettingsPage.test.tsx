@@ -14,39 +14,41 @@ describe("SettingsPage", () => {
   beforeEach(() => {
     localStorage.removeItem(STORAGE_KEY);
     useSettingsStore.setState({
-      workerApiUrl: "http://localhost:8000",
-      refreshIntervalMs: 2000,
-      staleTimeoutSeconds: 60,
-      requestTimeoutMs: 40000,
-      aiProviderBaseUrl: "",
-      aiProviderType: "openai-compatible",
-      aiApiKey: "",
-      aiSelectedModel: "",
-      aiProviderName: "",
-      themeMode: "light",
-      templateActions: DEFAULT_TEMPLATE_ACTIONS,
-      nudgesBySession: {},
-      isDirty: false,
-      setWorkerApiUrl: useSettingsStore.getState().setWorkerApiUrl,
-      setRefreshIntervalMs: useSettingsStore.getState().setRefreshIntervalMs,
-      setStaleTimeoutSeconds: useSettingsStore.getState().setStaleTimeoutSeconds,
-      setRequestTimeoutMs: useSettingsStore.getState().setRequestTimeoutMs,
-      setAiProviderBaseUrl: useSettingsStore.getState().setAiProviderBaseUrl,
-      setAiApiKey: useSettingsStore.getState().setAiApiKey,
-      setAiSelectedModel: useSettingsStore.getState().setAiSelectedModel,
-      setAiProviderName: useSettingsStore.getState().setAiProviderName,
-      setThemeMode: useSettingsStore.getState().setThemeMode,
-      addTemplateAction: useSettingsStore.getState().addTemplateAction,
-      updateTemplateAction: useSettingsStore.getState().updateTemplateAction,
-      deleteTemplateAction: useSettingsStore.getState().deleteTemplateAction,
-      upsertNudgeConfig: useSettingsStore.getState().upsertNudgeConfig,
-      setNudgeEnabled: useSettingsStore.getState().setNudgeEnabled,
-      incrementNudgeCount: useSettingsStore.getState().incrementNudgeCount,
-      clearNudgeConfig: useSettingsStore.getState().clearNudgeConfig,
-      save: useSettingsStore.getState().save,
-      reset: useSettingsStore.getState().reset,
-    });
-  });
+          workerApiUrl: "http://localhost:8000",
+          refreshIntervalMs: 2000,
+          staleTimeoutSeconds: 60,
+          requestTimeoutMs: 40000,
+          aiProviderBaseUrl: "",
+          aiProviderType: "openai-compatible",
+          aiApiKey: "",
+          aiSelectedModel: "",
+          aiProviderName: "",
+          themeMode: "light",
+          colorTheme: "ocean-blue",
+          templateActions: DEFAULT_TEMPLATE_ACTIONS,
+          nudgesBySession: {},
+          isDirty: false,
+          setWorkerApiUrl: useSettingsStore.getState().setWorkerApiUrl,
+          setRefreshIntervalMs: useSettingsStore.getState().setRefreshIntervalMs,
+          setStaleTimeoutSeconds: useSettingsStore.getState().setStaleTimeoutSeconds,
+          setRequestTimeoutMs: useSettingsStore.getState().setRequestTimeoutMs,
+          setAiProviderBaseUrl: useSettingsStore.getState().setAiProviderBaseUrl,
+          setAiApiKey: useSettingsStore.getState().setAiApiKey,
+          setAiSelectedModel: useSettingsStore.getState().setAiSelectedModel,
+          setAiProviderName: useSettingsStore.getState().setAiProviderName,
+          setThemeMode: useSettingsStore.getState().setThemeMode,
+          setColorTheme: useSettingsStore.getState().setColorTheme,
+          addTemplateAction: useSettingsStore.getState().addTemplateAction,
+          updateTemplateAction: useSettingsStore.getState().updateTemplateAction,
+          deleteTemplateAction: useSettingsStore.getState().deleteTemplateAction,
+          upsertNudgeConfig: useSettingsStore.getState().upsertNudgeConfig,
+          setNudgeEnabled: useSettingsStore.getState().setNudgeEnabled,
+          incrementNudgeCount: useSettingsStore.getState().incrementNudgeCount,
+          clearNudgeConfig: useSettingsStore.getState().clearNudgeConfig,
+          save: useSettingsStore.getState().save,
+          reset: useSettingsStore.getState().reset,
+        });
+      });
 
   it("renders settings and copies the worker script", async () => {
     const user = userEvent.setup();
@@ -186,5 +188,50 @@ describe("SettingsPage", () => {
 
     expect(screen.getByText(/dashboard data fetching/i)).toBeInTheDocument();
     expect(screen.getByText(/VITE_API_BASE_URL/i)).toBeInTheDocument();
+  });
+
+  it("renders 52 color theme swatches with Light mode and Dark mode as entries 1-2 and the saved selection checked", async () => {
+    render(<SettingsPage onClose={() => undefined} />);
+
+    const swatches = screen.getAllByRole("radio", { name: /^Color theme / });
+    expect(swatches).toHaveLength(52);
+    expect(swatches[0]).toHaveAttribute("aria-label", "Color theme Light mode");
+    expect(swatches[1]).toHaveAttribute("aria-label", "Color theme Dark mode");
+    expect(swatches[2]).toHaveAttribute("aria-label", "Color theme Ocean Blue");
+    expect(screen.getByRole("radio", { name: "Color theme Ocean Blue" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+  });
+
+  it("previews a swatch immediately and applies it only after Save", async () => {
+    const user = userEvent.setup();
+    render(<SettingsPage onClose={() => undefined} />);
+
+    await user.click(screen.getByRole("radio", { name: "Color theme Royal Violet" }));
+
+    const html = document.documentElement;
+    expect(html.dataset.colorTheme).toBe("royal-violet");
+    expect(screen.getByRole("button", { name: "Save color theme" })).not.toBeDisabled();
+
+    await user.click(screen.getByRole("button", { name: "Save color theme" }));
+
+    await waitFor(() => {
+      expect(useSettingsStore.getState().colorTheme).toBe("royal-violet");
+    });
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}").colorTheme).toBe("royal-violet");
+  });
+
+  it("falls back to the default theme when persisted value is unknown", async () => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ colorTheme: "not-a-real-theme" }),
+    );
+    render(<SettingsPage onClose={() => undefined} />);
+
+    expect(screen.getByRole("radio", { name: "Color theme Ocean Blue" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
   });
 });

@@ -175,6 +175,7 @@ function Dashboard() {
 export function App() {
   const [view, setView] = useState<"dashboard" | "settings">("dashboard");
   const themeMode = useSettingsStore((s) => s.themeMode);
+  const colorTheme = useSettingsStore((s) => s.colorTheme);
 
   useEffect(() => {
     const isDark = themeMode === "dark";
@@ -183,6 +184,10 @@ export function App() {
     document.documentElement.style.backgroundColor = isDark ? "#030712" : "#f3f4f6";
     document.body.style.backgroundColor = isDark ? "#030712" : "#f3f4f6";
   }, [themeMode]);
+
+  useEffect(() => {
+    document.documentElement.dataset.colorTheme = colorTheme;
+  }, [colorTheme]);
 
   return (
     <QueryClientProvider client={queryClient}>
