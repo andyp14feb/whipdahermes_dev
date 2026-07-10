@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import random
 import time
 from pathlib import Path
 
@@ -10,6 +11,9 @@ from command.executor import AgentControlState
 from parse.capture_parser import CaptureState, parse_sessions
 
 logger = logging.getLogger(__name__)
+
+MAX_BACKOFF_SECONDS = 30
+BACKOFF_JITTER_FRACTION = 0.2
 
 
 class HeartbeatScheduler:
@@ -20,6 +24,20 @@ class HeartbeatScheduler:
         self.parse_fn = parse_fn
         self.state_path = Path(f"/tmp/whipai-capture-state-{self.config.machine_id}.json")
         self.state = self._load_state()
+        self.consecutive_failures = 0
+
+    def _next_sleep_seconds(self, success: bool) -> float:
+        if success:
+            self.consecutive_failures = 0
+            return self.config.interval
+
+        self.consecutive_failures += 1
+        backoff = min(
+            self.config.interval * (2 ** self.consecutive_failures),
+            MAX_BACKOFF_SECONDS,
+        )
+        jitter = backoff * BACKOFF_JITTER_FRACTION
+        return backoff + random.uniform(-jitter, jitter)
 
     def _load_state(self) -> CaptureState:
         if not self.state_path.exists():
@@ -90,8 +108,15 @@ class HeartbeatScheduler:
         control_state = AgentControlState.get_instance()
         while not control_state.shutdown_requested() and not control_state.restart_requested():
             try:
-                self.run_once()
-                time.sleep(self.config.interval)
+                try:
+                    success = self.run_once()
+                except Exception:
+                    logger.exception(
+                        "Unexpected error in heartbeat cycle for machine_id=%s; continuing",
+                        self.config.machine_id,
+                    )
+                    success = False
+                time.sleep(self._next_sleep_seconds(success))
             except (KeyboardInterrupt, SystemExit):
                 logger.info("Heartbeat scheduler shutting down gracefully for machine_id=%s", self.config.machine_id)
                 break

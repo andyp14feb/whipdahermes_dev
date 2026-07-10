@@ -44,7 +44,7 @@ def test_post_heartbeat_success():
             ],
         },
         headers={"Content-Type": "application/json"},
-        timeout=10,
+        timeout=4,
     )
 
 
@@ -104,7 +104,7 @@ def test_post_heartbeat_trailing_slash_stripped():
         "http://localhost:8000/heartbeat",
         json={"machine_id": "vm-1", "sessions": []},
         headers={"Content-Type": "application/json"},
-        timeout=10,
+        timeout=4,
     )
 
 
@@ -120,7 +120,7 @@ def test_post_heartbeat_api_url_with_path_and_trailing_slash_builds_expected_url
         "http://localhost:8000/api/heartbeat",
         json={"machine_id": "vm-1", "sessions": []},
         headers={"Content-Type": "application/json"},
-        timeout=10,
+        timeout=4,
     )
 
 
@@ -157,7 +157,7 @@ def test_post_heartbeat_empty_sessions():
         "http://localhost:8000/heartbeat",
         json={"machine_id": "vm-1", "sessions": []},
         headers={"Content-Type": "application/json"},
-        timeout=10,
+        timeout=4,
     )
 
 

@@ -8,7 +8,7 @@ from capture.tmux_capture import capture_panes
 def test_capture_panes_continues_after_single_pane_capture_failure(monkeypatch):
     calls: list[list[str]] = []
 
-    def fake_run(cmd, capture_output, text, check):
+    def fake_run(cmd, capture_output, text, check, timeout=None):
         calls.append(cmd)
         if cmd[:2] == ["tmux", "list-panes"]:
             return subprocess.CompletedProcess(
@@ -36,7 +36,7 @@ def test_capture_panes_continues_after_single_pane_capture_failure(monkeypatch):
 def test_capture_panes_uses_configured_tmux_socket(monkeypatch):
     calls: list[list[str]] = []
 
-    def fake_run(cmd, capture_output, text, check):
+    def fake_run(cmd, capture_output, text, check, timeout=None):
         calls.append(cmd)
         if "list-panes" in cmd:
             return subprocess.CompletedProcess(cmd, 0, stdout="pane-a\t/tmp/a\n", stderr="")
@@ -57,7 +57,7 @@ def test_capture_panes_warns_when_socket_missing(monkeypatch, caplog, tmp_path):
     missing_socket = str(tmp_path / "no-socket")
     calls: list[list[str]] = []
 
-    def fake_run(cmd, capture_output, text, check):
+    def fake_run(cmd, capture_output, text, check, timeout=None):
         calls.append(cmd)
         raise subprocess.CalledProcessError(1, cmd, stderr="no socket")
 
@@ -71,7 +71,7 @@ def test_capture_panes_warns_when_socket_missing(monkeypatch, caplog, tmp_path):
 
 
 def test_capture_panes_warns_when_binary_missing(monkeypatch, caplog):
-    def fake_run(cmd, capture_output, text, check):
+    def fake_run(cmd, capture_output, text, check, timeout=None):
         raise FileNotFoundError("tmux not installed")
 
     monkeypatch.setattr(subprocess, "run", fake_run)
@@ -83,7 +83,7 @@ def test_capture_panes_warns_when_binary_missing(monkeypatch, caplog):
 
 
 def test_capture_panes_warns_on_list_panes_failure(monkeypatch, caplog):
-    def fake_run(cmd, capture_output, text, check):
+    def fake_run(cmd, capture_output, text, check, timeout=None):
         raise subprocess.CalledProcessError(1, cmd, stderr="list panes failed")
 
     monkeypatch.setattr(subprocess, "run", fake_run)
