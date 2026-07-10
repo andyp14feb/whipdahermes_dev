@@ -98,35 +98,48 @@ class SQLSessionRepo(ISessionRepo):
         machine_id: str,
         active_session_ids: set[str],
         records: list[tuple[Session, Snapshot]],
+        db: SQLSession | None = None,
     ) -> None:
+        if db is not None:
+            self._batch_upsert_heartbeat(db, machine_id, active_session_ids, records)
+            return
         with sqlite_write_lock(), SQLSession(self.engine) as db:
-            missing_stmt = select(SessionModel).where(
-                SessionModel.machine_id == machine_id
-            )
-            if active_session_ids:
-                missing_stmt = missing_stmt.where(
-                    SessionModel.session_id.not_in(active_session_ids)
-                )
-            missing_session_ids = [
-                session.session_id for session in db.exec(missing_stmt).all()
-            ]
-            if missing_session_ids:
-                db.exec(
-                    sa_delete(SnapshotModel).where(
-                        SnapshotModel.machine_id == machine_id,
-                        SnapshotModel.session_id.in_(missing_session_ids),
-                    )
-                )
-                db.exec(
-                    sa_delete(SessionModel).where(
-                        SessionModel.machine_id == machine_id,
-                        SessionModel.session_id.in_(missing_session_ids),
-                    )
-                )
-            for session, snapshot in records:
-                db.merge(session)
-                db.add(snapshot)
+            self._batch_upsert_heartbeat(db, machine_id, active_session_ids, records)
             db.commit()
+
+    def _batch_upsert_heartbeat(
+        self,
+        db: SQLSession,
+        machine_id: str,
+        active_session_ids: set[str],
+        records: list[tuple[Session, Snapshot]],
+    ) -> None:
+        missing_stmt = select(SessionModel).where(
+            SessionModel.machine_id == machine_id
+        )
+        if active_session_ids:
+            missing_stmt = missing_stmt.where(
+                SessionModel.session_id.not_in(active_session_ids)
+            )
+        missing_session_ids = [
+            session.session_id for session in db.exec(missing_stmt).all()
+        ]
+        if missing_session_ids:
+            db.exec(
+                sa_delete(SnapshotModel).where(
+                    SnapshotModel.machine_id == machine_id,
+                    SnapshotModel.session_id.in_(missing_session_ids),
+                )
+            )
+            db.exec(
+                sa_delete(SessionModel).where(
+                    SessionModel.machine_id == machine_id,
+                    SessionModel.session_id.in_(missing_session_ids),
+                )
+            )
+        for session, snapshot in records:
+            db.merge(session)
+            db.add(snapshot)
 
     def get(self, machine_id: str, session_id: str) -> Session | None:
         with SQLSession(self.engine) as db:

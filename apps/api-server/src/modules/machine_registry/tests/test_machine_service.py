@@ -12,7 +12,7 @@ class FakeMachineRepo:
         self.mark_stale_calls: list[MachineId] = []
         self.deleted_ids: list[str] = []
 
-    def upsert(self, machine: Machine) -> None:
+    def upsert(self, machine: Machine, db=None) -> None:
         self.machine = machine
         self.upsert_calls.append(machine)
 

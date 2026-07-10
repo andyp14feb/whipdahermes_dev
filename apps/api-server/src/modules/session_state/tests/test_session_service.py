@@ -24,6 +24,7 @@ class FakeSessionRepo:
         machine_id: str,
         active_session_ids: set[str],
         records: list[tuple[Session, Snapshot]],
+        db=None,
     ) -> None:
         self.delete_missing_by_machine(machine_id, active_session_ids)
         for session, snapshot in records:

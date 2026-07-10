@@ -30,6 +30,7 @@ class ISessionRepo(Protocol):
         machine_id: str,
         active_session_ids: set[str],
         records: list[tuple[Session, Snapshot]],
+        db: object | None = None,
     ) -> None: ...
 
     def get(self, machine_id: str, session_id: str) -> Session | None: ...

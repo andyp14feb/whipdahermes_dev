@@ -29,8 +29,21 @@ class SessionService:
         self.assessor = assessor
 
     def upsert_from_heartbeat(
-        self, machine_id: MachineId, sessions: list[SessionSnapshot]
+        self, machine_id: MachineId, sessions: list[SessionSnapshot], db=None
     ) -> None:
+        """Write session records, then process any AI assessments.
+
+        When `db` is supplied, the write is merged into the caller's shared
+        transaction/lock (see `write_heartbeat`), but assessment always runs
+        afterward, outside that transaction/lock — it may call a slow
+        external assessor and must not hold the shared SQLite write lock.
+        """
+        candidates = self.write_heartbeat(machine_id, sessions, db=db)
+        self.process_assessments(candidates)
+
+    def write_heartbeat(
+        self, machine_id: MachineId, sessions: list[SessionSnapshot], db=None
+    ) -> list[tuple[Session, Snapshot, str]]:
         now = now_utc()
         records: list[tuple[Session, Snapshot]] = []
         assessment_candidates: list[tuple[Session, Snapshot, str]] = []
@@ -96,10 +109,17 @@ class SessionService:
                 assessment_candidates.append((session, snapshot_record, now))
 
         self.repo.batch_upsert_heartbeat(
-            str(machine_id), {snap.session_id for snap in sessions}, records
+            str(machine_id), {snap.session_id for snap in sessions}, records, db=db
         )
+        if db is not None:
+            db.commit()
 
-        for session, snapshot_record, assessed_at in assessment_candidates:
+        return assessment_candidates
+
+    def process_assessments(
+        self, candidates: list[tuple[Session, Snapshot, str]]
+    ) -> None:
+        for session, snapshot_record, assessed_at in candidates:
             assess_and_update_session(
                 self.repo, self.assessor, session, snapshot_record, assessed_at
             )

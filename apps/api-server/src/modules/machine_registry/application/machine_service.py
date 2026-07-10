@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from modules.machine_registry.application.ports import IMachineRepo
 from modules.machine_registry.domain.machine import Machine
 from modules.shared_kernel.ids import MachineId
@@ -10,14 +12,18 @@ class MachineService:
         self.repo = repo
 
     def upsert_from_heartbeat(
-        self, machine_id: MachineId, last_seen_at: str, session_count: int
+        self,
+        machine_id: MachineId,
+        last_seen_at: str,
+        session_count: int,
+        db: Any | None = None,
     ) -> Machine:
         existing = self.repo.get(machine_id)
         if existing is not None:
             existing.last_seen_at = last_seen_at
             existing.session_count = session_count
             existing.is_stale = False
-            self.repo.upsert(existing)
+            self.repo.upsert(existing, db=db)
             return existing
 
         machine = Machine(
@@ -27,13 +33,15 @@ class MachineService:
             session_count=session_count,
             is_stale=False,
         )
-        self.repo.upsert(machine)
+        self.repo.upsert(machine, db=db)
         return machine
 
-    def upsert_machine(self, machine_id: MachineId, last_seen_at: str) -> None:
+    def upsert_machine(
+        self, machine_id: MachineId, last_seen_at: str, db: Any | None = None
+    ) -> None:
         existing = self.repo.get(machine_id)
         session_count = existing.session_count if existing is not None else 0
-        self.upsert_from_heartbeat(machine_id, last_seen_at, session_count)
+        self.upsert_from_heartbeat(machine_id, last_seen_at, session_count, db=db)
 
     def get_machine(self, machine_id: MachineId) -> Machine | None:
         return self.repo.get(machine_id)

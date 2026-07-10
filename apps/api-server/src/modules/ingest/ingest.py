@@ -10,10 +10,12 @@ from modules.ingest.application.ports import IMachineRegistryUpserter, ISessionU
 def create_ingest_module(
     machine_registry_upserter: IMachineRegistryUpserter,
     session_upserter: ISessionUpserter,
+    engine=None,
 ) -> APIRouter:
     service = HeartbeatService(
         machine_registry=machine_registry_upserter,
         session_state=session_upserter,
+        engine=engine,
     )
     return create_heartbeat_router(service)
 
@@ -22,9 +24,11 @@ def register_ingest_module(
     app: FastAPI,
     machine_registry_upserter: IMachineRegistryUpserter,
     session_upserter: ISessionUpserter,
+    engine=None,
 ) -> None:
     router = create_ingest_module(
         machine_registry_upserter=machine_registry_upserter,
         session_upserter=session_upserter,
+        engine=engine,
     )
     app.include_router(router)

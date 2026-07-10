@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from sqlalchemy import delete as sa_delete, event
-from sqlalchemy.pool import NullPool, StaticPool
+from sqlalchemy.pool import QueuePool, StaticPool
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from modules.machine_registry.application.ports import IMachineRepo
@@ -20,7 +20,10 @@ class SQLMachineRepo(IMachineRepo):
         self.engine = engine
         SQLModel.metadata.create_all(self.engine)
 
-    def upsert(self, machine: Machine) -> None:
+    def upsert(self, machine: Machine, db: Session | None = None) -> None:
+        if db is not None:
+            db.merge(machine)
+            return
         with sqlite_write_lock(), Session(self.engine) as session:
             session.merge(machine)
             session.commit()
@@ -86,10 +89,12 @@ def _sqlite_engine_kwargs(url: str) -> dict[str, object]:
         return {
             "connect_args": {
                 "check_same_thread": False,
-                "timeout": 30,
+                "timeout": 5,
                 "isolation_level": None,
             },
-            "poolclass": NullPool,
+            "poolclass": QueuePool,
+            "pool_size": 5,
+            "max_overflow": 5,
         }
     return {}
 
@@ -102,7 +107,7 @@ def _configure_sqlite_engine(engine) -> None:
     def _set_sqlite_pragmas(dbapi_connection, _connection_record) -> None:
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA journal_mode=WAL")
-        cursor.execute("PRAGMA busy_timeout=30000")
+        cursor.execute("PRAGMA busy_timeout=5000")
         cursor.execute("PRAGMA foreign_keys=ON")
         cursor.close()
 

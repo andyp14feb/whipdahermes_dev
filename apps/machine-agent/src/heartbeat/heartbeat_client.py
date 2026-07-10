@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import asdict
 from urllib.parse import urljoin
 
@@ -9,6 +10,11 @@ import requests
 from parse.capture_parser import SessionSnapshot
 
 logger = logging.getLogger(__name__)
+
+HEARTBEAT_TIMEOUT_SECONDS = 10
+HEARTBEAT_MAX_ATTEMPTS = 3
+HEARTBEAT_RETRY_BACKOFF_SECONDS = 0.5
+RETRYABLE_STATUS_CODES = {500, 502, 503, 504}
 
 
 class HeartbeatClient:
@@ -40,10 +46,8 @@ class HeartbeatClient:
         }
         url = self._url("heartbeat")
 
-        try:
-            response = self.session.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=30)
-        except requests.RequestException as exc:
-            logger.warning("Failed to POST heartbeat for machine_id=%s to %s: %s", machine_id, url, exc)
+        response = self._post_with_retry(url, payload, machine_id)
+        if response is None:
             return False
 
         if response.status_code == 404:
@@ -69,3 +73,38 @@ class HeartbeatClient:
 
         logger.warning("Heartbeat response rejected for machine_id=%s to %s: %s", machine_id, url, data)
         return False
+
+    def _post_with_retry(self, url: str, payload: dict, machine_id: str) -> requests.Response | None:
+        """POST with a short retry for transient failures (connection errors,
+        timeouts, 5xx). Non-transient outcomes (4xx, malformed responses) are
+        not retried here — they're handled by the caller."""
+        last_exc: requests.RequestException | None = None
+        response: requests.Response | None = None
+
+        for attempt in range(1, HEARTBEAT_MAX_ATTEMPTS + 1):
+            try:
+                response = self.session.post(
+                    url,
+                    json=payload,
+                    headers={"Content-Type": "application/json"},
+                    timeout=HEARTBEAT_TIMEOUT_SECONDS,
+                )
+            except requests.RequestException as exc:
+                last_exc = exc
+                response = None
+            else:
+                last_exc = None
+                if response.status_code not in RETRYABLE_STATUS_CODES:
+                    return response
+
+            if attempt < HEARTBEAT_MAX_ATTEMPTS:
+                time.sleep(HEARTBEAT_RETRY_BACKOFF_SECONDS * attempt)
+
+        if last_exc is not None:
+            logger.warning(
+                "Failed to POST heartbeat for machine_id=%s to %s after %d attempts: %s",
+                machine_id, url, HEARTBEAT_MAX_ATTEMPTS, last_exc,
+            )
+            return None
+
+        return response

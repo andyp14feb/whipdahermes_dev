@@ -112,6 +112,7 @@ register_ingest_module(
     app,
     machine_registry_upserter=machine_service,
     session_upserter=session_service,
+    engine=shared_engine,
 )
 
 command_repo = SQLCommandRepo(shared_engine)
