@@ -3,7 +3,7 @@ import { afterAll, afterEach, beforeAll } from "vitest";
 import { cleanup } from "@testing-library/react";
 import { setupServer } from "msw/node";
 import { queryClient } from "../app/App";
-import { useAppStore } from "../shared/state/appStore";
+import { LAYOUT_STORAGE_KEY, useAppStore } from "../shared/state/appStore";
 import {
   DEFAULT_TEMPLATE_ACTIONS,
   STORAGE_KEY,
@@ -24,14 +24,11 @@ afterEach(() => {
     selectedSessionId: null,
     connectionError: null,
     connectionFailureCount: 0,
-    windows: [
-      { machineId: null, sessionId: null, heightPx: 480 },
-      { machineId: null, sessionId: null, heightPx: 480 },
-      { machineId: null, sessionId: null, heightPx: 480 },
-      { machineId: null, sessionId: null, heightPx: 480 },
-    ],
+    windows: [{ machineId: null, sessionId: null, heightPx: 480 }],
     activeWindowIndex: 0,
-    layoutCount: 1,
+    windowColumnCount: 1,
+    leftPanelVisible: true,
+    leftPanelWidthPx: 320,
   });
 
   useSettingsStore.setState({
@@ -49,6 +46,7 @@ afterEach(() => {
   });
 
   localStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem(LAYOUT_STORAGE_KEY);
 });
 
 afterAll(() => server.close());

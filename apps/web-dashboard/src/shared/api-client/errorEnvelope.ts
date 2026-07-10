@@ -5,11 +5,16 @@ export interface ApiError {
 }
 
 export function isApiError(body: unknown): body is { error: ApiError } {
+  if (typeof body !== "object" || body === null || !("error" in body)) {
+    return false;
+  }
+
+  const error = (body as Record<string, unknown>).error;
   return (
-    typeof body === "object" &&
-    body !== null &&
-    "error" in body &&
-    typeof (body as Record<string, unknown>).error === "object"
+    typeof error === "object" &&
+    error !== null &&
+    typeof (error as Record<string, unknown>).code === "string" &&
+    typeof (error as Record<string, unknown>).message === "string"
   );
 }
 

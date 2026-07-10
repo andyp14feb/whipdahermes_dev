@@ -20,6 +20,7 @@ describe("CommandPanel", () => {
   beforeEach(() => {
     server.resetHandlers();
     vi.useFakeTimers({ shouldAdvanceTime: true });
+    window.localStorage.removeItem("whipai.commandHistory");
   });
 
   afterEach(() => {
@@ -73,6 +74,39 @@ describe("CommandPanel", () => {
 
     await waitFor(() => {
       expect(screen.getByText("delivered")).toBeInTheDocument();
+    });
+  });
+
+  it("loads persisted command history for resend after remount", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const posts: Array<{ machine_id: string; session_id: string; payload: string }> = [];
+    window.localStorage.setItem(
+      "whipai.commandHistory",
+      JSON.stringify([{ id: "persisted-cmd", payload: "restore me", state: "delivered" }]),
+    );
+
+    server.use(
+      http.post("/command", async ({ request }) => {
+        const body = await request.json() as { machine_id: string; session_id: string; payload: string };
+        posts.push(body);
+        return HttpResponse.json({
+          command_id: "cmd-resend",
+          state: "accepted",
+          target: `${body.machine_id}/${body.session_id}`,
+        });
+      }),
+    );
+
+    renderWithClient(
+      <CommandPanel machineId="m-1" sessionId="s-1" />,
+    );
+
+    expect(screen.getByText("Command History")).toBeInTheDocument();
+    expect(screen.getByText("restore me")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Resend" }));
+
+    await waitFor(() => {
+      expect(posts).toEqual([{ machine_id: "m-1", session_id: "s-1", payload: "restore me" }]);
     });
   });
 

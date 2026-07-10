@@ -75,14 +75,11 @@ function selectSessionInFirstWindow() {
     selectedMachineId: "machine-1",
     selectedSessionId: "session-1",
     connectionError: null,
-    windows: [
-      { machineId: "machine-1", sessionId: "session-1", heightPx: 480 },
-      { machineId: null, sessionId: null, heightPx: 480 },
-      { machineId: null, sessionId: null, heightPx: 480 },
-      { machineId: null, sessionId: null, heightPx: 480 },
-    ],
+    windows: [{ machineId: "machine-1", sessionId: "session-1", heightPx: 480 }],
     activeWindowIndex: 0,
-    layoutCount: 1,
+    windowColumnCount: 1,
+    leftPanelVisible: true,
+    leftPanelWidthPx: 320,
   });
 }
 
@@ -92,14 +89,11 @@ beforeEach(() => {
     selectedSessionId: null,
     connectionError: null,
     connectionFailureCount: 0,
-    windows: [
-      { machineId: null, sessionId: null, heightPx: 480 },
-      { machineId: null, sessionId: null, heightPx: 480 },
-      { machineId: null, sessionId: null, heightPx: 480 },
-      { machineId: null, sessionId: null, heightPx: 480 },
-    ],
+    windows: [{ machineId: null, sessionId: null, heightPx: 480 }],
     activeWindowIndex: 0,
-    layoutCount: 1,
+    windowColumnCount: 1,
+    leftPanelVisible: true,
+    leftPanelWidthPx: 320,
   });
   localStorage.removeItem("whipai-settings");
   localStorage.removeItem("whipai.machineList.manualOrder");
@@ -176,6 +170,19 @@ describe("MachineList", () => {
     expect(useAppStore.getState().selectedSessionId).toBe("session-1");
   });
 
+  it("handles malformed cleanup errors without throwing", async () => {
+    server.use(
+      http.post("/admin/session-cleanup", () =>
+        HttpResponse.json({ error: null }, { status: 500 }),
+      ),
+    );
+
+    renderWithClient(<MachineList />);
+    fireEvent.click(await screen.findByRole("button", { name: "Cleanup Stale Sessions" }));
+
+    expect(await screen.findByText("Cleanup failed: Request failed with status 500")).toBeInTheDocument();
+  });
+
   it("sorts machine cards by name and direction", async () => {
     const user = userEvent.setup();
     server.use(
@@ -189,14 +196,14 @@ describe("MachineList", () => {
     );
 
     renderWithClient(<MachineList />);
-    await user.click(await screen.findByRole("button", { name: "Name" }));
+    await user.click(await screen.findAllByRole("button", { name: "Name" }).then((buttons) => buttons[0]));
 
     expect(screen.getAllByRole("heading", { level: 3 }).map((heading) => heading.textContent)).toEqual([
       "Alpha(0)",
       "Beta(0)",
     ]);
 
-    await user.click(screen.getByRole("button", { name: /asc/i }));
+    await user.click(screen.getAllByRole("button", { name: /asc/i })[0]);
 
     expect(screen.getAllByRole("heading", { level: 3 }).map((heading) => heading.textContent)).toEqual([
       "Beta(0)",
@@ -224,7 +231,7 @@ describe("MachineList", () => {
       "New(0)",
     ]);
 
-    await user.click(screen.getByRole("button", { name: /asc/i }));
+    await user.click(screen.getAllByRole("button", { name: /asc/i })[0]);
 
     expect(screen.getAllByRole("heading", { level: 3 }).map((heading) => heading.textContent)).toEqual([
       "New(0)",
@@ -330,9 +337,8 @@ describe("SessionPreview", () => {
 
     renderWithClient(<SessionPreview />);
 
-    expect(await screen.findByText("Frontend Agent")).toBeInTheDocument();
-    expect(screen.getByText("/workspace/frontend")).toBeInTheDocument();
-    expect(screen.getByText(/server ready/i)).toBeInTheDocument();
+    expect(await screen.findByText(/server ready/i)).toBeInTheDocument();
+    expect(screen.getByText(/npm run dev/i)).toBeInTheDocument();
   });
 });
 
@@ -374,37 +380,36 @@ describe("Polling refresh behavior", () => {
 
       render(<App />);
 
-      expect(await screen.findByText("machine-1/session-1")).toBeInTheDocument();
-      expect(await screen.findByRole("heading", { name: "Frontend Agent" })).toBeInTheDocument();
-      expect(await screen.findByText("/workspace/frontend")).toBeInTheDocument();
+      expect(await screen.findByText("Window 1")).toBeInTheDocument();
+          expect(await screen.findByText("/workspace/frontend")).toBeInTheDocument();
 
-      server.use(
-        http.get("/sessions/:machineId/:sessionId", () =>
-          HttpResponse.json(
-            { error: { code: "UNAVAILABLE", message: "Backend unavailable" } },
-            { status: 503 },
-          ),
-        ),
-        http.get("/machines", () =>
-          HttpResponse.json(
-            { error: { code: "UNAVAILABLE", message: "Backend unavailable" } },
-            { status: 503 },
-          ),
-        ),
-        http.get("/sessions", () =>
-          HttpResponse.json(
-            { error: { code: "UNAVAILABLE", message: "Backend unavailable" } },
-            { status: 503 },
-          ),
-        ),
+          server.use(
+              http.get("/sessions/:machineId/:sessionId", () =>
+                  HttpResponse.json(
+                      { error: { code: "UNAVAILABLE", message: "Backend unavailable" } },
+                      { status: 503 },
+                  ),
+              ),
+              http.get("/machines", () =>
+                  HttpResponse.json(
+                      { error: { code: "UNAVAILABLE", message: "Backend unavailable" } },
+                      { status: 503 },
+                  ),
+              ),
+              http.get("/sessions", () =>
+                  HttpResponse.json(
+                      { error: { code: "UNAVAILABLE", message: "Backend unavailable" } },
+                      { status: 503 },
+                  ),
+              ),
+          );
+
+          expect(await screen.findByText(/connection lost/i, {}, { timeout: 10000 })).toBeInTheDocument();
+          expect(screen.getByText("Window 1")).toBeInTheDocument();
+          expect(screen.getByText("/workspace/frontend")).toBeInTheDocument();
+        },
+        15000,
       );
-
-      expect(await screen.findByText(/connection lost/i, {}, { timeout: 10000 })).toBeInTheDocument();
-      expect(screen.getAllByText("Frontend Agent")).toHaveLength(2);
-      expect(screen.getByText("/workspace/frontend")).toBeInTheDocument();
-    },
-    15000,
-  );
 });
 
 describe("CommandPanel integration", () => {
@@ -486,8 +491,8 @@ describe("App", () => {
     const main = await screen.findByRole("main");
     expect(document.documentElement.classList.contains("dark")).toBe(true);
     expect(main).toHaveAttribute("data-theme", "dark");
-    expect(main).toHaveStyle({ backgroundColor: "rgb(3, 7, 18)" });
-    expect(document.body).toHaveStyle({ backgroundColor: "rgb(3, 7, 18)" });
+    expect(main.style.backgroundColor).toBe("var(--theme-bg)");
+    expect(document.body.style.backgroundColor).toBe("var(--theme-bg)");
   });
 
   it(

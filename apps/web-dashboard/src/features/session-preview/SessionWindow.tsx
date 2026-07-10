@@ -23,6 +23,8 @@ export function SessionWindow({ index }: SessionWindowProps) {
   const setWindowSelection = useAppStore((s) => s.setWindowSelection);
   const clearWindowSelection = useAppStore((s) => s.clearWindowSelection);
   const setWindowHeight = useAppStore((s) => s.setWindowHeight);
+  const removeWindow = useAppStore((s) => s.removeWindow);
+  const windowCount = useAppStore((s) => s.windows.length);
   const refreshIntervalMs = useSettingsStore((s) => s.refreshIntervalMs);
   const isActive = activeWindowIndex === index;
 
@@ -136,6 +138,19 @@ export function SessionWindow({ index }: SessionWindowProps) {
         >
           {assessMutation.isPending ? "Assessing..." : "Assess"}
         </Button>
+        {windowCount > 1 && (
+          <Button
+            type="button"
+            variant="secondary"
+            className="px-2 py-1 text-xs"
+            onClick={(e) => {
+              e.stopPropagation();
+              removeWindow(index);
+            }}
+          >
+            Remove Window {index + 1}
+          </Button>
+        )}
         <span
           aria-label={isActive ? "Active window" : "Idle window"}
           title={isActive ? "Active" : "Idle"}

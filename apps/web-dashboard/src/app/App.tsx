@@ -1,4 +1,4 @@
-import { Component, type ReactNode, useEffect, useState } from "react";
+import { Component, type ReactNode, useEffect, useRef, useState } from "react";
 import {
   QueryCache,
   QueryClient,
@@ -10,6 +10,7 @@ import { LayoutSelector } from "../features/window-layout/LayoutSelector";
 import { SettingsPage } from "../features/settings/SettingsPage";
 import { useAppStore } from "../shared/state/appStore";
 import { useSettingsStore } from "../shared/state/settingsStore";
+import { applyThemeVariables, getColorTheme, themeToCustomColors } from "../shared/state/colorThemes";
 import { Button } from "../shared/ui/Button";
 import { formatErrorMessage } from "../shared/api-client/errorEnvelope";
 
@@ -101,9 +102,8 @@ function ThemeToggle() {
 
 function NavBar({ current, onNavigate }: { current: "dashboard" | "settings"; onNavigate: (view: "dashboard" | "settings") => void }) {
   return (
-      <nav className="mb-4 flex items-center gap-3 border-b border-gray-200 pb-3 dark:border-gray-800">
-        <h1 className="mr-auto text-xl font-bold text-gray-900 dark:text-gray-100">WhipAI</h1>
-
+    <nav className="mb-4 flex items-center gap-3 border-b border-gray-200 pb-3 dark:border-gray-800">
+      <h1 className="mr-auto text-xl font-bold text-gray-900 dark:text-gray-100">WhipAI</h1>
       <button
         type="button"
         className={`text-sm font-medium ${
@@ -131,37 +131,86 @@ function NavBar({ current, onNavigate }: { current: "dashboard" | "settings"; on
   );
 }
 
-const GRID_CLASSES: Record<number, string> = {
+const WINDOW_GRID_CLASSES: Record<1 | 2, string> = {
   1: "grid-cols-1",
-  2: "grid-cols-1 2xl:grid-cols-2",
-  4: "grid-cols-1 lg:grid-cols-2",
+  2: "grid-cols-1 lg:grid-cols-2",
 };
 
 function Dashboard() {
+  const resizeStateRef = useRef<{ startX: number; startWidth: number } | null>(null);
   const windows = useAppStore((s) => s.windows);
-  const layoutCount = useAppStore((s) => s.layoutCount);
+  const windowColumnCount = useAppStore((s) => s.windowColumnCount);
+  const leftPanelVisible = useAppStore((s) => s.leftPanelVisible);
+  const leftPanelWidthPx = useAppStore((s) => s.leftPanelWidthPx);
+  const setLeftPanelVisible = useAppStore((s) => s.setLeftPanelVisible);
+  const setLeftPanelWidth = useAppStore((s) => s.setLeftPanelWidth);
 
-  const visibleWindows = windows.slice(0, layoutCount);
+  const startLeftPanelResize = (event: React.PointerEvent<HTMLDivElement> | React.MouseEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    if ("pointerId" in event) {
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+    }
+    resizeStateRef.current = { startX: event.clientX, startWidth: leftPanelWidthPx };
+    const onMove = (moveEvent: PointerEvent | MouseEvent) => {
+      const resizeState = resizeStateRef.current;
+      if (!resizeState) return;
+      setLeftPanelWidth(resizeState.startWidth + (moveEvent.clientX - resizeState.startX));
+    };
+    const onUp = () => {
+      resizeStateRef.current = null;
+      globalThis.window.removeEventListener("pointermove", onMove);
+      globalThis.window.removeEventListener("pointerup", onUp);
+      globalThis.window.removeEventListener("mousemove", onMove);
+      globalThis.window.removeEventListener("mouseup", onUp);
+    };
+    globalThis.window.addEventListener("pointermove", onMove);
+    globalThis.window.addEventListener("pointerup", onUp, { once: true });
+    globalThis.window.addEventListener("mousemove", onMove);
+    globalThis.window.addEventListener("mouseup", onUp, { once: true });
+  };
 
   return (
     <>
       <header className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          Monitor machines and tmux sessions from one live view.
-        </p>
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Monitor machines and tmux sessions from one live view.
+          </p>
+          <Button
+            type="button"
+            variant="secondary"
+            className="px-3 py-1.5 text-sm"
+            onClick={() => setLeftPanelVisible(!leftPanelVisible)}
+          >
+            {leftPanelVisible ? "Hide left panel" : "Show left panel"}
+          </Button>
+        </div>
         <LayoutSelector />
       </header>
 
       <ConnectionBanner />
 
       <ErrorBoundary>
-        <div className="grid gap-3 lg:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[340px_minmax(0,1fr)]">
-          <aside className="min-h-[30rem]">
-            <MachineList />
-          </aside>
-          <section className="min-h-[30rem]">
-            <div className={`grid gap-3 ${GRID_CLASSES[layoutCount]}`}>
-              {visibleWindows.map((_, i) => (
+        <div className="flex min-w-0 gap-3">
+          {leftPanelVisible && (
+            <div className="flex shrink-0 gap-2" style={{ width: leftPanelWidthPx }}>
+              <aside data-testid="left-machine-panel" className="min-h-[30rem] min-w-0 flex-1" style={{ width: leftPanelWidthPx }}>
+                <MachineList />
+              </aside>
+              <div
+                role="separator"
+                aria-label="Resize left machine panel"
+                aria-orientation="vertical"
+                tabIndex={0}
+                className="w-1.5 cursor-col-resize rounded-full bg-gray-200 hover:bg-gray-300 dark:bg-gray-800 dark:hover:bg-gray-700"
+                onPointerDown={startLeftPanelResize}
+                onMouseDown={startLeftPanelResize}
+              />
+            </div>
+          )}
+          <section className="min-w-0 flex-1">
+            <div data-testid="session-window-grid" className={`grid gap-3 ${WINDOW_GRID_CLASSES[windowColumnCount]}`}>
+              {windows.map((_, i) => (
                 <SessionWindow key={i} index={i} />
               ))}
             </div>
@@ -176,14 +225,18 @@ export function App() {
   const [view, setView] = useState<"dashboard" | "settings">("dashboard");
   const themeMode = useSettingsStore((s) => s.themeMode);
   const colorTheme = useSettingsStore((s) => s.colorTheme);
+  const customColors = useSettingsStore((s) => s.customColors);
 
   useEffect(() => {
     const isDark = themeMode === "dark";
     document.documentElement.classList.toggle("dark", isDark);
     document.documentElement.style.colorScheme = themeMode;
-    document.documentElement.style.backgroundColor = isDark ? "#030712" : "#f3f4f6";
-    document.body.style.backgroundColor = isDark ? "#030712" : "#f3f4f6";
-  }, [themeMode]);
+    document.documentElement.style.backgroundColor = "var(--theme-bg)";
+    document.body.style.backgroundColor = "var(--theme-bg)";
+    const resolvedColors = colorTheme === "custom" ? customColors : themeToCustomColors(getColorTheme(colorTheme));
+    applyThemeVariables(resolvedColors);
+    document.body.style.color = "var(--theme-text)";
+  }, [themeMode, colorTheme, customColors]);
 
   useEffect(() => {
     document.documentElement.dataset.colorTheme = colorTheme;
@@ -193,8 +246,8 @@ export function App() {
     <QueryClientProvider client={queryClient}>
       <main
         data-theme={themeMode}
-        className="min-h-screen w-full bg-gray-100 p-4 text-gray-900 dark:bg-gray-950 dark:text-gray-100 sm:p-6"
-        style={{ backgroundColor: themeMode === "dark" ? "#030712" : "#f3f4f6" }}
+        className="min-h-screen w-full p-4 sm:p-6"
+        style={{ backgroundColor: "var(--theme-bg)", color: "var(--theme-text)" }}
       >
         <div className="w-full min-w-0">
           <NavBar current={view} onNavigate={setView} />

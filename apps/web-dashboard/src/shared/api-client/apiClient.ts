@@ -52,28 +52,37 @@ export async function apiClient<T>(
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-  const response = await fetch(url, {
-    headers: { Accept: "application/json", ...init?.headers },
-    signal: controller.signal,
-    ...init,
-  }).finally(() => clearTimeout(timeoutId));
+  try {
+    const response = await fetch(url, {
+      headers: { Accept: "application/json", ...init?.headers },
+      signal: controller.signal,
+      ...init,
+    }).finally(() => clearTimeout(timeoutId));
 
-  const body = await response.json().catch(() => null);
+    const body = await response.json().catch(() => null);
 
-  if (!response.ok) {
-    if (isApiError(body)) {
+    if (!response.ok) {
+      if (isApiError(body) && body.error) {
+        throw new ApiRequestError(
+          body.error.code,
+          body.error.message,
+          response.status,
+        );
+      }
       throw new ApiRequestError(
-        body.error.code,
-        body.error.message,
+        "HTTP_ERROR",
+        `Request failed with status ${response.status}`,
         response.status,
       );
     }
-    throw new ApiRequestError(
-      "HTTP_ERROR",
-      `Request failed with status ${response.status}`,
-      response.status,
-    );
-  }
 
-  return body as T;
+    return body as T;
+  } catch (error) {
+    const name = error instanceof Error ? error.name : "";
+    const message = error instanceof Error ? error.message : "";
+    if (name === "AbortError" || message.toLowerCase().includes("signal is aborted")) {
+      throw new ApiRequestError("ABORTED", "Request timed out or was cancelled");
+    }
+    throw error;
+  }
 }

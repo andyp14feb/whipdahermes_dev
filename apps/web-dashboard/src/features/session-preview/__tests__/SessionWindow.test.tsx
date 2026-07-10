@@ -24,14 +24,11 @@ describe("SessionWindow", () => {
       selectedSessionId: null,
       connectionError: null,
       connectionFailureCount: 0,
-      windows: [
-        { machineId: null, sessionId: null, heightPx: 480 },
-        { machineId: null, sessionId: null, heightPx: 480 },
-        { machineId: null, sessionId: null, heightPx: 480 },
-        { machineId: null, sessionId: null, heightPx: 480 },
-      ],
+      windows: [{ machineId: null, sessionId: null, heightPx: 480 }],
       activeWindowIndex: 0,
-      layoutCount: 1,
+      windowColumnCount: 1,
+      leftPanelVisible: true,
+      leftPanelWidthPx: 320,
     });
     useSettingsStore.setState({ refreshIntervalMs: 2500 });
     server.resetHandlers();

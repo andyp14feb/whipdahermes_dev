@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiClient } from "../../shared/api-client/apiClient";
 import { AI_PROVIDER_TYPES, useSettingsStore } from "../../shared/state/settingsStore";
+import {
+  applyThemeVariables,
+  CUSTOM_COLOR_FIELDS,
+  getColorTheme,
+  type CustomColorTheme,
+  themeToCustomColors,
+} from "../../shared/state/colorThemes";
 import { Button } from "../../shared/ui/Button";
 import { Card } from "../../shared/ui/Card";
 import { ColorThemePicker } from "./ColorThemePicker";
@@ -17,8 +24,10 @@ interface SettingsPageProps {
   onClose: () => void;
 }
 
-const fieldClass = "mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100";
-const labelClass = "block text-sm font-medium text-gray-700 dark:text-gray-200";
+const fieldClass = "mt-1 block w-full rounded-md border px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1";
+const labelClass = "block text-sm font-medium";
+const helperClass = "mt-1 text-xs";
+const colorFieldGroups: Array<"Surface" | "Text" | "Action"> = ["Surface", "Text", "Action"];
 
 export function SettingsPage({ onClose }: SettingsPageProps) {
   const {
@@ -33,6 +42,9 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
     aiProviderName,
     themeMode,
     colorTheme,
+    customColors,
+    customColorPresets,
+    selectedCustomPresetId,
     templateActions,
     isDirty,
     setWorkerApiUrl,
@@ -46,6 +58,12 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
     setAiProviderName,
     setThemeMode,
     setColorTheme,
+    setCustomColor,
+    setCustomColors,
+    renameCustomPreset,
+    deleteCustomPreset,
+    saveCurrentColorsAsPreset,
+    loadCustomPreset,
     addTemplateAction,
     updateTemplateAction,
     deleteTemplateAction,
@@ -61,11 +79,22 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
   const [templatePayload, setTemplatePayload] = useState("");
   const [colorThemeConfirmed, setColorThemeConfirmed] = useState(colorTheme);
   const [savedThemeFlash, setSavedThemeFlash] = useState(false);
+  const [customPresetName, setCustomPresetName] = useState("");
   const scriptRef = useRef<HTMLPreElement>(null);
 
   useEffect(() => {
-      document.documentElement.dataset.colorTheme = colorTheme;
-    }, [colorTheme]);
+    const theme = getColorTheme(colorThemeConfirmed);
+    const colors: CustomColorTheme = colorThemeConfirmed === "custom" ? customColors : themeToCustomColors(theme);
+    document.documentElement.dataset.colorTheme = colorThemeConfirmed;
+    applyThemeVariables(colors);
+  }, [colorThemeConfirmed, customColors]);
+
+  useEffect(() => {
+    const selected = customColorPresets.find((preset) => preset.id === selectedCustomPresetId);
+    if (selected) {
+      setCustomPresetName(selected.name);
+    }
+  }, [customColorPresets, selectedCustomPresetId]);
 
   const workerScript = `#!/usr/bin/env bash
 set -euo pipefail
@@ -169,96 +198,246 @@ python3 src/main.py`;
   const handlePreviewColorTheme = (themeId: string) => {
     setColorThemeConfirmed(themeId);
     document.documentElement.dataset.colorTheme = themeId;
-    if (themeId === "dark-mode") { setThemeMode("dark"); return; }
-    if (themeId === "light-mode") { setThemeMode("light"); }
+    if (themeId !== "custom") {
+      setCustomColors(themeToCustomColors(getColorTheme(themeId)));
+    }
+    const resolved = themeId === "custom" ? customColors : themeToCustomColors(getColorTheme(themeId));
+    applyThemeVariables(resolved);
+    if (themeId === "dark-mode") {
+      setThemeMode("dark");
+      return;
+    }
+    if (themeId === "light-mode") {
+      setThemeMode("light");
+    }
   };
 
   const handleSaveColorTheme = () => {
     setColorTheme(colorThemeConfirmed);
     document.documentElement.dataset.colorTheme = colorThemeConfirmed;
-    if (colorThemeConfirmed === "dark-mode") { setThemeMode("dark"); }
-    else if (colorThemeConfirmed === "light-mode") { setThemeMode("light"); }
+    const resolved = colorThemeConfirmed === "custom"
+      ? customColors
+      : themeToCustomColors(getColorTheme(colorThemeConfirmed));
+    applyThemeVariables(resolved);
+    if (colorThemeConfirmed === "dark-mode") {
+      setThemeMode("dark");
+    } else if (colorThemeConfirmed === "light-mode") {
+      setThemeMode("light");
+    }
     setSavedThemeFlash(true);
     window.setTimeout(() => setSavedThemeFlash(false), 1500);
   };
 
+  const handleCustomColorChange = (key: keyof CustomColorTheme, value: string) => {
+    setCustomColor(key, value);
+    setColorThemeConfirmed("custom");
+    setColorTheme("custom");
+  };
+
+  const handleSavePreset = () => {
+    const name = customPresetName.trim();
+    if (!name) return;
+    const previewColors = colorThemeConfirmed === "custom"
+      ? customColors
+      : themeToCustomColors(getColorTheme(colorThemeConfirmed));
+    useSettingsStore.getState().setCustomColors(previewColors);
+    useSettingsStore.getState().saveCurrentColorsAsPreset(name);
+  };
+
+  const handleLoadPreset = (presetId: string) => {
+    loadCustomPreset(presetId);
+    setColorThemeConfirmed("custom");
+  };
+
+  const handleDeletePreset = (presetId: string) => {
+    deleteCustomPreset(presetId);
+  };
+
+  const handleRenamePreset = (presetId: string, name: string) => {
+    renameCustomPreset(presetId, name);
+  };
+
+  const editorColors: CustomColorTheme = colorThemeConfirmed === "custom"
+    ? customColors
+    : themeToCustomColors(getColorTheme(colorThemeConfirmed));
+
+  const groupedColorFields = colorFieldGroups.map((group) => ({
+    group,
+    fields: CUSTOM_COLOR_FIELDS.filter((field) => field.group === group),
+  }));
+
+  const themedFieldStyle = {
+    borderColor: "var(--theme-border)",
+    backgroundColor: "var(--theme-input)",
+    color: "var(--theme-text)",
+  };
+
+  const themedHelperStyle = { color: "var(--theme-text-muted)" };
+  const themedSectionStyle = { borderColor: "var(--theme-border)", backgroundColor: "var(--theme-bg-soft)" };
+
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <header className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Settings</h1>
+    <div className="mx-auto max-w-6xl space-y-6" style={{ color: "var(--theme-text)" }}>
+      <header className="flex items-center justify-between gap-3">
+        <h1 className="text-3xl font-bold">Settings</h1>
         <Button variant="secondary" onClick={onClose}>
           Back to Dashboard
         </Button>
       </header>
 
-      <Card className="p-6 dark:border-gray-800 dark:bg-gray-950">
-        <h2 className="mb-4 text-lg font-semibold text-gray-900 dark:text-gray-100">
-          Appearance
-        </h2>
+      <Card className="p-6">
+        <h2 className="mb-4 text-lg font-semibold">Appearance</h2>
         <div className="space-y-4">
-          <div>
-            <label htmlFor="theme-mode" className={labelClass}>
-              Theme
-            </label>
-            <select
-              id="theme-mode"
-              className={fieldClass}
-              value={themeMode}
-              onChange={(e) => handleThemeModeChange(e.target.value === "dark" ? "dark" : "light")}
-            >
-              <option value="light">Light</option>
-              <option value="dark">Dark</option>
-            </select>
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              Theme changes are saved locally immediately.
-            </p>
+          <div className="grid gap-4 lg:grid-cols-[240px_1fr]">
+            <div>
+              <label htmlFor="theme-mode" className={labelClass}>
+                Theme mode
+              </label>
+              <select
+                id="theme-mode"
+                aria-label="Theme mode"
+                className={fieldClass}
+                style={themedFieldStyle}
+                value={themeMode}
+                onChange={(e) => handleThemeModeChange(e.target.value === "dark" ? "dark" : "light")}
+              >
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+              </select>
+              <p className={helperClass} style={themedHelperStyle}>
+                Theme changes are saved locally immediately.
+              </p>
+            </div>
+
+            <div>
+              <span className={labelClass}>Color theme</span>
+              <p className={helperClass} style={themedHelperStyle}>
+                Preview a palette instantly, then save it when you like it.
+              </p>
+              <div className="mt-3">
+                <ColorThemePicker
+                  selected={colorThemeConfirmed}
+                  onSelect={handlePreviewColorTheme}
+                />
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <Button
+                  type="button"
+                  onClick={handleSaveColorTheme}
+                  disabled={colorThemeConfirmed === colorTheme}
+                >
+                  Save color theme
+                </Button>
+                {savedThemeFlash && (
+                  <span className="text-xs font-medium" style={{ color: "#059669" }}>
+                    Color theme saved.
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
 
-          <div>
-            <span className={labelClass}>Color theme</span>
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              Pick a palette to preview it across the dashboard. Click Save to confirm.
-            </p>
-            <div className="mt-3">
-              <ColorThemePicker
-                selected={colorThemeConfirmed}
-                onSelect={handlePreviewColorTheme}
-              />
-            </div>
-            <div className="mt-3 flex items-center gap-3">
-              <Button
-                type="button"
-                onClick={handleSaveColorTheme}
-                disabled={colorThemeConfirmed === colorTheme}
-              >
-                Save color theme
+          <div className="rounded-lg border p-4" style={themedSectionStyle}>
+            <div className="mb-3 grid gap-3 lg:grid-cols-[220px_220px_1fr_auto_auto] lg:items-end">
+              <div>
+                <label htmlFor="saved-color-presets" className={labelClass}>
+                  Saved presets
+                </label>
+                <select
+                  id="saved-color-presets"
+                  aria-label="Saved presets"
+                  className={fieldClass}
+                  style={themedFieldStyle}
+                  value={selectedCustomPresetId}
+                  onChange={(e) => handleLoadPreset(e.target.value)}
+                >
+                  {customColorPresets.map((preset) => (
+                    <option key={preset.id} value={preset.id}>
+                      {preset.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label htmlFor="new-preset-name" className={labelClass}>
+                  Preset name
+                </label>
+                <input
+                  id="new-preset-name"
+                  aria-label="New preset name"
+                  className={fieldClass}
+                  style={themedFieldStyle}
+                  value={customPresetName}
+                  onChange={(e) => setCustomPresetName(e.target.value)}
+                  placeholder="My custom theme"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-3 xl:grid-cols-5">
+                {[
+                  { key: "bg", label: "Bg" },
+                  { key: "card", label: "Card" },
+                  { key: "input", label: "Input" },
+                  { key: "text", label: "Text" },
+                  { key: "primary", label: "Primary" },
+                ].map((chip) => (
+                  <div key={chip.key} className="rounded border px-2 py-1 text-xs" style={{ borderColor: "var(--theme-border)" }}>
+                    <div className="truncate" style={themedHelperStyle}>{chip.label}</div>
+                    <div className="mt-1 h-3 rounded" style={{ backgroundColor: editorColors[chip.key as keyof CustomColorTheme] }} />
+                  </div>
+                ))}
+              </div>
+              <Button type="button" onClick={handleSavePreset} disabled={!customPresetName.trim()}>
+                Save preset
               </Button>
-              {savedThemeFlash && (
-                <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
-                  Color theme saved.
-                </span>
-              )}
+              <Button type="button" variant="secondary" onClick={() => handleDeletePreset(selectedCustomPresetId)}>
+                Delete preset
+              </Button>
+            </div>
+
+            <div className="grid gap-3 xl:grid-cols-3">
+              {groupedColorFields.map(({ group, fields }) => (
+                <div key={group} className="rounded-lg border p-3" style={{ borderColor: "var(--theme-border)", backgroundColor: "var(--theme-card)" }}>
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-wide" style={themedHelperStyle}>{group}</div>
+                  <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
+                    {fields.map((field) => (
+                      <label key={field.key} className="grid grid-cols-[1fr_auto] items-center gap-2 rounded border px-2 py-1.5 text-sm" style={{ borderColor: "var(--theme-border)" }}>
+                        <span className="truncate">{field.label}</span>
+                        <div className="flex items-center gap-2">
+                          <input
+                            aria-label={field.label}
+                            type="color"
+                            className="h-8 w-10 cursor-pointer rounded border p-0.5"
+                            style={{ borderColor: "var(--theme-border)", backgroundColor: "var(--theme-input)" }}
+                            value={editorColors[field.key]}
+                            onChange={(e) => handleCustomColorChange(field.key, e.target.value)}
+                          />
+                          <code className="w-16 text-[11px] uppercase" style={themedHelperStyle}>{editorColors[field.key]}</code>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
       </Card>
 
-      <Card className="p-6 dark:border-gray-800 dark:bg-gray-950">
-        <h2 className="mb-4 text-lg font-semibold text-gray-900 dark:text-gray-100">
-          Quick Templates
-        </h2>
+      <Card className="p-6">
+        <h2 className="mb-4 text-lg font-semibold">Quick Templates</h2>
         <div className="space-y-3">
           {templateActions.map((template) => (
-            <div key={template.id} className="grid gap-2 rounded border border-gray-200 p-3 dark:border-gray-800 md:grid-cols-[1fr_2fr_auto]">
+            <div key={template.id} className="grid gap-2 rounded border p-3 md:grid-cols-[1fr_2fr_auto]" style={{ borderColor: "var(--theme-border)" }}>
               <input
                 aria-label={`Template label ${template.label}`}
                 className={fieldClass}
+                style={themedFieldStyle}
                 value={template.label}
                 onChange={(e) => updateTemplateAction(template.id, { label: e.target.value, payload: template.payload })}
               />
               <input
                 aria-label={`Template payload ${template.label}`}
                 className={fieldClass}
+                style={themedFieldStyle}
                 value={template.payload}
                 onChange={(e) => updateTemplateAction(template.id, { label: template.label, payload: e.target.value })}
               />
@@ -267,10 +446,11 @@ python3 src/main.py`;
               </Button>
             </div>
           ))}
-          <div className="grid gap-2 rounded border border-dashed border-gray-300 p-3 dark:border-gray-700 md:grid-cols-[1fr_2fr_auto]">
+          <div className="grid gap-2 rounded border border-dashed p-3 md:grid-cols-[1fr_2fr_auto]" style={{ borderColor: "var(--theme-border)" }}>
             <input
               aria-label="New template label"
               className={fieldClass}
+              style={themedFieldStyle}
               value={templateLabel}
               onChange={(e) => setTemplateLabel(e.target.value)}
               placeholder="Label"
@@ -278,6 +458,7 @@ python3 src/main.py`;
             <input
               aria-label="New template payload"
               className={fieldClass}
+              style={themedFieldStyle}
               value={templatePayload}
               onChange={(e) => setTemplatePayload(e.target.value)}
               placeholder="Message"
@@ -289,10 +470,8 @@ python3 src/main.py`;
         </div>
       </Card>
 
-      <Card className="p-6 dark:border-gray-800 dark:bg-gray-950">
-        <h2 className="mb-4 text-lg font-semibold text-gray-900 dark:text-gray-100">
-          Connection
-        </h2>
+      <Card className="p-6">
+        <h2 className="mb-4 text-lg font-semibold">Connection</h2>
         <div className="space-y-4">
           <div>
             <label htmlFor="worker-api-url" className={labelClass}>
@@ -302,11 +481,12 @@ python3 src/main.py`;
               id="worker-api-url"
               type="text"
               className={fieldClass}
+              style={themedFieldStyle}
               value={workerApiUrl}
               onChange={(e) => setWorkerApiUrl(e.target.value)}
               placeholder="http://localhost:8000"
             />
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            <p className={helperClass} style={themedHelperStyle}>
               The URL that worker machine agents connect to when reporting heartbeats.
               This does <strong>not</strong> affect dashboard data fetching, which always
               uses the Vite dev proxy. To connect the dashboard directly to a remote
@@ -322,6 +502,7 @@ python3 src/main.py`;
             <select
               id="ai-provider-type"
               className={fieldClass}
+              style={themedFieldStyle}
               value={aiProviderType}
               onChange={(e) => setAiProviderType(e.target.value as typeof AI_PROVIDER_TYPES[number])}
             >
@@ -331,7 +512,7 @@ python3 src/main.py`;
                 </option>
               ))}
             </select>
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            <p className={helperClass} style={themedHelperStyle}>
               Supports OpenAI-compatible, Anthropic-compatible, Gemini-compatible, Ollama-compatible, and 9Router-compatible endpoints.
             </p>
           </div>
@@ -344,6 +525,7 @@ python3 src/main.py`;
               id="provider-name"
               type="text"
               className={fieldClass}
+              style={themedFieldStyle}
               value={aiProviderName}
               onChange={(e) => setAiProviderName(e.target.value)}
               placeholder="openai-compatible"
@@ -358,6 +540,7 @@ python3 src/main.py`;
               id="ai-provider-base-url"
               type="text"
               className={fieldClass}
+              style={themedFieldStyle}
               value={aiProviderBaseUrl}
               onChange={(e) => setAiProviderBaseUrl(e.target.value)}
               placeholder="https://provider.example/v1"
@@ -372,6 +555,7 @@ python3 src/main.py`;
               id="ai-api-key"
               type="password"
               className={fieldClass}
+              style={themedFieldStyle}
               value={aiApiKey}
               onChange={(e) => setAiApiKey(e.target.value)}
               placeholder="sk-..."
@@ -385,7 +569,9 @@ python3 src/main.py`;
             <div className="mt-1 flex gap-3">
               <select
                 id="ai-selected-model"
+                aria-label="Selected Model"
                 className={fieldClass}
+                style={themedFieldStyle}
                 value={aiSelectedModel}
                 onChange={(e) => setAiSelectedModel(e.target.value)}
               >
@@ -399,6 +585,7 @@ python3 src/main.py`;
               <input
                 aria-label="Manual Model Name"
                 className={fieldClass}
+                style={themedFieldStyle}
                 value={aiSelectedModel}
                 onChange={(e) => setAiSelectedModel(e.target.value)}
                 placeholder="manual-model-name"
@@ -413,11 +600,11 @@ python3 src/main.py`;
               </Button>
             </div>
             {modelsError && (
-              <p role="alert" className="mt-1 text-xs text-red-600">
+              <p role="alert" className="mt-1 text-xs" style={{ color: "#dc2626" }}>
                 {modelsError}
               </p>
             )}
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            <p className={helperClass} style={themedHelperStyle}>
               If model discovery fails, enter the model name manually and save.
             </p>
           </div>
@@ -429,10 +616,11 @@ python3 src/main.py`;
               min={500}
               max={30000}
               className={fieldClass}
+              style={themedFieldStyle}
               value={refreshIntervalMs}
               onChange={(e) => setRefreshIntervalMs(Number(e.target.value))}
             />
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            <p className={helperClass} style={themedHelperStyle}>
               How often the dashboard polls the API for updates (500–30000ms).
             </p>
           </div>
@@ -446,10 +634,11 @@ python3 src/main.py`;
               max={300000}
               step={5000}
               className={fieldClass}
+              style={themedFieldStyle}
               value={requestTimeoutMs}
               onChange={(e) => setRequestTimeoutMs(Number(e.target.value))}
             />
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            <p className={helperClass} style={themedHelperStyle}>
               How long the dashboard waits for the AI provider before aborting the request (5000–300000ms). Increase for slow models or high latency.
             </p>
           </div>
@@ -461,25 +650,24 @@ python3 src/main.py`;
               min={10}
               max={86400}
               className={fieldClass}
+              style={themedFieldStyle}
               value={staleTimeoutSeconds}
               onChange={(e) => setStaleTimeoutSeconds(Number(e.target.value))}
             />
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            <p className={helperClass} style={themedHelperStyle}>
               Machines without a heartbeat within this period are marked stale.
             </p>
           </div>
         </div>
       </Card>
 
-      <Card className="p-6 dark:border-gray-800 dark:bg-gray-950">
-        <h2 className="mb-4 text-lg font-semibold text-gray-900 dark:text-gray-100">
-          Worker Machine Script
-        </h2>
-        <p className="mb-3 text-sm text-gray-600 dark:text-gray-300">
+      <Card className="p-6">
+        <h2 className="mb-4 text-lg font-semibold">Worker Machine Script</h2>
+        <p className="mb-3 text-sm" style={themedHelperStyle}>
           Copy and run this script on a worker machine that has git and tmux installed.
           It clones (or pulls) the repo from GitHub, sets up the Python environment,
           installs dependencies, and starts the machine agent connecting back to{" "}
-          <code className="rounded bg-gray-100 px-1 py-0.5 text-xs dark:bg-gray-900">
+          <code className="rounded px-1 py-0.5 text-xs" style={{ backgroundColor: "var(--theme-bg-soft)" }}>
             {workerApiUrl}
           </code>{" "}
           with a unique machine ID. Adjust the <code>cd</code> path to match
@@ -487,7 +675,8 @@ python3 src/main.py`;
         </p>
         <pre
           ref={scriptRef}
-          className="max-h-80 overflow-auto rounded border border-gray-200 bg-gray-50 p-4 font-mono text-xs text-gray-800 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-100"
+          className="max-h-80 overflow-auto rounded border p-4 font-mono text-xs"
+          style={{ borderColor: "var(--theme-border)", backgroundColor: "var(--theme-input)", color: "var(--theme-text)" }}
         >
           {workerScript}
         </pre>

@@ -190,13 +190,12 @@ export function MachineList() {
     setCleanupMessage(null);
     try {
       const result = await cleanupStaleSessions(undefined);
-      setCleanupMessage(result.message);
+      setCleanupMessage(result.message ?? `Cleaned up ${result.deleted} stale session(s)`);
       await queryClient.invalidateQueries({ queryKey: ["machines"] });
       await queryClient.invalidateQueries({ queryKey: ["sessions"] });
     } catch (err) {
-      setCleanupMessage(
-        `Cleanup failed: ${err instanceof Error ? err.message : String(err)}`,
-      );
+      const message = err instanceof Error ? err.message : "Unknown error";
+      setCleanupMessage(`Cleanup failed: ${message}`);
     } finally {
       setIsCleaningUp(false);
     }

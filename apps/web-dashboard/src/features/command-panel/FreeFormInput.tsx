@@ -32,8 +32,14 @@ export function FreeFormInput({
       onCommandSent?.(response.command_id, trimmed);
     } catch (err: unknown) {
       const message =
-        err instanceof Error ? err.message : "Failed to send command";
-      setError(message);
+        err instanceof Error && err.message
+          ? err.message
+          : "Failed to send command";
+      if (message.toLowerCase().includes("signal is aborted") || message === "Request timed out or was cancelled") {
+        setError("Request cancelled");
+      } else {
+        setError(message);
+      }
     } finally {
       setIsSending(false);
     }

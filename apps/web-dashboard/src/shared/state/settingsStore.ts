@@ -1,7 +1,19 @@
 import { create } from "zustand";
 import type { TemplateAction } from "../../features/command-panel/commandPanel.types";
 import { normalizeProviderBaseUrl } from "./providerUrl";
-import { DEFAULT_COLOR_THEME, isColorThemeId } from "./colorThemes";
+import {
+  CUSTOM_THEME_ID,
+  DEFAULT_COLOR_THEME,
+  DEFAULT_CUSTOM_PRESET,
+  type CustomColorPreset,
+  type CustomColorTheme,
+  isColorThemeId,
+  makeCustomPreset,
+  normalizeCustomColors,
+  normalizeCustomPresets,
+  themeToCustomColors,
+  getColorTheme,
+} from "./colorThemes";
 
 export const STORAGE_KEY = "whipai-settings";
 
@@ -47,6 +59,9 @@ interface Settings {
   aiProviderName: string;
   themeMode: ThemeMode;
   colorTheme: string;
+  selectedCustomPresetId: string;
+  customColors: CustomColorTheme;
+  customColorPresets: CustomColorPreset[];
   templateActions: TemplateAction[];
   nudgesBySession: Record<string, NudgeConfig>;
 }
@@ -64,6 +79,14 @@ interface SettingsState extends Settings {
   setAiProviderName: (provider: string) => void;
   setThemeMode: (themeMode: ThemeMode) => void;
   setColorTheme: (colorTheme: string) => void;
+  setSelectedCustomPresetId: (presetId: string) => void;
+  setCustomColors: (colors: CustomColorTheme) => void;
+  setCustomColor: (key: keyof CustomColorTheme, value: string) => void;
+  saveCurrentColorsAsPreset: (name: string, colors?: CustomColorTheme) => void;
+  updateCustomPreset: (presetId: string, colors: CustomColorTheme) => void;
+  renameCustomPreset: (presetId: string, name: string) => void;
+  deleteCustomPreset: (presetId: string) => void;
+  loadCustomPreset: (presetId: string) => void;
   addTemplateAction: (template: Omit<TemplateAction, "id">) => void;
   updateTemplateAction: (id: string, template: Omit<TemplateAction, "id">) => void;
   deleteTemplateAction: (id: string) => void;
@@ -95,6 +118,9 @@ const defaultSettings: Settings = {
   aiProviderName: "",
   themeMode: "light",
   colorTheme: DEFAULT_COLOR_THEME,
+  selectedCustomPresetId: DEFAULT_CUSTOM_PRESET.id,
+  customColors: { ...DEFAULT_CUSTOM_PRESET.colors },
+  customColorPresets: [{ ...DEFAULT_CUSTOM_PRESET, colors: { ...DEFAULT_CUSTOM_PRESET.colors } }],
   templateActions: DEFAULT_TEMPLATE_ACTIONS,
   nudgesBySession: {},
 };
@@ -155,6 +181,10 @@ function loadFromStorage(): Settings {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<Settings>;
+      const customColorPresets = normalizeCustomPresets(parsed.customColorPresets);
+      const selectedCustomPresetId = customColorPresets.some((preset) => preset.id === parsed.selectedCustomPresetId)
+        ? parsed.selectedCustomPresetId!
+        : customColorPresets[0].id;
       return {
         workerApiUrl: parsed.workerApiUrl ?? defaultSettings.workerApiUrl,
         refreshIntervalMs:
@@ -177,6 +207,9 @@ function loadFromStorage(): Settings {
         colorTheme: isColorThemeId(parsed.colorTheme ?? "")
           ? parsed.colorTheme!
           : defaultSettings.colorTheme,
+        selectedCustomPresetId,
+        customColors: normalizeCustomColors(parsed.customColors),
+        customColorPresets,
         templateActions: normalizeTemplateActions(parsed.templateActions),
         nudgesBySession: normalizeNudges(parsed.nudgesBySession),
       };
@@ -184,6 +217,9 @@ function loadFromStorage(): Settings {
   } catch {}
   return {
     ...defaultSettings,
+    selectedCustomPresetId: defaultSettings.selectedCustomPresetId,
+    customColors: { ...defaultSettings.customColors },
+    customColorPresets: defaultSettings.customColorPresets.map((preset) => ({ ...preset, colors: { ...preset.colors } })),
     templateActions: normalizeTemplateActions(defaultSettings.templateActions),
     nudgesBySession: {},
   };
@@ -206,6 +242,9 @@ function persistCurrentSettings(get: () => SettingsState) {
     aiProviderName,
     themeMode,
     colorTheme,
+    selectedCustomPresetId,
+    customColors,
+    customColorPresets,
     templateActions,
     nudgesBySession,
   } = get();
@@ -221,6 +260,9 @@ function persistCurrentSettings(get: () => SettingsState) {
     aiProviderName,
     themeMode,
     colorTheme,
+    selectedCustomPresetId,
+    customColors,
+    customColorPresets,
     templateActions,
     nudgesBySession,
   });
@@ -269,6 +311,66 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
   setColorTheme: (colorTheme) => {
     set({ colorTheme });
+    persistCurrentSettings(get);
+  },
+  setSelectedCustomPresetId: (selectedCustomPresetId) => {
+    set({ selectedCustomPresetId });
+    persistCurrentSettings(get);
+  },
+  setCustomColors: (colors) => {
+    set((state) => withDirtyFlag({ customColors: normalizeCustomColors(colors), selectedCustomPresetId: state.selectedCustomPresetId }));
+    persistCurrentSettings(get);
+  },
+  setCustomColor: (key, value) => {
+    set((state) => withDirtyFlag({ customColors: { ...state.customColors, [key]: value } }));
+    persistCurrentSettings(get);
+  },
+  saveCurrentColorsAsPreset: (name, colors) => {
+    set((state) => {
+      const presetColors = normalizeCustomColors(colors ?? state.customColors);
+      const preset = makeCustomPreset(name, presetColors, state.customColorPresets);
+      return withDirtyFlag({
+        colorTheme: CUSTOM_THEME_ID,
+        customColors: presetColors,
+        selectedCustomPresetId: preset.id,
+        customColorPresets: [...state.customColorPresets, preset],
+      });
+    });
+    persistCurrentSettings(get);
+  },
+  updateCustomPreset: (presetId, colors) => {
+    set((state) => withDirtyFlag({
+      customColorPresets: state.customColorPresets.map((preset) => preset.id === presetId ? { ...preset, colors: normalizeCustomColors(colors) } : preset),
+      customColors: state.selectedCustomPresetId === presetId ? normalizeCustomColors(colors) : state.customColors,
+    }));
+    persistCurrentSettings(get);
+  },
+  renameCustomPreset: (presetId, name) => {
+    set((state) => withDirtyFlag({ customColorPresets: state.customColorPresets.map((preset) => preset.id === presetId ? { ...preset, name: name.trim() || preset.name } : preset) }));
+    persistCurrentSettings(get);
+  },
+  deleteCustomPreset: (presetId) => {
+    set((state) => {
+      const customColorPresets = state.customColorPresets.filter((preset) => preset.id !== presetId);
+      const fallback = customColorPresets[0] ?? DEFAULT_CUSTOM_PRESET;
+      return withDirtyFlag({
+        customColorPresets: customColorPresets.length > 0 ? customColorPresets : [{ ...DEFAULT_CUSTOM_PRESET, colors: { ...DEFAULT_CUSTOM_PRESET.colors } }],
+        selectedCustomPresetId: state.selectedCustomPresetId === presetId ? fallback.id : state.selectedCustomPresetId,
+        customColors: state.selectedCustomPresetId === presetId ? { ...fallback.colors } : state.customColors,
+        colorTheme: state.colorTheme === CUSTOM_THEME_ID && state.selectedCustomPresetId === presetId ? CUSTOM_THEME_ID : state.colorTheme,
+      });
+    });
+    persistCurrentSettings(get);
+  },
+  loadCustomPreset: (presetId) => {
+    set((state) => {
+      const preset = state.customColorPresets.find((item) => item.id === presetId) ?? state.customColorPresets[0];
+      return withDirtyFlag({
+        colorTheme: CUSTOM_THEME_ID,
+        selectedCustomPresetId: preset.id,
+        customColors: { ...preset.colors },
+      });
+    });
     persistCurrentSettings(get);
   },
   addTemplateAction: (template) => {
@@ -382,6 +484,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       aiProviderName,
       themeMode,
       colorTheme,
+      selectedCustomPresetId,
+      customColors,
+      customColorPresets,
       templateActions,
       nudgesBySession,
     } = get();
@@ -397,6 +502,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       aiProviderName,
       themeMode,
       colorTheme,
+      selectedCustomPresetId,
+      customColors,
+      customColorPresets,
       templateActions,
       nudgesBySession,
     });

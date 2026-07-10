@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { FreeFormInput } from "./FreeFormInput";
 import { TemplateActions } from "./TemplateActions";
 import { Card } from "../../shared/ui/Card";
+import { ApiRequestError } from "../../shared/api-client/apiClient";
 import { getCommandStatus, sendCommand } from "./commandPanel.api";
 import type { CommandEntry } from "./commandPanel.types";
 import type { CommandResponse, CommandStatus } from "../../shared/types/contracts";
@@ -12,6 +13,9 @@ interface CommandPanelProps {
 }
 
 const POLL_INTERVAL_MS = 2000;
+const COMMAND_HISTORY_STORAGE_KEY = "whipai.commandHistory";
+const MAX_COMMAND_HISTORY = 20;
+const COMMAND_STATES: CommandStatus[] = ["pending", "accepted", "delivered", "failed"];
 const TERMINAL_STATES: CommandStatus[] = ["delivered", "failed"];
 
 const MACHINE_CONTROL_ACTIONS = [
@@ -28,8 +32,40 @@ const stateColor: Record<CommandStatus, string> = {
   failed: "bg-red-100 text-red-800",
 };
 
+function loadCommandHistory(): CommandEntry[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(COMMAND_HISTORY_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as Partial<CommandEntry>[];
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter(
+        (cmd): cmd is CommandEntry =>
+          typeof cmd.id === "string" &&
+          typeof cmd.payload === "string" &&
+          COMMAND_STATES.includes(cmd.state as CommandStatus),
+      )
+      .slice(0, MAX_COMMAND_HISTORY);
+  } catch {
+    return [];
+  }
+}
+
+function persistCommandHistory(commands: CommandEntry[]) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(
+      COMMAND_HISTORY_STORAGE_KEY,
+      JSON.stringify(commands.slice(0, MAX_COMMAND_HISTORY)),
+    );
+  } catch {
+    /* ignore quota / disabled storage errors */
+  }
+}
+
 export function CommandPanel({ machineId, sessionId }: CommandPanelProps) {
-  const [commands, setCommands] = useState<CommandEntry[]>([]);
+  const [commands, setCommands] = useState<CommandEntry[]>(loadCommandHistory);
   const [canSendControl, setCanSendControl] = useState(true);
   const [machineControlMessage, setMachineControlMessage] = useState<string | null>(null);
   const [machineControlError, setMachineControlError] = useState<string | null>(null);
@@ -58,7 +94,7 @@ export function CommandPanel({ machineId, sessionId }: CommandPanelProps) {
                   ? {
                       ...c,
                       state: res.state,
-                      failureReason: res.failure_reason,
+                      failureReason: res.failure_reason ?? null,
                     }
                   : c,
               ),
@@ -70,15 +106,26 @@ export function CommandPanel({ machineId, sessionId }: CommandPanelProps) {
               ),
             );
           }
-        } catch {
-          stopPolling(commandId);
-          setCommands((prev) =>
-            prev.map((c) =>
-              c.id === commandId
-                ? { ...c, state: "failed" as const, failureReason: "Polling failed" }
-                : c,
-            ),
-          );
+        } catch (err) {
+          // Transient network/abort errors: keep command pending so it can recover later.
+          // Only mark as failed if we get a definite failure from the API.
+          if (err instanceof ApiRequestError && err.code !== "ABORTED") {
+            stopPolling(commandId);
+            setCommands((prev) =>
+              prev.map((c) =>
+                c.id === commandId
+                  ? {
+                      ...c,
+                      state: "failed" as const,
+                      failureReason:
+                        err.message ?? "Polling failed",
+                    }
+                  : c,
+              ),
+            );
+          }
+          // Otherwise (ABORTED or other transient), leave command in current state
+          // and let the next poll attempt recover.
         }
       }, POLL_INTERVAL_MS);
       pollTimers.current.set(commandId, timer);
@@ -93,12 +140,16 @@ export function CommandPanel({ machineId, sessionId }: CommandPanelProps) {
     };
   }, []);
 
+  useEffect(() => {
+    persistCommandHistory(commands);
+  }, [commands]);
+
   const handleCommandSent = useCallback(
     (commandId: string, payload: string) => {
       setCommands((prev) => [
         { id: commandId, payload, state: "pending" as const },
         ...prev,
-      ]);
+      ].slice(0, MAX_COMMAND_HISTORY));
       startPolling(commandId);
     },
     [startPolling],

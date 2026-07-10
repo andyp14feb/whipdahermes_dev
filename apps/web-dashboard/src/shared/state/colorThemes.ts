@@ -8,6 +8,29 @@ export interface ColorTheme {
   border: string;
 }
 
+export interface CustomColorTheme {
+  bg: string;
+  card: string;
+  input: string;
+  text: string;
+  textMuted: string;
+  border: string;
+  primary: string;
+  primaryFg: string;
+  accent: string;
+  bgSoft: string;
+}
+
+export interface CustomColorPreset {
+  id: string;
+  name: string;
+  colors: CustomColorTheme;
+}
+
+export const CUSTOM_THEME_ID = "custom";
+export const DEFAULT_COLOR_THEME = "ocean-blue";
+export const DEFAULT_CUSTOM_PRESET_ID = "custom-default";
+
 export const COLOR_THEMES: ColorTheme[] = [
   { id: "light-mode", name: "Light mode", primary: "#ffffff", accent: "#e5e7eb", bgSoft: "#f9fafb", text: "#111827", border: "#d1d5db" },
   { id: "dark-mode", name: "Dark mode", primary: "#111827", accent: "#374151", bgSoft: "#1f2937", text: "#f9fafb", border: "#4b5563" },
@@ -63,13 +86,131 @@ export const COLOR_THEMES: ColorTheme[] = [
   { id: "peach", name: "Peach", primary: "#fdba74", accent: "#fed7aa", bgSoft: "#fff4e6", text: "#5a2d0a", border: "#fbd9b3" },
 ];
 
-export const DEFAULT_COLOR_THEME = "ocean-blue";
+export const CUSTOM_COLOR_FIELDS: Array<{ key: keyof CustomColorTheme; label: string; group: "Surface" | "Text" | "Action" }> = [
+  { key: "bg", label: "App background", group: "Surface" },
+  { key: "card", label: "Card background", group: "Surface" },
+  { key: "input", label: "Input background", group: "Surface" },
+  { key: "bgSoft", label: "Soft background", group: "Surface" },
+  { key: "text", label: "Main text", group: "Text" },
+  { key: "textMuted", label: "Muted text", group: "Text" },
+  { key: "border", label: "Border", group: "Text" },
+  { key: "primary", label: "Primary action", group: "Action" },
+  { key: "primaryFg", label: "Primary text", group: "Action" },
+  { key: "accent", label: "Accent", group: "Action" },
+];
+
+export const DEFAULT_CUSTOM_COLORS: CustomColorTheme = {
+  bg: "#f3f4f6",
+  card: "#ffffff",
+  input: "#ffffff",
+  text: "#111827",
+  textMuted: "#4b5563",
+  border: "#d1d5db",
+  primary: "#2563eb",
+  primaryFg: "#ffffff",
+  accent: "#0ea5e9",
+  bgSoft: "#eaf3ff",
+};
+
+export const DEFAULT_CUSTOM_PRESET: CustomColorPreset = {
+  id: DEFAULT_CUSTOM_PRESET_ID,
+  name: "Default Custom",
+  colors: DEFAULT_CUSTOM_COLORS,
+};
 
 export function isColorThemeId(value: string): value is string {
   return COLOR_THEMES.some((theme) => theme.id === value);
 }
 
 export function getColorTheme(id: string | null | undefined): ColorTheme {
-  if (!id) return COLOR_THEMES[0];
-  return COLOR_THEMES.find((theme) => theme.id === id) ?? COLOR_THEMES[0];
+  if (!id) return COLOR_THEMES[2];
+  return COLOR_THEMES.find((theme) => theme.id === id) ?? COLOR_THEMES[2];
+}
+
+export function themeToCustomColors(theme: ColorTheme): CustomColorTheme {
+  const isDark = theme.id === "dark-mode";
+  const isLight = theme.id === "light-mode";
+  const card = isDark ? "#111827" : isLight ? "#ffffff" : "#ffffff";
+  const input = isDark ? "#0f172a" : "#ffffff";
+  return {
+    bg: isDark ? "#030712" : isLight ? "#f3f4f6" : theme.bgSoft,
+    card,
+    input,
+    text: theme.text,
+    textMuted: isDark ? "#cbd5e1" : "#4b5563",
+    border: theme.border,
+    primary: theme.primary,
+    primaryFg: isLight ? "#111827" : "#ffffff",
+    accent: theme.accent,
+    bgSoft: theme.bgSoft,
+  };
+}
+
+export function getThemeVariables(colors: CustomColorTheme): Record<string, string> {
+  return {
+    "--theme-bg": colors.bg,
+    "--theme-card": colors.card,
+    "--theme-input": colors.input,
+    "--theme-text": colors.text,
+    "--theme-text-muted": colors.textMuted,
+    "--theme-border": colors.border,
+    "--theme-primary": colors.primary,
+    "--theme-primary-fg": colors.primaryFg,
+    "--theme-accent": colors.accent,
+    "--theme-bg-soft": colors.bgSoft,
+  };
+}
+
+export function applyThemeVariables(colors: CustomColorTheme): void {
+  const root = document.documentElement;
+  for (const [name, value] of Object.entries(getThemeVariables(colors))) {
+    root.style.setProperty(name, value);
+  }
+}
+
+export function isHexColor(value: string): boolean {
+  return /^#(?:[0-9a-fA-F]{3}){1,2}$/.test(value);
+}
+
+export function normalizeCustomColors(value: Partial<CustomColorTheme> | null | undefined): CustomColorTheme {
+  const result: CustomColorTheme = { ...DEFAULT_CUSTOM_COLORS };
+  if (value) {
+    for (const { key } of CUSTOM_COLOR_FIELDS) {
+      const v = value[key];
+      if (typeof v === "string" && isHexColor(v)) {
+        result[key] = v;
+      }
+    }
+  }
+  return result;
+}
+
+export function normalizeCustomPresets(value: Partial<CustomColorPreset>[] | null | undefined): CustomColorPreset[] {
+  const presets = (value ?? [])
+    .filter((preset) => typeof preset?.id === "string" && typeof preset?.name === "string")
+    .map((preset) => ({
+      id: preset.id!,
+      name: preset.name!,
+      colors: normalizeCustomColors(preset.colors),
+    }));
+  return presets.length > 0
+    ? presets
+    : [{ ...DEFAULT_CUSTOM_PRESET, colors: { ...DEFAULT_CUSTOM_PRESET.colors } }];
+}
+
+export function makeCustomPreset(name: string, colors: CustomColorTheme, existing: CustomColorPreset[]): CustomColorPreset {
+  const cleanName = name.trim() || "Custom preset";
+  const baseId = `custom-${cleanName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "preset"}`;
+  let id = baseId;
+  let counter = 2;
+  while (existing.some((preset) => preset.id === id)) {
+    id = `${baseId}-${counter}`;
+    counter += 1;
+  }
+  return { id, name: cleanName, colors: normalizeCustomColors(colors) };
+}
+
+export function getCustomPreset(presets: CustomColorPreset[], id: string | null | undefined): CustomColorPreset | null {
+  if (!id) return null;
+  return presets.find((preset) => preset.id === id) ?? null;
 }

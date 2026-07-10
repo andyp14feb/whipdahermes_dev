@@ -8,47 +8,59 @@ import {
   STORAGE_KEY,
   useSettingsStore,
 } from "../../../shared/state/settingsStore";
+import { DEFAULT_COLOR_THEME, DEFAULT_CUSTOM_PRESET } from "../../../shared/state/colorThemes";
 import { server } from "../../../__tests__/setup";
 
 describe("SettingsPage", () => {
   beforeEach(() => {
     localStorage.removeItem(STORAGE_KEY);
     useSettingsStore.setState({
-          workerApiUrl: "http://localhost:8000",
-          refreshIntervalMs: 2000,
-          staleTimeoutSeconds: 60,
-          requestTimeoutMs: 40000,
-          aiProviderBaseUrl: "",
-          aiProviderType: "openai-compatible",
-          aiApiKey: "",
-          aiSelectedModel: "",
-          aiProviderName: "",
-          themeMode: "light",
-          colorTheme: "ocean-blue",
-          templateActions: DEFAULT_TEMPLATE_ACTIONS,
-          nudgesBySession: {},
-          isDirty: false,
-          setWorkerApiUrl: useSettingsStore.getState().setWorkerApiUrl,
-          setRefreshIntervalMs: useSettingsStore.getState().setRefreshIntervalMs,
-          setStaleTimeoutSeconds: useSettingsStore.getState().setStaleTimeoutSeconds,
-          setRequestTimeoutMs: useSettingsStore.getState().setRequestTimeoutMs,
-          setAiProviderBaseUrl: useSettingsStore.getState().setAiProviderBaseUrl,
-          setAiApiKey: useSettingsStore.getState().setAiApiKey,
-          setAiSelectedModel: useSettingsStore.getState().setAiSelectedModel,
-          setAiProviderName: useSettingsStore.getState().setAiProviderName,
-          setThemeMode: useSettingsStore.getState().setThemeMode,
-          setColorTheme: useSettingsStore.getState().setColorTheme,
-          addTemplateAction: useSettingsStore.getState().addTemplateAction,
-          updateTemplateAction: useSettingsStore.getState().updateTemplateAction,
-          deleteTemplateAction: useSettingsStore.getState().deleteTemplateAction,
-          upsertNudgeConfig: useSettingsStore.getState().upsertNudgeConfig,
-          setNudgeEnabled: useSettingsStore.getState().setNudgeEnabled,
-          incrementNudgeCount: useSettingsStore.getState().incrementNudgeCount,
-          clearNudgeConfig: useSettingsStore.getState().clearNudgeConfig,
-          save: useSettingsStore.getState().save,
-          reset: useSettingsStore.getState().reset,
-        });
-      });
+      workerApiUrl: "http://localhost:8000",
+      refreshIntervalMs: 2000,
+      staleTimeoutSeconds: 60,
+      requestTimeoutMs: 40000,
+      aiProviderBaseUrl: "",
+      aiProviderType: "openai-compatible",
+      aiApiKey: "",
+      aiSelectedModel: "",
+      aiProviderName: "",
+      themeMode: "light",
+      colorTheme: DEFAULT_COLOR_THEME,
+      selectedCustomPresetId: DEFAULT_CUSTOM_PRESET.id,
+      customColors: { ...DEFAULT_CUSTOM_PRESET.colors },
+      customColorPresets: [{ ...DEFAULT_CUSTOM_PRESET, colors: { ...DEFAULT_CUSTOM_PRESET.colors } }],
+      templateActions: DEFAULT_TEMPLATE_ACTIONS,
+      nudgesBySession: {},
+      isDirty: false,
+      setWorkerApiUrl: useSettingsStore.getState().setWorkerApiUrl,
+      setRefreshIntervalMs: useSettingsStore.getState().setRefreshIntervalMs,
+      setStaleTimeoutSeconds: useSettingsStore.getState().setStaleTimeoutSeconds,
+      setRequestTimeoutMs: useSettingsStore.getState().setRequestTimeoutMs,
+      setAiProviderBaseUrl: useSettingsStore.getState().setAiProviderBaseUrl,
+      setAiApiKey: useSettingsStore.getState().setAiApiKey,
+      setAiSelectedModel: useSettingsStore.getState().setAiSelectedModel,
+      setAiProviderName: useSettingsStore.getState().setAiProviderName,
+      setThemeMode: useSettingsStore.getState().setThemeMode,
+      setColorTheme: useSettingsStore.getState().setColorTheme,
+      setSelectedCustomPresetId: useSettingsStore.getState().setSelectedCustomPresetId,
+      setCustomColors: useSettingsStore.getState().setCustomColors,
+      setCustomColor: useSettingsStore.getState().setCustomColor,
+      saveCurrentColorsAsPreset: useSettingsStore.getState().saveCurrentColorsAsPreset,
+      updateCustomPreset: useSettingsStore.getState().updateCustomPreset,
+      renameCustomPreset: useSettingsStore.getState().renameCustomPreset,
+      deleteCustomPreset: useSettingsStore.getState().deleteCustomPreset,
+      loadCustomPreset: useSettingsStore.getState().loadCustomPreset,
+      addTemplateAction: useSettingsStore.getState().addTemplateAction,
+      updateTemplateAction: useSettingsStore.getState().updateTemplateAction,
+      deleteTemplateAction: useSettingsStore.getState().deleteTemplateAction,
+      upsertNudgeConfig: useSettingsStore.getState().upsertNudgeConfig,
+      setNudgeEnabled: useSettingsStore.getState().setNudgeEnabled,
+      incrementNudgeCount: useSettingsStore.getState().incrementNudgeCount,
+      clearNudgeConfig: useSettingsStore.getState().clearNudgeConfig,
+      save: useSettingsStore.getState().save,
+      reset: useSettingsStore.getState().reset,
+    });
+  });
 
   it("renders settings and copies the worker script", async () => {
     const user = userEvent.setup();
@@ -151,7 +163,7 @@ describe("SettingsPage", () => {
     const user = userEvent.setup();
     render(<SettingsPage onClose={() => undefined} />);
 
-    await user.selectOptions(screen.getByLabelText("Theme"), "dark");
+    await user.selectOptions(screen.getByLabelText("Theme mode"), "dark");
 
     expect(useSettingsStore.getState().themeMode).toBe("dark");
     expect(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}").themeMode).toBe("dark");
@@ -190,29 +202,28 @@ describe("SettingsPage", () => {
     expect(screen.getByText(/VITE_API_BASE_URL/i)).toBeInTheDocument();
   });
 
-  it("renders 52 color theme swatches with Light mode and Dark mode as entries 1-2 and the saved selection checked", async () => {
+  it("renders the color theme as a dropdown listbox with Light mode and Dark mode as entries 1-2", () => {
     render(<SettingsPage onClose={() => undefined} />);
 
-    const swatches = screen.getAllByRole("radio", { name: /^Color theme / });
-    expect(swatches).toHaveLength(52);
-    expect(swatches[0]).toHaveAttribute("aria-label", "Color theme Light mode");
-    expect(swatches[1]).toHaveAttribute("aria-label", "Color theme Dark mode");
-    expect(swatches[2]).toHaveAttribute("aria-label", "Color theme Ocean Blue");
-    expect(screen.getByRole("radio", { name: "Color theme Ocean Blue" })).toHaveAttribute(
-      "aria-checked",
-      "true",
-    );
+    const select = screen.getByLabelText("Color theme") as HTMLSelectElement;
+    expect(select.tagName).toBe("SELECT");
+    const options = Array.from(select.options).map((opt) => opt.textContent);
+    expect(options[0]).toBe("Light mode");
+    expect(options[1]).toBe("Dark mode");
+    expect(options).toContain("Ocean Blue");
+    expect(select.value).toBe(DEFAULT_COLOR_THEME);
   });
 
-  it("previews a swatch immediately and applies it only after Save", async () => {
+  it("previews a color theme immediately and applies it after Save", async () => {
     const user = userEvent.setup();
     render(<SettingsPage onClose={() => undefined} />);
 
-    await user.click(screen.getByRole("radio", { name: "Color theme Royal Violet" }));
+    const select = screen.getByLabelText("Color theme") as HTMLSelectElement;
+    await user.selectOptions(select, "royal-violet");
 
-    const html = document.documentElement;
-    expect(html.dataset.colorTheme).toBe("royal-violet");
-    expect(screen.getByRole("button", { name: "Save color theme" })).not.toBeDisabled();
+    const root = document.documentElement;
+    expect(root.style.getPropertyValue("--theme-primary")).toBe("#6d28d9");
+    expect(select.value).toBe("royal-violet");
 
     await user.click(screen.getByRole("button", { name: "Save color theme" }));
 
@@ -222,16 +233,90 @@ describe("SettingsPage", () => {
     expect(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}").colorTheme).toBe("royal-violet");
   });
 
-  it("falls back to the default theme when persisted value is unknown", async () => {
+  it("falls back to the default theme when persisted value is unknown", () => {
     localStorage.setItem(
       STORAGE_KEY,
       JSON.stringify({ colorTheme: "not-a-real-theme" }),
     );
     render(<SettingsPage onClose={() => undefined} />);
 
-    expect(screen.getByRole("radio", { name: "Color theme Ocean Blue" })).toHaveAttribute(
-      "aria-checked",
-      "true",
-    );
+    const select = screen.getByLabelText("Color theme") as HTMLSelectElement;
+    expect(select.value).toBe(DEFAULT_COLOR_THEME);
+  });
+
+  it("lets the user edit a custom color field and apply it app-wide", () => {
+    render(<SettingsPage onClose={() => undefined} />);
+
+    const bgField = screen.getByLabelText("App background") as HTMLInputElement;
+    fireEvent.change(bgField, { target: { value: "#222222" } });
+
+    expect(useSettingsStore.getState().customColors.bg).toBe("#222222");
+    expect(document.documentElement.style.getPropertyValue("--theme-bg")).toBe("#222222");
+  });
+
+  it("saves the current custom colors as a reusable preset and applies it", async () => {
+    const user = userEvent.setup();
+    render(<SettingsPage onClose={() => undefined} />);
+
+    fireEvent.change(screen.getByLabelText("App background"), { target: { value: "#abcdef" } });
+
+    fireEvent.change(screen.getByLabelText("New preset name"), { target: { value: "Sunset" } });
+    await user.click(screen.getByRole("button", { name: "Save preset" }));
+
+    await waitFor(() => {
+      const presets = useSettingsStore.getState().customColorPresets;
+      expect(presets.some((preset) => preset.name === "Sunset")).toBe(true);
+    });
+    expect(useSettingsStore.getState().colorTheme).toBe("custom");
+    expect(useSettingsStore.getState().customColors.bg).toBe("#abcdef");
+  });
+
+  it("bases a new custom preset on the currently previewed built-in theme", async () => {
+    const user = userEvent.setup();
+    render(<SettingsPage onClose={() => undefined} />);
+
+    await user.selectOptions(screen.getByLabelText("Color theme"), "royal-violet");
+    expect((screen.getByLabelText("App background") as HTMLInputElement).value.toLowerCase()).toBe("#f3eaff");
+
+    fireEvent.change(screen.getByLabelText("New preset name"), { target: { value: "Violet Base" } });
+    await user.click(screen.getByRole("button", { name: "Save preset" }));
+
+    await waitFor(() => {
+      const preset = useSettingsStore.getState().customColorPresets.find((item) => item.name === "Violet Base");
+      expect(preset?.colors.primary).toBe("#6d28d9");
+      expect(preset?.colors.bg).toBe("#f3eaff");
+    });
+  });
+
+  it("deletes a saved custom preset from the settings UI", async () => {
+    const user = userEvent.setup();
+    useSettingsStore.getState().saveCurrentColorsAsPreset("Doomed");
+
+    render(<SettingsPage onClose={() => undefined} />);
+    const presetSelect = screen.getByLabelText("Saved presets") as HTMLSelectElement;
+    expect(Array.from(presetSelect.options).some((opt) => opt.textContent === "Doomed")).toBe(true);
+
+    await user.click(screen.getByRole("button", { name: "Delete preset" }));
+
+    await waitFor(() => {
+      const presets = useSettingsStore.getState().customColorPresets;
+      expect(presets.some((preset) => preset.name === "Doomed")).toBe(false);
+    });
+  });
+
+  it("loads a saved custom preset back into the editor", async () => {
+    const user = userEvent.setup();
+    useSettingsStore.getState().saveCurrentColorsAsPreset("First");
+
+    render(<SettingsPage onClose={() => undefined} />);
+    fireEvent.change(screen.getByLabelText("App background"), { target: { value: "#111111" } });
+    const presetSelect = screen.getByLabelText("Saved presets") as HTMLSelectElement;
+    const firstOption = Array.from(presetSelect.options).find((opt) => opt.textContent === "First");
+    expect(firstOption).toBeDefined();
+    await user.selectOptions(presetSelect, firstOption!.value);
+
+    await waitFor(() => {
+      expect(useSettingsStore.getState().selectedCustomPresetId).toBe(firstOption!.value);
+    });
   });
 });
