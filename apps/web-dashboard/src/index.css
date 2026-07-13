@@ -3,361 +3,640 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
+  --theme-bg: #eaf3ff;
+  --theme-card: #f4f7fe;
+  --theme-input: #f4f7fe;
   --theme-primary: #2563eb;
+  --theme-primary-fg: #ffffff;
   --theme-accent: #0ea5e9;
   --theme-bg-soft: #eaf3ff;
   --theme-text: #0b1d3a;
+  --theme-text-muted: #505460;
   --theme-border: #c7d8ff;
 }
 
+[data-color-theme="light-mode"] {
+  --theme-bg: #f3f4f6;
+  --theme-card: #ffffff;
+  --theme-input: #ffffff;
+  --theme-primary: #ffffff;
+  --theme-primary-fg: #111827;
+  --theme-accent: #e5e7eb;
+  --theme-bg-soft: #f9fafb;
+  --theme-text: #111827;
+  --theme-text-muted: #4b5563;
+  --theme-border: #d1d5db;
+}
+[data-color-theme="dark-mode"] {
+  --theme-bg: #030712;
+  --theme-card: #111827;
+  --theme-input: #0f172a;
+  --theme-primary: #111827;
+  --theme-primary-fg: #ffffff;
+  --theme-accent: #374151;
+  --theme-bg-soft: #1f2937;
+  --theme-text: #f9fafb;
+  --theme-text-muted: #cbd5e1;
+  --theme-border: #4b5563;
+}
 [data-color-theme="ocean-blue"] {
+  --theme-bg: #eaf3ff;
+  --theme-card: #f4f7fe;
+  --theme-input: #f4f7fe;
   --theme-primary: #2563eb;
+  --theme-primary-fg: #ffffff;
   --theme-accent: #0ea5e9;
   --theme-bg-soft: #eaf3ff;
   --theme-text: #0b1d3a;
+  --theme-text-muted: #505460;
   --theme-border: #c7d8ff;
 }
 [data-color-theme="sky-breeze"] {
+  --theme-bg: #e6f6fb;
+  --theme-card: #f2f8fc;
+  --theme-input: #f2f8fc;
   --theme-primary: #0284c7;
+  --theme-primary-fg: #ffffff;
   --theme-accent: #22d3ee;
   --theme-bg-soft: #e6f6fb;
   --theme-text: #0b2a3a;
+  --theme-text-muted: #505c62;
   --theme-border: #bde4ef;
 }
 [data-color-theme="indigo-dusk"] {
+  --theme-bg: #eef0ff;
+  --theme-card: #f6f5fd;
+  --theme-input: #f6f5fd;
   --theme-primary: #4f46e5;
+  --theme-primary-fg: #ffffff;
   --theme-accent: #a78bfa;
   --theme-bg-soft: #eef0ff;
   --theme-text: #1b1546;
+  --theme-text-muted: #545165;
   --theme-border: #c9c7ff;
 }
 [data-color-theme="royal-violet"] {
+  --theme-bg: #f3eaff;
+  --theme-card: #f7f4fd;
+  --theme-input: #f7f4fd;
   --theme-primary: #6d28d9;
+  --theme-primary-fg: #ffffff;
   --theme-accent: #c084fc;
   --theme-bg-soft: #f3eaff;
   --theme-text: #2a0f4c;
+  --theme-text-muted: #5a5068;
   --theme-border: #dcc6ff;
 }
 [data-color-theme="magenta-pop"] {
+  --theme-bg: #fdeaf3;
+  --theme-card: #fdf4f8;
+  --theme-input: #fdf4f8;
   --theme-primary: #db2777;
+  --theme-primary-fg: #ffffff;
   --theme-accent: #ec4899;
   --theme-bg-soft: #fdeaf3;
   --theme-text: #4a0a2a;
+  --theme-text-muted: #68505b;
   --theme-border: #f7c1d8;
 }
 [data-color-theme="rose-blush"] {
+  --theme-bg: #fdecee;
+  --theme-card: #fdf3f5;
+  --theme-input: #fdf3f5;
   --theme-primary: #e11d48;
+  --theme-primary-fg: #ffffff;
   --theme-accent: #fb7185;
   --theme-bg-soft: #fdecee;
   --theme-text: #3f0918;
+  --theme-text-muted: #625052;
   --theme-border: #f6c2cb;
 }
 [data-color-theme="coral-reef"] {
+  --theme-bg: #fff1ee;
+  --theme-card: #fef5f6;
+  --theme-input: #fef5f6;
   --theme-primary: #f43f5e;
+  --theme-primary-fg: #ffffff;
   --theme-accent: #fb923c;
   --theme-bg-soft: #fff1ee;
   --theme-text: #3f0e0e;
+  --theme-text-muted: #625050;
   --theme-border: #fbd0c5;
 }
 [data-color-theme="sunset-orange"] {
+  --theme-bg: #fff3e6;
+  --theme-card: #fdf6f2;
+  --theme-input: #fdf6f2;
   --theme-primary: #ea580c;
+  --theme-primary-fg: #ffffff;
   --theme-accent: #fbbf24;
   --theme-bg-soft: #fff3e6;
   --theme-text: #3a1a05;
+  --theme-text-muted: #625550;
   --theme-border: #fad4a8;
 }
 [data-color-theme="amber-warm"] {
+  --theme-bg: #fff7e0;
+  --theme-card: #fdf8f2;
+  --theme-input: #fdf8f2;
   --theme-primary: #d97706;
+  --theme-primary-fg: #ffffff;
   --theme-accent: #facc15;
   --theme-bg-soft: #fff7e0;
   --theme-text: #3b2400;
+  --theme-text-muted: #645a50;
   --theme-border: #fbe193;
 }
 [data-color-theme="gold-leaf"] {
+  --theme-bg: #fdf6d8;
+  --theme-card: #faf7f2;
+  --theme-input: #faf7f2;
   --theme-primary: #a16207;
+  --theme-primary-fg: #ffffff;
   --theme-accent: #eab308;
   --theme-bg-soft: #fdf6d8;
   --theme-text: #2c1d00;
+  --theme-text-muted: #5b5550;
   --theme-border: #f1de8e;
 }
 [data-color-theme="lime-zest"] {
+  --theme-bg: #f3fae1;
+  --theme-card: #f7faf2;
+  --theme-input: #f7faf2;
   --theme-primary: #65a30d;
+  --theme-primary-fg: #ffffff;
   --theme-accent: #a3e635;
   --theme-bg-soft: #f3fae1;
   --theme-text: #1f2e02;
+  --theme-text-muted: #585e50;
   --theme-border: #d3ec9a;
 }
 [data-color-theme="emerald-fresh"] {
+  --theme-bg: #e6fbf2;
+  --theme-card: #f2f9f7;
+  --theme-input: #f2f9f7;
   --theme-primary: #059669;
+  --theme-primary-fg: #ffffff;
   --theme-accent: #34d399;
   --theme-bg-soft: #e6fbf2;
   --theme-text: #03301e;
+  --theme-text-muted: #505d56;
   --theme-border: #b6efd3;
 }
 [data-color-theme="forest-pine"] {
+  --theme-bg: #e6f5ec;
+  --theme-card: #f2f8f6;
+  --theme-input: #f2f8f6;
   --theme-primary: #047857;
+  --theme-primary-fg: #ffffff;
   --theme-accent: #10b981;
   --theme-bg-soft: #e6f5ec;
   --theme-text: #022a1d;
+  --theme-text-muted: #505a55;
   --theme-border: #b6dccc;
 }
 [data-color-theme="teal-cyan"] {
+  --theme-bg: #e6f8f6;
+  --theme-card: #f2f9f9;
+  --theme-input: #f2f9f9;
   --theme-primary: #0d9488;
+  --theme-primary-fg: #ffffff;
   --theme-accent: #2dd4bf;
   --theme-bg-soft: #e6f8f6;
   --theme-text: #06302c;
+  --theme-text-muted: #505e5c;
   --theme-border: #b6e3df;
 }
 [data-color-theme="aqua-mint"] {
+  --theme-bg: #e0f7f5;
+  --theme-card: #f2f9fb;
+  --theme-input: #f2f9fb;
   --theme-primary: #0891b2;
+  --theme-primary-fg: #ffffff;
   --theme-accent: #5eead4;
   --theme-bg-soft: #e0f7f5;
   --theme-text: #053040;
+  --theme-text-muted: #505f65;
   --theme-border: #afe6e1;
 }
 [data-color-theme="turquoise"] {
+  --theme-bg: #dff9fb;
+  --theme-card: #f2fbfc;
+  --theme-input: #f2fbfc;
   --theme-primary: #06b6d4;
+  --theme-primary-fg: #ffffff;
   --theme-accent: #22d3ee;
   --theme-bg-soft: #dff9fb;
   --theme-text: #063444;
+  --theme-text-muted: #506168;
   --theme-border: #a8e0e9;
 }
 [data-color-theme="steel-blue"] {
+  --theme-bg: #e8eefb;
+  --theme-card: #f3f6fd;
+  --theme-input: #f3f6fd;
   --theme-primary: #1d4ed8;
+  --theme-primary-fg: #ffffff;
   --theme-accent: #60a5fa;
   --theme-bg-soft: #e8eefb;
   --theme-text: #0a1638;
+  --theme-text-muted: #50505e;
   --theme-border: #b7c7ef;
 }
 [data-color-theme="slate-storm"] {
+  --theme-bg: #eef1f5;
+  --theme-card: #f4f5f6;
+  --theme-input: #f4f5f6;
   --theme-primary: #334155;
+  --theme-primary-fg: #ffffff;
   --theme-accent: #94a3b8;
   --theme-bg-soft: #eef1f5;
   --theme-text: #111827;
+  --theme-text-muted: #505157;
   --theme-border: #c6cdd7;
 }
 [data-color-theme="graphite"] {
+  --theme-bg: #f1f3f7;
+  --theme-card: #f5f6f7;
+  --theme-input: #f5f6f7;
   --theme-primary: #475569;
+  --theme-primary-fg: #ffffff;
   --theme-accent: #64748b;
   --theme-bg-soft: #f1f3f7;
   --theme-text: #0f172a;
+  --theme-text-muted: #505058;
   --theme-border: #cfd6e0;
 }
 [data-color-theme="charcoal"] {
+  --theme-bg: #eef0f3;
+  --theme-card: #f3f4f5;
+  --theme-input: #f3f4f5;
   --theme-primary: #1f2937;
+  --theme-primary-fg: #ffffff;
   --theme-accent: #374151;
   --theme-bg-soft: #eef0f3;
   --theme-text: #0b1220;
+  --theme-text-muted: #505052;
   --theme-border: #cbd2dc;
 }
 [data-color-theme="ruby-red"] {
+  --theme-bg: #fdeaea;
+  --theme-card: #fbf3f3;
+  --theme-input: #fbf3f3;
   --theme-primary: #b91c1c;
+  --theme-primary-fg: #ffffff;
   --theme-accent: #ef4444;
   --theme-bg-soft: #fdeaea;
   --theme-text: #3a0707;
+  --theme-text-muted: #5e5050;
   --theme-border: #f3bcbc;
 }
 [data-color-theme="crimson"] {
+  --theme-bg: #fce6ec;
+  --theme-card: #faf3f5;
+  --theme-input: #faf3f5;
   --theme-primary: #9f1239;
+  --theme-primary-fg: #ffffff;
   --theme-accent: #f43f5e;
   --theme-bg-soft: #fce6ec;
   --theme-text: #330512;
+  --theme-text-muted: #5b5050;
   --theme-border: #f1b9c6;
 }
 [data-color-theme="burgundy"] {
+  --theme-bg: #fbe4ee;
+  --theme-card: #f8f3f5;
+  --theme-input: #f8f3f5;
   --theme-primary: #831843;
+  --theme-primary-fg: #ffffff;
   --theme-accent: #be185d;
   --theme-bg-soft: #fbe4ee;
   --theme-text: #280613;
+  --theme-text-muted: #565050;
   --theme-border: #eeb1c9;
 }
 [data-color-theme="plum"] {
+  --theme-bg: #f8e6f8;
+  --theme-card: #f7f3f8;
+  --theme-input: #f7f3f8;
   --theme-primary: #701a75;
+  --theme-primary-fg: #ffffff;
   --theme-accent: #a21caf;
   --theme-bg-soft: #f8e6f8;
   --theme-text: #240324;
+  --theme-text-muted: #545054;
   --theme-border: #dcaddc;
 }
 [data-color-theme="violet"] {
+  --theme-bg: #f0eaff;
+  --theme-card: #f8f5fe;
+  --theme-input: #f8f5fe;
   --theme-primary: #7c3aed;
+  --theme-primary-fg: #ffffff;
   --theme-accent: #8b5cf6;
   --theme-bg-soft: #f0eaff;
   --theme-text: #1f0a4f;
+  --theme-text-muted: #545067;
   --theme-border: #cbb8f9;
 }
 [data-color-theme="lavender"] {
+  --theme-bg: #f3eeff;
+  --theme-card: #f9f6fe;
+  --theme-input: #f9f6fe;
   --theme-primary: #8b5cf6;
+  --theme-primary-fg: #ffffff;
   --theme-accent: #c4b5fd;
   --theme-bg-soft: #f3eeff;
   --theme-text: #241a4c;
+  --theme-text-muted: #595569;
   --theme-border: #d6c8f3;
 }
 [data-color-theme="iris"] {
+  --theme-bg: #ebeefe;
+  --theme-card: #f7f7fe;
+  --theme-input: #f7f7fe;
   --theme-primary: #6366f1;
+  --theme-primary-fg: #ffffff;
   --theme-accent: #818cf8;
   --theme-bg-soft: #ebeefe;
   --theme-text: #1a1d52;
+  --theme-text-muted: #55566c;
   --theme-border: #c1c5f1;
 }
 [data-color-theme="azure"] {
+  --theme-bg: #e8f1fe;
+  --theme-card: #f5f8fe;
+  --theme-input: #f5f8fe;
   --theme-primary: #3b82f6;
+  --theme-primary-fg: #ffffff;
   --theme-accent: #38bdf8;
   --theme-bg-soft: #e8f1fe;
   --theme-text: #0c1f44;
+  --theme-text-muted: #505664;
   --theme-border: #b6cbf4;
 }
 [data-color-theme="cerulean"] {
+  --theme-bg: #e0f3fc;
+  --theme-card: #f2fafd;
+  --theme-input: #f2fafd;
   --theme-primary: #0ea5e9;
+  --theme-primary-fg: #ffffff;
   --theme-accent: #7dd3fc;
   --theme-bg-soft: #e0f3fc;
   --theme-text: #063142;
+  --theme-text-muted: #506066;
   --theme-border: #b1dcf2;
 }
 [data-color-theme="sapphire"] {
+  --theme-bg: #e6ecfb;
+  --theme-card: #f3f5fb;
+  --theme-input: #f3f5fb;
   --theme-primary: #1e40af;
+  --theme-primary-fg: #ffffff;
   --theme-accent: #3b82f6;
   --theme-bg-soft: #e6ecfb;
   --theme-text: #08143b;
+  --theme-text-muted: #50505e;
   --theme-border: #b8c4ee;
 }
 [data-color-theme="forest-dark"] {
+  --theme-bg: #e7f1ea;
+  --theme-card: #f3f6f4;
+  --theme-input: #f3f6f4;
   --theme-primary: #14532d;
+  --theme-primary-fg: #ffffff;
   --theme-accent: #22c55e;
   --theme-bg-soft: #e7f1ea;
   --theme-text: #082014;
+  --theme-text-muted: #505450;
   --theme-border: #bcd6c5;
 }
 [data-color-theme="mossy"] {
+  --theme-bg: #f1f6e3;
+  --theme-card: #f5f7f3;
+  --theme-input: #f5f7f3;
   --theme-primary: #3f6212;
+  --theme-primary-fg: #ffffff;
   --theme-accent: #84cc16;
   --theme-bg-soft: #f1f6e3;
   --theme-text: #152002;
+  --theme-text-muted: #505550;
   --theme-border: #d2e1a3;
 }
 [data-color-theme="olive"] {
+  --theme-bg: #f4f6e0;
+  --theme-card: #f7f8f3;
+  --theme-input: #f7f8f3;
   --theme-primary: #65731e;
+  --theme-primary-fg: #ffffff;
   --theme-accent: #a3a72c;
   --theme-bg-soft: #f4f6e0;
   --theme-text: #1f2504;
+  --theme-text-muted: #565950;
   --theme-border: #d6da9d;
 }
 [data-color-theme="khaki"] {
+  --theme-bg: #fbf3df;
+  --theme-card: #faf7f2;
+  --theme-input: #faf7f2;
   --theme-primary: #a16207;
+  --theme-primary-fg: #ffffff;
   --theme-accent: #d97706;
   --theme-bg-soft: #fbf3df;
   --theme-text: #2a1c03;
+  --theme-text-muted: #5a5450;
   --theme-border: #ecd6a0;
 }
 [data-color-theme="sand"] {
+  --theme-bg: #fbf2e1;
+  --theme-card: #faf7f4;
+  --theme-input: #faf7f4;
   --theme-primary: #a87129;
+  --theme-primary-fg: #ffffff;
   --theme-accent: #d6a85a;
   --theme-bg-soft: #fbf2e1;
   --theme-text: #2c1d07;
+  --theme-text-muted: #5b5550;
   --theme-border: #ead3a8;
 }
 [data-color-theme="terracotta"] {
+  --theme-bg: #fbeadd;
+  --theme-card: #f9f4f3;
+  --theme-input: #f9f4f3;
   --theme-primary: #9a3412;
+  --theme-primary-fg: #ffffff;
   --theme-accent: #ea580c;
   --theme-bg-soft: #fbeadd;
   --theme-text: #2c0d03;
+  --theme-text-muted: #585050;
   --theme-border: #eec4a4;
 }
 [data-color-theme="bronze"] {
+  --theme-bg: #fbf2d9;
+  --theme-card: #f8f6f2;
+  --theme-input: #f8f6f2;
   --theme-primary: #854d0e;
+  --theme-primary-fg: #ffffff;
   --theme-accent: #ca8a04;
   --theme-bg-soft: #fbf2d9;
   --theme-text: #251603;
+  --theme-text-muted: #575150;
   --theme-border: #e8d290;
 }
 [data-color-theme="copper"] {
+  --theme-bg: #fae3d2;
+  --theme-card: #f8f4f3;
+  --theme-input: #f8f4f3;
   --theme-primary: #7c2d12;
+  --theme-primary-fg: #ffffff;
   --theme-accent: #ea580c;
   --theme-bg-soft: #fae3d2;
   --theme-text: #1f0a03;
+  --theme-text-muted: #515050;
   --theme-border: #e8c1a1;
 }
 [data-color-theme="mocha"] {
+  --theme-bg: #f1e4d5;
+  --theme-card: #f7f5f4;
+  --theme-input: #f7f5f4;
   --theme-primary: #6f3f25;
+  --theme-primary-fg: #ffffff;
   --theme-accent: #a07248;
   --theme-bg-soft: #f1e4d5;
   --theme-text: #1f1109;
+  --theme-text-muted: #535050;
   --theme-border: #d6bfa3;
 }
 [data-color-theme="espresso"] {
+  --theme-bg: #ecdfd4;
+  --theme-card: #f5f4f3;
+  --theme-input: #f5f4f3;
   --theme-primary: #3f2317;
+  --theme-primary-fg: #ffffff;
   --theme-accent: #8b5a3c;
   --theme-bg-soft: #ecdfd4;
   --theme-text: #180d07;
+  --theme-text-muted: #505050;
   --theme-border: #c4ac97;
 }
 [data-color-theme="noir"] {
+  --theme-bg: #eef0f3;
+  --theme-card: #f3f3f4;
+  --theme-input: #f3f3f4;
   --theme-primary: #111827;
+  --theme-primary-fg: #ffffff;
   --theme-accent: #6b7280;
   --theme-bg-soft: #eef0f3;
   --theme-text: #0a0f1c;
+  --theme-text-muted: #505050;
   --theme-border: #cbd1da;
 }
 [data-color-theme="midnight"] {
+  --theme-bg: #eaeef5;
+  --theme-card: #f3f3f4;
+  --theme-input: #f3f3f4;
   --theme-primary: #0f172a;
+  --theme-primary-fg: #ffffff;
   --theme-accent: #475569;
   --theme-bg-soft: #eaeef5;
   --theme-text: #080d1c;
+  --theme-text-muted: #505050;
   --theme-border: #c0c8d9;
 }
 [data-color-theme="abyss"] {
+  --theme-bg: #e6eaf1;
+  --theme-card: #f2f2f3;
+  --theme-input: #f2f2f3;
   --theme-primary: #020617;
+  --theme-primary-fg: #ffffff;
   --theme-accent: #1e293b;
   --theme-bg-soft: #e6eaf1;
   --theme-text: #06080f;
+  --theme-text-muted: #505050;
   --theme-border: #b6bcc7;
 }
 [data-color-theme="ink-blue"] {
+  --theme-bg: #e1e7f3;
+  --theme-card: #f2f3f5;
+  --theme-input: #f2f3f5;
   --theme-primary: #0b1e3f;
+  --theme-primary-fg: #ffffff;
   --theme-accent: #1d4ed8;
   --theme-bg-soft: #e1e7f3;
   --theme-text: #06122a;
+  --theme-text-muted: #505056;
   --theme-border: #aebedb;
 }
 [data-color-theme="denim"] {
+  --theme-bg: #e3eaf8;
+  --theme-card: #f3f5f9;
+  --theme-input: #f3f5f9;
   --theme-primary: #1e3a8a;
+  --theme-primary-fg: #ffffff;
   --theme-accent: #3b82f6;
   --theme-bg-soft: #e3eaf8;
   --theme-text: #0a1736;
+  --theme-text-muted: #50505d;
   --theme-border: #b3c2e5;
 }
 [data-color-theme="powder"] {
+  --theme-bg: #eaf3fe;
+  --theme-card: #f9fcfe;
+  --theme-input: #f9fcfe;
   --theme-primary: #93c5fd;
+  --theme-primary-fg: #111827;
   --theme-accent: #bfdbfe;
   --theme-bg-soft: #eaf3fe;
   --theme-text: #1f3a64;
+  --theme-text-muted: #5d6879;
   --theme-border: #cee1f8;
 }
 [data-color-theme="mint-cream"] {
+  --theme-bg: #e6fbf2;
+  --theme-card: #f4fcf9;
+  --theme-input: #f4fcf9;
   --theme-primary: #34d399;
+  --theme-primary-fg: #111827;
   --theme-accent: #a7f3d0;
   --theme-bg-soft: #e6fbf2;
   --theme-text: #0d3a25;
+  --theme-text-muted: #52645c;
   --theme-border: #b6e9d4;
 }
 [data-color-theme="sage"] {
+  --theme-bg: #f3fae2;
+  --theme-card: #f8fcf3;
+  --theme-input: #f8fcf3;
   --theme-primary: #84cc16;
+  --theme-primary-fg: #111827;
   --theme-accent: #bef264;
   --theme-bg-soft: #f3fae2;
   --theme-text: #1f2e02;
+  --theme-text-muted: #585e50;
   --theme-border: #d3ec9a;
 }
 [data-color-theme="butter"] {
+  --theme-bg: #fefce8;
+  --theme-card: #fefdf5;
+  --theme-input: #fefdf5;
   --theme-primary: #fde047;
+  --theme-primary-fg: #111827;
   --theme-accent: #facc15;
   --theme-bg-soft: #fefce8;
   --theme-text: #3f3703;
+  --theme-text-muted: #696651;
   --theme-border: #f7eea3;
 }
 [data-color-theme="peach"] {
+  --theme-bg: #fff4e6;
+  --theme-card: #fefbf8;
+  --theme-input: #fefbf8;
   --theme-primary: #fdba74;
+  --theme-primary-fg: #111827;
   --theme-accent: #fed7aa;
   --theme-bg-soft: #fff4e6;
   --theme-text: #5a2d0a;
+  --theme-text-muted: #756355;
   --theme-border: #fbd9b3;
 }
 
