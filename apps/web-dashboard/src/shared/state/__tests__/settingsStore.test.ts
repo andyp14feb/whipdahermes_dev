@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_NUDGE_PROMPT,
   DEFAULT_TEMPLATE_ACTIONS,
@@ -72,6 +73,99 @@ describe("settingsStore", () => {
       customPrompt: DEFAULT_NUDGE_PROMPT,
     });
     expect(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}").nudgesBySession["machine-1:A"].enabled).toBe(true);
+  });
+
+  it("hydrates templates and nudge settings from the API", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          exists: true,
+          templateActions: [{ id: "remote", label: "remote", payload: "remote payload" }],
+          nudgesBySession: {
+            "machine-1:A": {
+              enabled: true,
+              stableTimeSeconds: 45,
+              maxNudges: 4,
+              nudgesSent: 1,
+              customPrompt: "keep going",
+            },
+          },
+        }),
+        { headers: { "Content-Type": "application/json" } },
+      ),
+    ) as typeof fetch;
+
+    try {
+      await useSettingsStore.getState().hydrateRemoteSettings();
+
+      expect(useSettingsStore.getState().templateActions.some((action) => action.id === "remote")).toBe(true);
+      expect(useSettingsStore.getState().nudgesBySession["machine-1:A"]).toMatchObject({
+        enabled: true,
+        stableTimeSeconds: 45,
+        maxNudges: 4,
+        nudgesSent: 1,
+        customPrompt: "keep going",
+      });
+      expect(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}").nudgesBySession["machine-1:A"].stableTimeSeconds).toBe(45);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("seeds missing API settings from the current browser cache", async () => {
+    const putBodies: unknown[] = [];
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn(async (_input, init) => {
+      if (init?.method === "PUT") {
+        putBodies.push(JSON.parse(String(init.body)));
+        return new Response(JSON.stringify({ ok: true }), {
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      return new Response(
+        JSON.stringify({
+          exists: false,
+          templateActions: [],
+          nudgesBySession: {},
+        }),
+        { headers: { "Content-Type": "application/json" } },
+      );
+    }) as typeof fetch;
+    try {
+      useSettingsStore.setState({
+        templateActions: [
+          ...DEFAULT_TEMPLATE_ACTIONS,
+          { id: "local", label: "local", payload: "local payload" },
+        ],
+        nudgesBySession: {
+          "machine-1:A": {
+            enabled: true,
+            stableTimeSeconds: 30,
+            maxNudges: 2,
+            nudgesSent: 0,
+            customPrompt: DEFAULT_NUDGE_PROMPT,
+          },
+        },
+      });
+
+      await useSettingsStore.getState().hydrateRemoteSettings();
+
+      await waitFor(() => expect(putBodies).toHaveLength(1));
+      expect(putBodies[0]).toMatchObject({
+        templateActions: expect.arrayContaining([
+          expect.objectContaining({ label: "local", payload: "local payload" }),
+        ]),
+        nudgesBySession: {
+          "machine-1:A": expect.objectContaining({
+            enabled: true,
+            stableTimeSeconds: 30,
+          }),
+        },
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 
   it("normalizes and persists OpenAI-compatible provider URLs without duplicate v1", () => {

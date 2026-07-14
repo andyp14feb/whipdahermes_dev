@@ -100,7 +100,7 @@ describe("SettingsPage", () => {
   it("fetches and selects AI models from provider settings", async () => {
     const user = userEvent.setup();
     server.use(
-      http.post("/assess/models", async ({ request }) => {
+      http.post("*/assess/models", async ({ request }) => {
         const body = await request.json() as { base_url: string; provider_type: string; api_key: string };
         expect(body).toEqual({
           base_url: "https://provider.example",

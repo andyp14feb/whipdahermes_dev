@@ -20,6 +20,18 @@ interface ProviderModelsResponse {
   models: ModelOption[];
 }
 
+interface NudgerStatus {
+  running: boolean;
+  task_name: string | null;
+  interval_seconds: number;
+  last_started_at: string | null;
+  last_stopped_at: string | null;
+  last_tick_at: string | null;
+  last_error: string | null;
+  last_checked_sessions: number;
+  last_sent_nudges: number;
+}
+
 interface SettingsPageProps {
   onClose: () => void;
 }
@@ -81,6 +93,9 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
   const [colorThemeConfirmed, setColorThemeConfirmed] = useState(colorTheme);
   const [savedThemeFlash, setSavedThemeFlash] = useState(false);
   const [customPresetName, setCustomPresetName] = useState("");
+  const [nudgerStatus, setNudgerStatus] = useState<NudgerStatus | null>(null);
+  const [nudgerError, setNudgerError] = useState<string | null>(null);
+  const [isNudgerActionPending, setIsNudgerActionPending] = useState(false);
   const scriptRef = useRef<HTMLPreElement>(null);
 
   useEffect(() => {
@@ -178,6 +193,36 @@ python3 src/main.py`;
       setIsFetchingModels(false);
     }
   }, [aiApiKey, aiProviderBaseUrl, aiProviderType, requestTimeoutMs]);
+
+  const fetchNudgerStatus = useCallback(async () => {
+    setNudgerError(null);
+    try {
+      const status = await apiClient<NudgerStatus>("/dashboard/nudger/status");
+      setNudgerStatus(status);
+    } catch (error) {
+      setNudgerError(error instanceof Error ? error.message : "Unable to load nudger status.");
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchNudgerStatus();
+  }, [fetchNudgerStatus]);
+
+  const runNudgerAction = async (action: "start" | "stop") => {
+    setIsNudgerActionPending(true);
+    setNudgerError(null);
+    try {
+      const status = await apiClient<NudgerStatus & { started?: boolean; stopped?: boolean }>(
+        `/dashboard/nudger/${action}`,
+        { method: "POST" },
+      );
+      setNudgerStatus(status);
+    } catch (error) {
+      setNudgerError(error instanceof Error ? error.message : `Unable to ${action} background nudging.`);
+    } finally {
+      setIsNudgerActionPending(false);
+    }
+  };
 
   const handleAddTemplate = () => {
     const label = templateLabel.trim();
@@ -489,6 +534,63 @@ python3 src/main.py`;
             </Button>
           </div>
         </div>
+      </Card>
+
+      <Card className="p-6">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold">Background Nudging</h2>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="secondary" onClick={fetchNudgerStatus}>
+              Refresh
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void runNudgerAction("start")}
+              disabled={isNudgerActionPending || nudgerStatus?.running === true}
+            >
+              Start
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => void runNudgerAction("stop")}
+              disabled={isNudgerActionPending || nudgerStatus?.running === false}
+            >
+              Stop
+            </Button>
+          </div>
+        </div>
+        <div className="grid gap-3 text-sm md:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded border p-3" style={{ borderColor: "var(--theme-border)" }}>
+            <div className="text-xs font-semibold uppercase" style={themedHelperStyle}>Status</div>
+            <div className="mt-1 font-medium">{nudgerStatus?.running ? "Running" : "Stopped"}</div>
+          </div>
+          <div className="rounded border p-3" style={{ borderColor: "var(--theme-border)" }}>
+            <div className="text-xs font-semibold uppercase" style={themedHelperStyle}>Last Tick</div>
+            <div className="mt-1 break-all">{nudgerStatus?.last_tick_at ?? "Never"}</div>
+          </div>
+          <div className="rounded border p-3" style={{ borderColor: "var(--theme-border)" }}>
+            <div className="text-xs font-semibold uppercase" style={themedHelperStyle}>Last Checked</div>
+            <div className="mt-1">{nudgerStatus?.last_checked_sessions ?? 0} sessions</div>
+          </div>
+          <div className="rounded border p-3" style={{ borderColor: "var(--theme-border)" }}>
+            <div className="text-xs font-semibold uppercase" style={themedHelperStyle}>Last Sent</div>
+            <div className="mt-1">{nudgerStatus?.last_sent_nudges ?? 0} nudges</div>
+          </div>
+        </div>
+        <p className={helperClass} style={themedHelperStyle}>
+          Background nudging runs inside the API server, so it continues when every dashboard browser is closed.
+        </p>
+        {nudgerStatus?.last_error && (
+          <p role="alert" className="mt-2 text-xs" style={{ color: "#dc2626" }}>
+            Last error: {nudgerStatus.last_error}
+          </p>
+        )}
+        {nudgerError && (
+          <p role="alert" className="mt-2 text-xs" style={{ color: "#dc2626" }}>
+            {nudgerError}
+          </p>
+        )}
       </Card>
 
       <Card className="p-6">

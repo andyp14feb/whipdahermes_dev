@@ -8,6 +8,19 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
 from fastapi import APIRouter, HTTPException, status
+from modules.dashboard_settings.adapters.http.background_nudger_router import (
+    create_background_nudger_router,
+)
+from modules.dashboard_settings.adapters.http.dashboard_settings_router import (
+    create_dashboard_settings_router,
+)
+from modules.dashboard_settings.adapters.persistence.dashboard_settings_repo import (
+    SQLDashboardSettingsRepo,
+)
+from modules.dashboard_settings.adapters.persistence.nudge_runtime_repo import (
+    SQLNudgeRuntimeRepo,
+)
+from modules.dashboard_settings.application.background_nudger import BackgroundNudger
 from modules.detection.detection import create_detection_module
 from modules.ingest.ingest import register_ingest_module
 from modules.machine_registry.adapters.persistence.machine_repo import (
@@ -47,6 +60,8 @@ machine_repo = SQLMachineRepo(shared_engine)
 machine_service = MachineService(machine_repo)
 
 session_repo = SQLSessionRepo(shared_engine)
+dashboard_settings_repo = SQLDashboardSettingsRepo(shared_engine)
+nudge_runtime_repo = SQLNudgeRuntimeRepo(shared_engine)
 machine_repo.delete_deprecated_local_machine_rows()
 session_repo.delete_deprecated_local_machine_sessions()
 
@@ -118,6 +133,12 @@ register_ingest_module(
 command_repo = SQLCommandRepo(shared_engine)
 command_service = CommandService(command_repo, session_result_updater=session_service)
 app.include_router(create_command_router_module(command_service))
+background_nudger = BackgroundNudger(
+    settings_repo=dashboard_settings_repo,
+    runtime_repo=nudge_runtime_repo,
+    session_repo=session_repo,
+    command_service=command_service,
+)
 
 query_service = QueryService(
     machine_reader=machine_repo,
@@ -129,6 +150,8 @@ query_service = QueryService(
 )
 app.include_router(create_query_api_router(query_service))
 app.include_router(create_assess_router(session_service, None))
+app.include_router(create_dashboard_settings_router(dashboard_settings_repo))
+app.include_router(create_background_nudger_router(background_nudger))
 
 stale_detector = StaleDetector(
     machine_service=machine_service,
@@ -150,12 +173,14 @@ async def start_stale_sweeper() -> None:
             await asyncio.sleep(interval)
 
     _sweep_task = asyncio.create_task(sweep_loop())
+    background_nudger.start()
 
 
 @app.on_event("shutdown")
 async def stop_stale_sweeper() -> None:
     global _sweep_task
 
+    await background_nudger.stop()
     if _sweep_task is None:
         return
     _sweep_task.cancel()

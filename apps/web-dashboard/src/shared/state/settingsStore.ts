@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { TemplateAction } from "../../features/command-panel/commandPanel.types";
+import { apiClient } from "../api-client/apiClient";
 import { normalizeProviderBaseUrl } from "./providerUrl";
 import {
   CUSTOM_THEME_ID,
@@ -16,6 +17,7 @@ import {
 } from "./colorThemes";
 
 export const STORAGE_KEY = "whipai-settings";
+const DASHBOARD_SETTINGS_PATH = "/dashboard/settings";
 
 export type ThemeMode = "light" | "dark";
 export type AiProviderType =
@@ -95,8 +97,15 @@ interface SettingsState extends Settings {
   setNudgeEnabled: (sessionKey: string, enabled: boolean) => void;
   incrementNudgeCount: (sessionKey: string) => void;
   clearNudgeConfig: (sessionKey: string) => void;
+  hydrateRemoteSettings: () => Promise<void>;
   save: () => void;
   reset: () => void;
+}
+
+interface RemoteDashboardSettings {
+  exists: boolean;
+  templateActions?: Partial<TemplateAction>[];
+  nudgesBySession?: Record<string, Partial<NudgeConfig>>;
 }
 
 export const DEFAULT_TEMPLATE_ACTIONS: TemplateAction[] = [
@@ -177,6 +186,21 @@ function normalizeNudges(
 
 function persistSettings(settings: Settings) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+}
+
+function dashboardSettingsPayload(settings: Settings) {
+  return {
+    templateActions: normalizeTemplateActions(settings.templateActions),
+    nudgesBySession: normalizeNudges(settings.nudgesBySession),
+  };
+}
+
+function persistRemoteDashboardSettings(settings: Settings) {
+  void apiClient<{ ok: boolean }>(DASHBOARD_SETTINGS_PATH, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(dashboardSettingsPayload(settings)),
+  }).catch(() => undefined);
 }
 
 function loadFromStorage(): Settings {
@@ -266,6 +290,15 @@ function persistCurrentSettings(get: () => SettingsState) {
     selectedCustomPresetId,
     customColors,
     customColorPresets,
+    templateActions,
+    nudgesBySession,
+  });
+}
+
+function persistCurrentDashboardSettings(get: () => SettingsState) {
+  const { templateActions, nudgesBySession } = get();
+  persistRemoteDashboardSettings({
+    ...defaultSettings,
     templateActions,
     nudgesBySession,
   });
@@ -388,6 +421,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       return withDirtyFlag({ templateActions });
     });
     persistCurrentSettings(get);
+    persistCurrentDashboardSettings(get);
   },
   updateTemplateAction: (id, template) => {
     set((state) =>
@@ -398,6 +432,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       }),
     );
     persistCurrentSettings(get);
+    persistCurrentDashboardSettings(get);
   },
   deleteTemplateAction: (id) => {
     set((state) =>
@@ -406,6 +441,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       }),
     );
     persistCurrentSettings(get);
+    persistCurrentDashboardSettings(get);
   },
   moveTemplateAction: (id, direction) => {
     set((state) => {
@@ -423,6 +459,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       return withDirtyFlag({ templateActions });
     });
     persistCurrentSettings(get);
+    persistCurrentDashboardSettings(get);
   },
   upsertNudgeConfig: (sessionKey, config) => {
     set((state) => {
@@ -441,6 +478,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       });
     });
     persistCurrentSettings(get);
+    persistCurrentDashboardSettings(get);
   },
   setNudgeEnabled: (sessionKey, enabled) => {
     set((state) => {
@@ -462,6 +500,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       });
     });
     persistCurrentSettings(get);
+    persistCurrentDashboardSettings(get);
   },
   incrementNudgeCount: (sessionKey) => {
     set((state) => {
@@ -482,6 +521,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       });
     });
     persistCurrentSettings(get);
+    persistCurrentDashboardSettings(get);
   },
   clearNudgeConfig: (sessionKey) => {
     set((state) => {
@@ -490,6 +530,22 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       return withDirtyFlag({ nudgesBySession: next });
     });
     persistCurrentSettings(get);
+    persistCurrentDashboardSettings(get);
+  },
+  hydrateRemoteSettings: async () => {
+    try {
+      const remote = await apiClient<RemoteDashboardSettings>(DASHBOARD_SETTINGS_PATH);
+      if (!remote.exists) {
+        persistCurrentDashboardSettings(get);
+        return;
+      }
+      const templateActions = normalizeTemplateActions(remote.templateActions);
+      const nudgesBySession = normalizeNudges(remote.nudgesBySession);
+      set({ templateActions, nudgesBySession });
+      persistCurrentSettings(get);
+    } catch {
+      // Local settings remain usable when the API is offline.
+    }
   },
   save: () => {
     const {
@@ -528,11 +584,30 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       templateActions,
       nudgesBySession,
     });
+    persistRemoteDashboardSettings({
+      workerApiUrl,
+      refreshIntervalMs,
+      staleTimeoutSeconds,
+      requestTimeoutMs,
+      aiProviderBaseUrl,
+      aiProviderType,
+      aiApiKey,
+      aiSelectedModel,
+      aiProviderName,
+      themeMode,
+      colorTheme,
+      selectedCustomPresetId,
+      customColors,
+      customColorPresets,
+      templateActions,
+      nudgesBySession,
+    });
     set({ isDirty: false });
     window.location.reload();
   },
   reset: () => {
     persistSettings(defaultSettings);
+    persistRemoteDashboardSettings(defaultSettings);
     set({ ...defaultSettings, isDirty: false });
     window.location.reload();
   },
