@@ -1,9 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { http, HttpResponse } from "msw";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SessionWindow } from "../SessionWindow";
+import * as machineListApi from "../../machine-list/machineList.api";
 import { useAppStore } from "../../../shared/state/appStore";
 import { useSettingsStore } from "../../../shared/state/settingsStore";
 import { server } from "../../../__tests__/setup";
@@ -189,6 +190,63 @@ describe("SessionWindow", () => {
     expect(screen.getByText("/workspace/project")).toBeInTheDocument();
     expect(screen.queryByText("Preview Session")).not.toBeInTheDocument();
     expect(screen.queryByText("mach-1 / sess-1")).not.toBeInTheDocument();
+  });
+
+  it("shows a kill tmux button in the selected session window and queues a kill command", async () => {
+    useAppStore.setState({
+      windows: [
+        { machineId: "mach-1", sessionId: "sess-1", heightPx: 480 },
+      ],
+      activeWindowIndex: 0,
+    });
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    const killSpy = vi.spyOn(machineListApi, "killSession").mockResolvedValue({
+      command_id: "cmd-kill-1",
+      state: "accepted",
+      target: "mach-1/sess-1",
+    });
+
+    server.use(
+      http.get("*/machines", () =>
+        HttpResponse.json({
+          machines: [
+            { machine_id: "mach-1", display_name: "My Machine", last_seen_at: "2026-07-03T10:00:00Z", session_count: 1, is_stale: false },
+          ],
+        }),
+      ),
+      http.get("*/sessions", () =>
+        HttpResponse.json({
+          sessions: [
+            {
+              machine_id: "mach-1",
+              session_id: "sess-1",
+              label: "Dev Session",
+              status: "stable",
+              seconds_since_change: 42,
+              last_seen_at: "2026-07-03T10:00:00Z",
+            },
+          ],
+        }),
+      ),
+    );
+
+    renderWithClient(<SessionWindow index={0} />);
+
+    const killButton = await screen.findByRole("button", { name: "Kill tmux" });
+    expect(killButton).toBeEnabled();
+
+    fireEvent.click(killButton);
+
+    await waitFor(() => {
+      expect(killSpy).toHaveBeenCalledWith("mach-1", "sess-1");
+    });
+    expect(confirmSpy).toHaveBeenCalledWith(
+      'Kill tmux session "sess-1"? This stops the live tmux session, not just the dashboard row.',
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent("Kill request queued (cmd-kill-1).");
+
+    confirmSpy.mockRestore();
+    killSpy.mockRestore();
   });
 
   it("resizes the CLI preview window with the preview resize handle", async () => {

@@ -1,11 +1,11 @@
-import { useCallback, useMemo, useRef } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CommandPanel } from "../command-panel/CommandPanel";
 import { Card } from "../../shared/ui/Card";
 import { SessionPreview } from "./SessionPreview";
 import { useAppStore } from "../../shared/state/appStore";
 import { Button } from "../../shared/ui/Button";
-import { fetchMachines, fetchSessions } from "../machine-list/machineList.api";
+import { fetchMachines, fetchSessions, killSession } from "../machine-list/machineList.api";
 import { useSettingsStore } from "../../shared/state/settingsStore";
 import { StatusSummary } from "../status-summary/StatusSummary";
 import { assessSession, fetchSessionDetail } from "./sessionPreview.api";
@@ -26,6 +26,8 @@ export function SessionWindow({ index }: SessionWindowProps) {
   const removeWindow = useAppStore((s) => s.removeWindow);
   const windowCount = useAppStore((s) => s.windows.length);
   const refreshIntervalMs = useSettingsStore((s) => s.refreshIntervalMs);
+  const queryClient = useQueryClient();
+  const [actionFeedback, setActionFeedback] = useState<string | null>(null);
   const isActive = activeWindowIndex === index;
 
   const sessionsQuery = useQuery({
@@ -110,6 +112,25 @@ export function SessionWindow({ index }: SessionWindowProps) {
     assessMutation.mutate();
   }, [assessMutation, slot.machineId, slot.sessionId]);
 
+  const handleKillSession = useCallback(async () => {
+    if (!slot.machineId || !slot.sessionId) return;
+    if (!window.confirm(`Kill tmux session "${slot.sessionId}"? This stops the live tmux session, not just the dashboard row.`)) {
+      return;
+    }
+
+    try {
+      setActionFeedback(null);
+      const response = await killSession(slot.machineId, slot.sessionId);
+      setActionFeedback(`Kill request queued (${response.command_id}). The next heartbeat confirms the tmux session is gone.`);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["sessions"] }),
+        queryClient.invalidateQueries({ queryKey: ["session-detail", slot.machineId, slot.sessionId] }),
+      ]);
+    } catch (error) {
+      setActionFeedback(error instanceof Error ? error.message : "Failed to request tmux session kill.");
+    }
+  }, [queryClient, slot.machineId, slot.sessionId]);
+
   const data = sessionDetailQuery.data;
 
   return (
@@ -137,6 +158,18 @@ export function SessionWindow({ index }: SessionWindowProps) {
           disabled={!slot.machineId || !slot.sessionId}
         >
           {assessMutation.isPending ? "Assessing..." : "Assess"}
+        </Button>
+        <Button
+          type="button"
+          variant="danger"
+          className="px-2 py-1 text-xs"
+          onClick={(e) => {
+            e.stopPropagation();
+            void handleKillSession();
+          }}
+          disabled={!slot.machineId || !slot.sessionId}
+        >
+          Kill tmux
         </Button>
         {windowCount > 1 && (
           <Button
@@ -178,6 +211,11 @@ export function SessionWindow({ index }: SessionWindowProps) {
           </span>
         )}
       </div>
+      {actionFeedback && (
+        <p role="alert" className="px-1 text-xs text-red-600">
+          {actionFeedback}
+        </p>
+      )}
 
       <div className="grid gap-2 px-1 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
         <label htmlFor={`window-session-selector-${index}`} className="sr-only">
