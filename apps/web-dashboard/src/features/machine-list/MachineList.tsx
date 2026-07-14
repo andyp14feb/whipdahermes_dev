@@ -226,7 +226,7 @@ export function MachineList() {
       sessionsByMachine.set(s.machine_id, list);
     }
 
-    return machines.map((m) => ({
+    return machines.map((m: (typeof machines)[number]) => ({
       ...m,
       sessions: sessionsByMachine.get(m.machine_id) ?? [],
     }));

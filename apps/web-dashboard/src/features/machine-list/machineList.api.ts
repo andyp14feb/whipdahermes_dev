@@ -1,4 +1,5 @@
 import { apiClient } from "../../shared/api-client/apiClient";
+import type { MachinesResponse, SessionsResponse } from "./machineList.types";
 
 export function fetchMachines(): Promise<MachinesResponse> {
   return apiClient<MachinesResponse>("/machines");
@@ -8,6 +9,13 @@ export function fetchSessions(): Promise<SessionsResponse> {
 }
 export function deleteSession(machineId: string, sessionId: string): Promise<void> {
   return apiClient<void>(`/sessions/${encodeURIComponent(machineId)}/${encodeURIComponent(sessionId)}`, { method: "DELETE" });
+}
+export function killSession(machineId: string, sessionId: string): Promise<{ command_id: string; state: string; target: string }> {
+  return apiClient("/command", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ machine_id: machineId, session_id: sessionId, payload: `__whipai__:kill_session:${sessionId}` }),
+  });
 }
 export function deleteMachine(machineId: string): Promise<{ status: string; machine_id: string }> {
   return apiClient(`/machines/${encodeURIComponent(machineId)}`, { method: "DELETE" });

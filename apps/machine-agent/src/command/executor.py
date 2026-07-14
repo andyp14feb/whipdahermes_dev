@@ -76,6 +76,7 @@ TMUX_SESSION_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$")
 TMUX_TARGET_RE = re.compile(r"^[^|]+$")
 CREATE_SESSION_PREFIX = "__whipai__:create_session:"
 RENAME_SESSION_PREFIX = "__whipai__:rename_session:"
+KILL_SESSION_PREFIX = "__whipai__:kill_session:"
 
 
 def _is_valid_tmux_session_name(name: str) -> bool:
@@ -144,6 +145,28 @@ class CommandExecutor:
         logger.info("tmux rename-session succeeded for command_id=%s %s->%s", command.command_id, current_name, new_name)
         return ExecutionResult(command_id=command.command_id, delivered=True, failure_reason=None)
 
+    def _execute_kill_session(self, command: Command) -> ExecutionResult:
+        session_name = command.payload[len(KILL_SESSION_PREFIX) :]
+        if not _is_valid_tmux_target(session_name):
+            reason = f"invalid kill session target: {session_name!r}"
+            logger.warning("kill_session rejected for command_id=%s: %s", command.command_id, reason)
+            return ExecutionResult(command_id=command.command_id, delivered=False, failure_reason=reason)
+        try:
+            subprocess.run(
+                build_tmux_command(["kill-session", "-t", session_name], self.tmux_socket),
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+        except subprocess.CalledProcessError as exc:
+            logger.warning("tmux kill-session failed for command_id=%s: %s", command.command_id, exc)
+            return ExecutionResult(command_id=command.command_id, delivered=False, failure_reason=str(exc))
+        except FileNotFoundError:
+            logger.error("tmux not installed for command_id=%s", command.command_id)
+            return ExecutionResult(command_id=command.command_id, delivered=False, failure_reason="tmux not installed")
+        logger.info("tmux kill-session succeeded for command_id=%s session_name=%s", command.command_id, session_name)
+        return ExecutionResult(command_id=command.command_id, delivered=True, failure_reason=None)
+
     def execute(self, command: Command) -> ExecutionResult:
         if command.payload in MAGIC_CONTROL_PAYLOADS:
             try:
@@ -159,6 +182,9 @@ class CommandExecutor:
 
         if command.payload.startswith(RENAME_SESSION_PREFIX):
             return self._execute_rename_session(command)
+
+        if command.payload.startswith(KILL_SESSION_PREFIX):
+            return self._execute_kill_session(command)
 
         try:
             subprocess.run(

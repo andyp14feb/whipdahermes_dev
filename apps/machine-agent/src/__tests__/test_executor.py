@@ -218,3 +218,32 @@ def test_execute_rename_session_accepts_colon_in_new_name():
         text=True,
         check=True,
     )
+
+
+def test_execute_kill_session_runs_tmux_kill_session():
+    executor = CommandExecutor()
+    command = Command(command_id="cmd-kill", session_id="ignored", payload="__whipai__:kill_session:old")
+
+    with patch("command.executor.subprocess.run") as run:
+        result = executor.execute(command)
+
+    assert result.delivered is True
+    assert result.failure_reason is None
+    run.assert_called_once_with(
+        ["tmux", "kill-session", "-t", "old"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+
+def test_execute_kill_session_rejects_invalid_name():
+    executor = CommandExecutor()
+    command = Command(command_id="cmd-kill-bad", session_id="ignored", payload="__whipai__:kill_session:")
+
+    with patch("command.executor.subprocess.run") as run:
+        result = executor.execute(command)
+
+    assert result.delivered is False
+    assert "invalid kill session target" in (result.failure_reason or "")
+    run.assert_not_called()

@@ -6,7 +6,7 @@ import { useAppStore } from "../../shared/state/appStore";
 import { DEFAULT_NUDGE_PROMPT, useSettingsStore } from "../../shared/state/settingsStore";
 import { Button } from "../../shared/ui/Button";
 import { NudgeConfigModal } from "./NudgeConfigModal";
-import { deleteSession, enqueueRenameTmuxSession } from "./machineList.api";
+import { deleteSession, enqueueRenameTmuxSession, killSession } from "./machineList.api";
 import { sendCommand } from "../command-panel/commandPanel.api";
 
 interface MachineListItemProps {
@@ -113,6 +113,21 @@ export function MachineListItem({ machineId, session }: MachineListItemProps) {
     }
   };
 
+  const handleKillSession = async () => {
+    if (!window.confirm(`Kill tmux session "${session.label}"? This stops the live tmux session, not just the dashboard row.`)) {
+      return;
+    }
+
+    try {
+      setActionFeedback(null);
+      const response = await killSession(machineId, session.session_id);
+      setActionFeedback(`Kill request queued (${response.command_id}). The next heartbeat confirms the tmux session is gone.`);
+      await queryClient.invalidateQueries({ queryKey: ["sessions"] });
+    } catch (error) {
+      setActionFeedback(error instanceof Error ? error.message : "Failed to request tmux session kill.");
+    }
+  };
+
   const handleRenameSession = async () => {
     const newName = window.prompt("Rename tmux session to", session.session_id)?.trim();
     if (!newName) {
@@ -165,6 +180,9 @@ export function MachineListItem({ machineId, session }: MachineListItemProps) {
           </Button>
           <Button type="button" variant="secondary" className="px-2 py-1 text-xs" onClick={handleRenameSession}>
             Rename
+          </Button>
+          <Button type="button" variant="danger" className="px-2 py-1 text-xs" onClick={handleKillSession}>
+            Kill tmux
           </Button>
           <button
             type="button"

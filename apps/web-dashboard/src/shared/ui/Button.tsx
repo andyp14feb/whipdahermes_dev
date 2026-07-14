@@ -1,12 +1,13 @@
 import type { ButtonHTMLAttributes } from "react";
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: "primary" | "secondary";
+  variant?: "primary" | "secondary" | "danger";
 }
 
-const variantClasses = {
+const variantClasses: Record<NonNullable<ButtonProps["variant"]>, string> = {
   primary: "hover:opacity-90 theme-ring",
   secondary: "border hover:opacity-90 theme-ring",
+  danger: "hover:opacity-90 theme-ring",
 };
 
 export function Button({
