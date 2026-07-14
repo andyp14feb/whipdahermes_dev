@@ -17,6 +17,7 @@ const COMMAND_HISTORY_STORAGE_KEY = "whipai.commandHistory";
 const MAX_COMMAND_HISTORY = 20;
 const COMMAND_STATES: CommandStatus[] = ["pending", "accepted", "delivered", "failed"];
 const TERMINAL_STATES: CommandStatus[] = ["delivered", "failed"];
+const COPY_FEEDBACK_MS = 1500;
 
 const MACHINE_CONTROL_ACTIONS = [
   { label: "Start updates", payload: "__whipai__:resume", confirmation: null },
@@ -64,14 +65,33 @@ function persistCommandHistory(commands: CommandEntry[]) {
   }
 }
 
+async function copyText(text: string) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  document.body.appendChild(textarea);
+  textarea.select();
+  document.execCommand("copy");
+  document.body.removeChild(textarea);
+}
+
 export function CommandPanel({ machineId, sessionId }: CommandPanelProps) {
   const [commands, setCommands] = useState<CommandEntry[]>(loadCommandHistory);
   const [canSendControl, setCanSendControl] = useState(true);
   const [machineControlMessage, setMachineControlMessage] = useState<string | null>(null);
   const [machineControlError, setMachineControlError] = useState<string | null>(null);
+  const [copiedCommandId, setCopiedCommandId] = useState<string | null>(null);
   const pollTimers = useRef<Map<string, ReturnType<typeof setInterval>>>(
     new Map(),
   );
+  const copyFeedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const stopPolling = useCallback((commandId: string) => {
     const timer = pollTimers.current.get(commandId);
@@ -137,6 +157,9 @@ export function CommandPanel({ machineId, sessionId }: CommandPanelProps) {
     return () => {
       pollTimers.current.forEach((timer) => clearInterval(timer));
       pollTimers.current.clear();
+      if (copyFeedbackTimer.current) {
+        clearTimeout(copyFeedbackTimer.current);
+      }
     };
   }, []);
 
@@ -165,6 +188,19 @@ export function CommandPanel({ machineId, sessionId }: CommandPanelProps) {
     },
     [handleCommandSent, machineId, sessionId],
   );
+
+  const handleCopy = useCallback((commandId: string, payload: string) => {
+    void (async () => {
+      await copyText(payload);
+      setCopiedCommandId(commandId);
+      if (copyFeedbackTimer.current) {
+        clearTimeout(copyFeedbackTimer.current);
+      }
+      copyFeedbackTimer.current = setTimeout(() => {
+        setCopiedCommandId(null);
+      }, COPY_FEEDBACK_MS);
+    })();
+  }, []);
 
   if (!machineId || !sessionId) {
     return (
@@ -249,35 +285,47 @@ export function CommandPanel({ machineId, sessionId }: CommandPanelProps) {
       {commands.length > 0 && (
         <div className="mt-3 space-y-1.5">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">Command History</h3>
-          <ul className="space-y-1">
-            {commands.map((cmd) => (
-              <li
-                key={cmd.id}
-                className="flex items-center justify-between gap-2 rounded border border-gray-100 px-2 py-1.5 text-xs dark:border-gray-800"
-              >
-                <span className="truncate font-mono text-gray-800 dark:text-gray-100">{cmd.payload}</span>
-                <span className="flex shrink-0 items-center gap-1.5">
-                  <button
-                    type="button"
-                    className="rounded border border-gray-300 px-1.5 py-0.5 text-xs text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-                    onClick={() => handleResend(cmd.payload)}
-                  >
-                    Resend
-                  </button>
-                  {cmd.state === "failed" && cmd.failureReason && (
-                    <span className="text-xs text-red-600">
-                      {cmd.failureReason}
+          <div
+            aria-label="Command history list"
+            className="max-h-56 overflow-y-auto rounded border border-gray-200 bg-white/70 p-1 dark:border-gray-800 dark:bg-gray-950/40"
+          >
+            <ul className="space-y-1">
+              {commands.map((cmd) => (
+                <li
+                  key={cmd.id}
+                  className="flex items-center justify-between gap-2 rounded border border-gray-100 px-2 py-1.5 text-xs dark:border-gray-800"
+                >
+                  <span className="min-w-0 truncate font-mono text-gray-800 dark:text-gray-100">{cmd.payload}</span>
+                  <span className="flex shrink-0 items-center gap-1.5">
+                    <button
+                      type="button"
+                      className="rounded border border-gray-300 px-1.5 py-0.5 text-xs text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                      onClick={() => handleCopy(cmd.id, cmd.payload)}
+                    >
+                      {copiedCommandId === cmd.id ? "Copied" : "Copy"}
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded border border-gray-300 px-1.5 py-0.5 text-xs text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                      onClick={() => handleResend(cmd.payload)}
+                    >
+                      Resend
+                    </button>
+                    {cmd.state === "failed" && cmd.failureReason && (
+                      <span className="text-xs text-red-600">
+                        {cmd.failureReason}
+                      </span>
+                    )}
+                    <span
+                      className={`inline-block rounded-full px-1.5 py-0.5 text-xs font-medium ${stateColor[cmd.state]}`}
+                    >
+                      {cmd.state}
                     </span>
-                  )}
-                  <span
-                    className={`inline-block rounded-full px-1.5 py-0.5 text-xs font-medium ${stateColor[cmd.state]}`}
-                  >
-                    {cmd.state}
                   </span>
-                </span>
-              </li>
-            ))}
-          </ul>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       )}
     </Card>

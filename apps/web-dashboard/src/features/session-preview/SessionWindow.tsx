@@ -161,7 +161,7 @@ export function SessionWindow({ index }: SessionWindowProps) {
         </Button>
         <Button
           type="button"
-          variant="danger"
+          variant="secondary"
           className="px-2 py-1 text-xs"
           onClick={(e) => {
             e.stopPropagation();

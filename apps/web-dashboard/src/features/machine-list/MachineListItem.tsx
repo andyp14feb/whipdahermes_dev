@@ -181,7 +181,7 @@ export function MachineListItem({ machineId, session }: MachineListItemProps) {
           <Button type="button" variant="secondary" className="px-2 py-1 text-xs" onClick={handleRenameSession}>
             Rename
           </Button>
-          <Button type="button" variant="danger" className="px-2 py-1 text-xs" onClick={handleKillSession}>
+          <Button type="button" variant="secondary" className="px-2 py-1 text-xs" onClick={handleKillSession}>
             Kill tmux
           </Button>
           <button

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAppStore } from "../../shared/state/appStore";
 import { useSettingsStore } from "../../shared/state/settingsStore";
@@ -35,6 +35,7 @@ export function SessionPreview({
   const storeSessionId = useAppStore((s) => s.selectedSessionId);
   const refreshIntervalMs = useSettingsStore((s) => s.refreshIntervalMs);
   const lastStatusRef = useRef<StatusValue | null>(null);
+  const [isPreviewSelectionHeld, setIsPreviewSelectionHeld] = useState(false);
 
   const machineId = propMachineId !== undefined ? propMachineId : storeMachineId;
   const sessionId = propSessionId !== undefined ? propSessionId : storeSessionId;
@@ -43,7 +44,7 @@ export function SessionPreview({
     queryKey: ["session-detail", machineId, sessionId],
     queryFn: () => fetchSessionDetail(machineId!, sessionId!),
     enabled: !!machineId && !!sessionId,
-    refetchInterval: refreshIntervalMs,
+    refetchInterval: isPreviewSelectionHeld ? false : refreshIntervalMs,
   });
 
   useEffect(() => {
@@ -97,6 +98,7 @@ export function SessionPreview({
     <PreviewPanel
       session={query.data}
       heightPx={heightPx}
+      onSelectionHoldChange={setIsPreviewSelectionHeld}
     />
   );
 }

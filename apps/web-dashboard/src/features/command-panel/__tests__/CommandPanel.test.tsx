@@ -102,12 +102,33 @@ describe("CommandPanel", () => {
     );
 
     expect(screen.getByText("Command History")).toBeInTheDocument();
+    expect(screen.getByLabelText("Command history list")).toHaveClass("max-h-56", "overflow-y-auto");
     expect(screen.getByText("restore me")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Resend" }));
 
     await waitFor(() => {
       expect(posts).toEqual([{ machine_id: "m-1", session_id: "s-1", payload: "restore me" }]);
     });
+  });
+
+  it("copies a command history payload", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
+    window.localStorage.setItem(
+      "whipai.commandHistory",
+      JSON.stringify([{ id: "persisted-cmd", payload: "copy this command", state: "delivered" }]),
+    );
+
+    renderWithClient(
+      <CommandPanel machineId="m-1" sessionId="s-1" />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Copy" }));
+
+    expect(writeText).toHaveBeenCalledWith("copy this command");
+    expect(screen.getByRole("button", { name: "Copied" })).toBeInTheDocument();
+
+    writeText.mockRestore();
   });
 
   it("resends a history payload to the current active session", async () => {

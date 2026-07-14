@@ -10,11 +10,25 @@ export function fetchSessions(): Promise<SessionsResponse> {
 export function deleteSession(machineId: string, sessionId: string): Promise<void> {
   return apiClient<void>(`/sessions/${encodeURIComponent(machineId)}/${encodeURIComponent(sessionId)}`, { method: "DELETE" });
 }
+
+export function tmuxSessionNameFromPaneTarget(sessionId: string): string {
+  return sessionId.replace(/:\d+\.\d+$/, "");
+}
+
+export function killSessionCommandBody(machineId: string, sessionId: string) {
+  const tmuxSessionName = tmuxSessionNameFromPaneTarget(sessionId);
+  return {
+    machine_id: machineId,
+    session_id: sessionId,
+    payload: `__whipai__:kill_session:${tmuxSessionName}`,
+  };
+}
+
 export function killSession(machineId: string, sessionId: string): Promise<{ command_id: string; state: string; target: string }> {
   return apiClient("/command", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ machine_id: machineId, session_id: sessionId, payload: `__whipai__:kill_session:${sessionId}` }),
+    body: JSON.stringify(killSessionCommandBody(machineId, sessionId)),
   });
 }
 export function deleteMachine(machineId: string): Promise<{ status: string; machine_id: string }> {

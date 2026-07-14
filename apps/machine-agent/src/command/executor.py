@@ -74,6 +74,7 @@ MAGIC_CONTROL_PAYLOADS = {
 
 TMUX_SESSION_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$")
 TMUX_TARGET_RE = re.compile(r"^[^|]+$")
+TMUX_PANE_TARGET_SUFFIX_RE = re.compile(r":\d+\.\d+$")
 CREATE_SESSION_PREFIX = "__whipai__:create_session:"
 RENAME_SESSION_PREFIX = "__whipai__:rename_session:"
 KILL_SESSION_PREFIX = "__whipai__:kill_session:"
@@ -87,6 +88,10 @@ def _is_valid_tmux_session_name(name: str) -> bool:
 
 def _is_valid_tmux_target(name: str) -> bool:
     return bool(name and TMUX_TARGET_RE.match(name))
+
+
+def _tmux_session_name_from_target(target: str) -> str:
+    return TMUX_PANE_TARGET_SUFFIX_RE.sub("", target)
 
 
 def _canonical_control_payload(payload: str) -> str:
@@ -158,9 +163,10 @@ class CommandExecutor:
         return ExecutionResult(command_id=command.command_id, delivered=True, failure_reason=None)
 
     def _execute_kill_session(self, command: Command) -> ExecutionResult:
-        session_name = command.payload[len(KILL_SESSION_PREFIX) :]
+        kill_target = command.payload[len(KILL_SESSION_PREFIX) :]
+        session_name = _tmux_session_name_from_target(kill_target)
         if not _is_valid_tmux_target(session_name):
-            reason = f"invalid kill session target: {session_name!r}"
+            reason = f"invalid kill session target: {kill_target!r}"
             logger.warning("kill_session rejected for command_id=%s: %s", command.command_id, reason)
             return ExecutionResult(command_id=command.command_id, delivered=False, failure_reason=reason)
         try:

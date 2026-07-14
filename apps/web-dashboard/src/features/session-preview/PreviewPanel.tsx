@@ -5,9 +5,10 @@ import type { SessionDetail } from "../../shared/types/contracts";
 interface PreviewPanelProps {
   session: SessionDetail;
   heightPx?: number;
+  onSelectionHoldChange?: (isHeld: boolean) => void;
 }
 
-export function PreviewPanel({ session, heightPx = 480 }: PreviewPanelProps) {
+export function PreviewPanel({ session, heightPx = 480, onSelectionHoldChange }: PreviewPanelProps) {
   return (
     <Card className="flex min-h-0 flex-1 flex-col p-3">
       {session.ai_assessment && (
@@ -30,7 +31,11 @@ export function PreviewPanel({ session, heightPx = 480 }: PreviewPanelProps) {
 
       <div className="min-h-0 flex-1">
         {session.preview ? (
-          <TerminalView output={session.preview} heightPx={heightPx} />
+          <TerminalView
+            output={session.preview}
+            heightPx={heightPx}
+            onSelectionHoldChange={onSelectionHoldChange}
+          />
         ) : (
           <div className="rounded border border-gray-700 bg-[#1e1e1e] p-3">
             <p className="font-mono text-sm text-gray-400">No preview available</p>
