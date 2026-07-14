@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAppStore } from "../../shared/state/appStore";
 import { useSettingsStore } from "../../shared/state/settingsStore";
@@ -12,6 +12,7 @@ interface SessionPreviewProps {
   sessionId?: string | null;
   heightPx?: number;
   onAutoAssess?: () => void;
+  onSelectionHoldChange?: (isHeld: boolean) => void;
 }
 
 const assessStatuses = new Set<StatusValue>(["stuck", "waiting", "waiting_input"]);
@@ -30,6 +31,7 @@ export function SessionPreview({
   sessionId: propSessionId,
   heightPx,
   onAutoAssess,
+  onSelectionHoldChange,
 }: SessionPreviewProps) {
   const storeMachineId = useAppStore((s) => s.selectedMachineId);
   const storeSessionId = useAppStore((s) => s.selectedSessionId);
@@ -46,6 +48,14 @@ export function SessionPreview({
     enabled: !!machineId && !!sessionId,
     refetchInterval: isPreviewSelectionHeld ? false : refreshIntervalMs,
   });
+
+  const handleSelectionHoldChange = useCallback(
+    (isHeld: boolean) => {
+      setIsPreviewSelectionHeld(isHeld);
+      onSelectionHoldChange?.(isHeld);
+    },
+    [onSelectionHoldChange],
+  );
 
   useEffect(() => {
     if (!machineId || !sessionId || !onAutoAssess) {
@@ -98,7 +108,7 @@ export function SessionPreview({
     <PreviewPanel
       session={query.data}
       heightPx={heightPx}
-      onSelectionHoldChange={setIsPreviewSelectionHeld}
+      onSelectionHoldChange={handleSelectionHoldChange}
     />
   );
 }

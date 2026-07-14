@@ -28,6 +28,7 @@ export function SessionWindow({ index }: SessionWindowProps) {
   const refreshIntervalMs = useSettingsStore((s) => s.refreshIntervalMs);
   const queryClient = useQueryClient();
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
+  const [isPreviewSelectionHeld, setIsPreviewSelectionHeld] = useState(false);
   const isActive = activeWindowIndex === index;
 
   const sessionsQuery = useQuery({
@@ -46,7 +47,7 @@ export function SessionWindow({ index }: SessionWindowProps) {
     queryKey: ["session-detail", slot.machineId, slot.sessionId],
     queryFn: () => fetchSessionDetail(slot.machineId!, slot.sessionId!),
     enabled: !!slot.machineId && !!slot.sessionId,
-    refetchInterval: refreshIntervalMs,
+    refetchInterval: isPreviewSelectionHeld ? false : refreshIntervalMs,
   });
 
   const assessMutation = useMutation({
@@ -263,6 +264,7 @@ export function SessionWindow({ index }: SessionWindowProps) {
           sessionId={slot.sessionId}
           heightPx={slot.heightPx}
           onAutoAssess={handleAssess}
+          onSelectionHoldChange={setIsPreviewSelectionHeld}
         />
         <div
           role="separator"

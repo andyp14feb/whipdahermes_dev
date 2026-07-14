@@ -640,14 +640,18 @@ export function MachineList() {
 
             {/* Session list — hidden when collapsed */}
             {!isCollapsed && (
-              <div className="space-y-1">
+              <div className="divide-y divide-gray-200 dark:divide-gray-800">
                 {machine.sessions.length > 0 ? (
                   machine.sessions.map((session) => (
-                    <MachineListItem
+                    <div
                       key={`${machine.machine_id}:${session.session_id}`}
-                      machineId={machine.machine_id}
-                      session={session}
-                    />
+                      className="py-1 first:pt-0 last:pb-0"
+                    >
+                      <MachineListItem
+                        machineId={machine.machine_id}
+                        session={session}
+                      />
+                    </div>
                   ))
                 ) : (
                   <p className="text-xs text-gray-400 dark:text-gray-400">

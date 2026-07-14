@@ -258,6 +258,27 @@ def test_execute_kill_session_converts_pane_target_to_session_name():
     )
 
 
+def test_execute_kill_session_accepts_split_control_namespace():
+    executor = CommandExecutor()
+    command = Command(
+        command_id="cmd-kill-split",
+        session_id="ignored",
+        payload="__w\nhipai__:kill_session:testtobekilled",
+    )
+
+    with patch("command.executor.subprocess.run") as run:
+        result = executor.execute(command)
+
+    assert result.delivered is True
+    assert result.failure_reason is None
+    run.assert_called_once_with(
+        ["tmux", "kill-session", "-t", "testtobekilled"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+
 def test_execute_kill_session_accepts_markdown_alias():
     executor = CommandExecutor()
     command = Command(command_id="cmd-kill-alias", session_id="ignored", payload="**whipai**:kill_session:old")

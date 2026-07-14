@@ -75,6 +75,7 @@ MAGIC_CONTROL_PAYLOADS = {
 TMUX_SESSION_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$")
 TMUX_TARGET_RE = re.compile(r"^[^|]+$")
 TMUX_PANE_TARGET_SUFFIX_RE = re.compile(r":\d+\.\d+$")
+CONTROL_PAYLOAD_WHITESPACE_RE = re.compile(r"\s+")
 CREATE_SESSION_PREFIX = "__whipai__:create_session:"
 RENAME_SESSION_PREFIX = "__whipai__:rename_session:"
 KILL_SESSION_PREFIX = "__whipai__:kill_session:"
@@ -95,8 +96,13 @@ def _tmux_session_name_from_target(target: str) -> str:
 
 
 def _canonical_control_payload(payload: str) -> str:
-    if payload.startswith("**whipai**:"):
-        return f"{CONTROL_NAMESPACE_PREFIX}{payload[len('**whipai**:'):]}"
+    stripped = payload.strip()
+    compact = CONTROL_PAYLOAD_WHITESPACE_RE.sub("", stripped)
+    candidate = compact if _is_control_payload(compact) else stripped
+    if candidate.startswith("**whipai**:"):
+        return f"{CONTROL_NAMESPACE_PREFIX}{candidate[len('**whipai**:'):]}"
+    if candidate.startswith(CONTROL_NAMESPACE_PREFIX):
+        return candidate
     return payload
 
 
