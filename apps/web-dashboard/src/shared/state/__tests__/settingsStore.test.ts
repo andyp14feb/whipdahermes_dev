@@ -49,6 +49,21 @@ describe("settingsStore", () => {
     expect(stored.templateActions.some((action: { label: string }) => action.label === "status")).toBe(true);
   });
 
+  it("moves templates and preserves the saved order after normalization", () => {
+    useSettingsStore.getState().moveTemplateAction("continue", "up");
+
+    expect(useSettingsStore.getState().templateActions.map((action) => action.id).slice(0, 2)).toEqual([
+      "continue",
+      "yes",
+    ]);
+
+    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
+    expect(stored.templateActions.map((action: { id: string }) => action.id).slice(0, 2)).toEqual([
+      "continue",
+      "yes",
+    ]);
+  });
+
   it("toggles nudge config with a default prompt", () => {
     useSettingsStore.getState().setNudgeEnabled("machine-1:A", true);
 

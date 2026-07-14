@@ -53,6 +53,7 @@ describe("SettingsPage", () => {
       addTemplateAction: useSettingsStore.getState().addTemplateAction,
       updateTemplateAction: useSettingsStore.getState().updateTemplateAction,
       deleteTemplateAction: useSettingsStore.getState().deleteTemplateAction,
+      moveTemplateAction: useSettingsStore.getState().moveTemplateAction,
       upsertNudgeConfig: useSettingsStore.getState().upsertNudgeConfig,
       setNudgeEnabled: useSettingsStore.getState().setNudgeEnabled,
       incrementNudgeCount: useSettingsStore.getState().incrementNudgeCount,
@@ -193,6 +194,28 @@ describe("SettingsPage", () => {
       expect(stored.templateActions.some((action: { label: string; payload: string }) => action.label === "custom" && action.payload === "do the thing")).toBe(true);
       expect(stored.templateActions.some((action: { id: string }) => action.id === "yes")).toBe(true);
     });
+  });
+
+  it("shows manual arrange controls for quick templates and reorders them", async () => {
+    const user = userEvent.setup();
+    render(<SettingsPage onClose={() => undefined} />);
+
+    const moveUpButtons = screen.getAllByRole("button", { name: "Move up" });
+    const moveDownButtons = screen.getAllByRole("button", { name: "Move down" });
+
+    expect(moveUpButtons[0]).toBeDisabled();
+    expect(moveDownButtons.at(-1)).toBeDisabled();
+
+    await user.click(moveUpButtons[1]);
+
+    expect(useSettingsStore.getState().templateActions.map((action) => action.id).slice(0, 2)).toEqual([
+      "continue",
+      "yes",
+    ]);
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}").templateActions.map((action: { id: string }) => action.id).slice(0, 2)).toEqual([
+      "continue",
+      "yes",
+    ]);
   });
 
   it("explains that dashboard fetches use the Vite proxy, not the worker URL", () => {

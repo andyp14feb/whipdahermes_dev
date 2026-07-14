@@ -67,6 +67,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
     addTemplateAction,
     updateTemplateAction,
     deleteTemplateAction,
+    moveTemplateAction,
     save,
     reset,
   } = useSettingsStore();
@@ -425,8 +426,28 @@ python3 src/main.py`;
       <Card className="p-6">
         <h2 className="mb-4 text-lg font-semibold">Quick Templates</h2>
         <div className="space-y-3">
-          {templateActions.map((template) => (
-            <div key={template.id} className="grid gap-2 rounded border p-3 md:grid-cols-[1fr_2fr_auto]" style={{ borderColor: "var(--theme-border)" }}>
+          {templateActions.map((template, index) => (
+            <div key={template.id} className="grid gap-2 rounded border p-3 md:grid-cols-[auto_1fr_2fr_auto]" style={{ borderColor: "var(--theme-border)" }}>
+              <div className="flex flex-wrap items-center gap-1 md:flex-col md:items-stretch">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="px-2 py-1 text-xs"
+                  onClick={() => moveTemplateAction(template.id, "up")}
+                  disabled={index === 0}
+                >
+                  Move up
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="px-2 py-1 text-xs"
+                  onClick={() => moveTemplateAction(template.id, "down")}
+                  disabled={index === templateActions.length - 1}
+                >
+                  Move down
+                </Button>
+              </div>
               <input
                 aria-label={`Template label ${template.label}`}
                 className={fieldClass}

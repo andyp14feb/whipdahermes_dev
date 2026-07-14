@@ -77,6 +77,8 @@ TMUX_TARGET_RE = re.compile(r"^[^|]+$")
 CREATE_SESSION_PREFIX = "__whipai__:create_session:"
 RENAME_SESSION_PREFIX = "__whipai__:rename_session:"
 KILL_SESSION_PREFIX = "__whipai__:kill_session:"
+CONTROL_NAMESPACE_PREFIX = "__whipai__:"
+CONTROL_NAMESPACE_ALIASES = ("__whipai__:", "**whipai**:")
 
 
 def _is_valid_tmux_session_name(name: str) -> bool:
@@ -85,6 +87,16 @@ def _is_valid_tmux_session_name(name: str) -> bool:
 
 def _is_valid_tmux_target(name: str) -> bool:
     return bool(name and TMUX_TARGET_RE.match(name))
+
+
+def _canonical_control_payload(payload: str) -> str:
+    if payload.startswith("**whipai**:"):
+        return f"{CONTROL_NAMESPACE_PREFIX}{payload[len('**whipai**:'):]}"
+    return payload
+
+
+def _is_control_payload(payload: str) -> bool:
+    return any(payload.startswith(prefix) for prefix in CONTROL_NAMESPACE_ALIASES)
 
 
 class CommandExecutor:
@@ -168,23 +180,37 @@ class CommandExecutor:
         return ExecutionResult(command_id=command.command_id, delivered=True, failure_reason=None)
 
     def execute(self, command: Command) -> ExecutionResult:
-        if command.payload in MAGIC_CONTROL_PAYLOADS:
+        payload = _canonical_control_payload(command.payload)
+        effective_command = command
+        if payload != command.payload:
+            effective_command = Command(
+                command_id=command.command_id,
+                session_id=command.session_id,
+                payload=payload,
+            )
+
+        if payload in MAGIC_CONTROL_PAYLOADS:
             try:
-                MAGIC_CONTROL_PAYLOADS[command.payload]()
-                logger.info("Control command '%s' applied for command_id=%s", command.payload, command.command_id)
+                MAGIC_CONTROL_PAYLOADS[payload]()
+                logger.info("Control command '%s' applied for command_id=%s", payload, command.command_id)
                 return ExecutionResult(command_id=command.command_id, delivered=True, failure_reason=None)
             except Exception as exc:
-                logger.warning("Control command '%s' failed for command_id=%s: %s", command.payload, command.command_id, exc)
+                logger.warning("Control command '%s' failed for command_id=%s: %s", payload, command.command_id, exc)
                 return ExecutionResult(command_id=command.command_id, delivered=False, failure_reason=str(exc))
 
-        if command.payload.startswith(CREATE_SESSION_PREFIX):
-            return self._execute_create_session(command)
+        if payload.startswith(CREATE_SESSION_PREFIX):
+            return self._execute_create_session(effective_command)
 
-        if command.payload.startswith(RENAME_SESSION_PREFIX):
-            return self._execute_rename_session(command)
+        if payload.startswith(RENAME_SESSION_PREFIX):
+            return self._execute_rename_session(effective_command)
 
-        if command.payload.startswith(KILL_SESSION_PREFIX):
-            return self._execute_kill_session(command)
+        if payload.startswith(KILL_SESSION_PREFIX):
+            return self._execute_kill_session(effective_command)
+
+        if _is_control_payload(command.payload):
+            reason = f"unknown WhipAI control payload: {payload!r}"
+            logger.warning("Control command rejected for command_id=%s: %s", command.command_id, reason)
+            return ExecutionResult(command_id=command.command_id, delivered=False, failure_reason=reason)
 
         try:
             subprocess.run(

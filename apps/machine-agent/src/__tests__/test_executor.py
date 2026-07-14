@@ -237,6 +237,23 @@ def test_execute_kill_session_runs_tmux_kill_session():
     )
 
 
+def test_execute_kill_session_accepts_markdown_alias():
+    executor = CommandExecutor()
+    command = Command(command_id="cmd-kill-alias", session_id="ignored", payload="**whipai**:kill_session:old")
+
+    with patch("command.executor.subprocess.run") as run:
+        result = executor.execute(command)
+
+    assert result.delivered is True
+    assert result.failure_reason is None
+    run.assert_called_once_with(
+        ["tmux", "kill-session", "-t", "old"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+
 def test_execute_kill_session_rejects_invalid_name():
     executor = CommandExecutor()
     command = Command(command_id="cmd-kill-bad", session_id="ignored", payload="__whipai__:kill_session:")
@@ -246,4 +263,16 @@ def test_execute_kill_session_rejects_invalid_name():
 
     assert result.delivered is False
     assert "invalid kill session target" in (result.failure_reason or "")
+    run.assert_not_called()
+
+
+def test_execute_unknown_whipai_control_payload_is_not_sent_to_tmux():
+    executor = CommandExecutor()
+    command = Command(command_id="cmd-unknown-control", session_id="sess:0.0", payload="__whipai__:missing_action")
+
+    with patch("command.executor.subprocess.run") as run:
+        result = executor.execute(command)
+
+    assert result.delivered is False
+    assert "unknown WhipAI control payload" in (result.failure_reason or "")
     run.assert_not_called()

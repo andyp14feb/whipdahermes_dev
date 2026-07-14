@@ -90,6 +90,7 @@ interface SettingsState extends Settings {
   addTemplateAction: (template: Omit<TemplateAction, "id">) => void;
   updateTemplateAction: (id: string, template: Omit<TemplateAction, "id">) => void;
   deleteTemplateAction: (id: string) => void;
+  moveTemplateAction: (id: string, direction: "up" | "down") => void;
   upsertNudgeConfig: (sessionKey: string, config: Omit<NudgeConfig, "nudgesSent" | "customPrompt"> & { nudgesSent?: number; customPrompt?: string }) => void;
   setNudgeEnabled: (sessionKey: string, enabled: boolean) => void;
   incrementNudgeCount: (sessionKey: string) => void;
@@ -135,11 +136,13 @@ function normalizeTemplateActions(actions: Partial<TemplateAction>[] | undefined
     .map((action) => ({ ...action }));
   const byId = new Map<string, TemplateAction>();
 
-  for (const action of DEFAULT_TEMPLATE_ACTIONS) {
+  for (const action of validActions) {
     byId.set(action.id, { ...action });
   }
-  for (const action of validActions) {
-    byId.set(action.id, action);
+  for (const action of DEFAULT_TEMPLATE_ACTIONS) {
+    if (!byId.has(action.id)) {
+      byId.set(action.id, { ...action });
+    }
   }
 
   return Array.from(byId.values());
@@ -402,6 +405,23 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         templateActions: state.templateActions.filter((action) => action.id !== id),
       }),
     );
+    persistCurrentSettings(get);
+  },
+  moveTemplateAction: (id, direction) => {
+    set((state) => {
+      const currentIndex = state.templateActions.findIndex((action) => action.id === id);
+      if (currentIndex < 0) {
+        return state;
+      }
+      const nextIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+      if (nextIndex < 0 || nextIndex >= state.templateActions.length) {
+        return state;
+      }
+      const templateActions = [...state.templateActions];
+      const [moved] = templateActions.splice(currentIndex, 1);
+      templateActions.splice(nextIndex, 0, moved);
+      return withDirtyFlag({ templateActions });
+    });
     persistCurrentSettings(get);
   },
   upsertNudgeConfig: (sessionKey, config) => {
