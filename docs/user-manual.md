@@ -2,7 +2,7 @@
 
 ## Background
 
-WhipAI, also called Hermes Control Plane, is a human-in-the-loop dashboard for monitoring and controlling multiple tmux-based AI coding sessions.
+WhipAI, also called Hermes Control Plane, is a human-in-the-loop dashboard for monitoring and controlling multiple tmux- and atch-based AI coding sessions.
 
 The original workflow relied on manually checking terminals, local scripts, cron-style checks, and ad hoc notifications. That made it hard to answer simple operational questions:
 
@@ -13,7 +13,7 @@ The original workflow relied on manually checking terminals, local scripts, cron
 - What is the latest terminal output?
 - How can an operator send a quick command without SSH-ing into every machine?
 
-WhipAI solves this by putting a small machine agent on each worker machine. Each agent captures tmux panes, sends heartbeat snapshots to a central API server, and polls the server for commands. The web dashboard reads from the API server and lets the operator inspect sessions, send commands, and manage common workflows from one place.
+WhipAI solves this by putting a small machine agent on each worker machine. Each agent captures tmux panes and/or atch log previews, sends heartbeat snapshots to a central API server, and polls the server for commands. The web dashboard reads from the API server and lets the operator inspect sessions, send commands, and manage common workflows from one place.
 
 ## Core Concepts
 
@@ -31,21 +31,21 @@ It is the central control plane. Machine agents connect to it over HTTP.
 
 A client machine, also called a worker machine, runs:
 
-- One or more tmux sessions.
+- One or more tmux and/or atch sessions.
 - The `machine-agent` process.
 
-The worker machine owns the local tmux socket. It captures tmux pane output and executes tmux commands locally.
+The worker machine owns the local tmux socket and local atch sessions. It captures tmux pane output or bounded atch log previews and executes commands locally.
 
 ### Machine Agent
 
 The machine agent is a Python process that runs on every worker machine. It has two loops:
 
-- Heartbeat loop: capture tmux panes, parse session state, and post the latest data to the API.
-- Command loop: poll the API for pending commands, execute them through tmux, and report delivery.
+- Heartbeat loop: capture configured session backends, parse session state, and post the latest data to the API.
+- Command loop: poll the API for pending commands, execute them through the relevant backend, and report delivery.
 
 ### Heartbeat
 
-A heartbeat is the latest snapshot from one machine. It includes the machine ID and a list of observed tmux sessions with preview text, working directory, idle time, diff percentage, and capture timestamp.
+A heartbeat is the latest snapshot from one machine. It includes the machine ID and a list of observed sessions with backend type, preview text, working directory when available, idle time, diff percentage, and capture timestamp.
 
 ### Command
 
@@ -55,7 +55,7 @@ A command is an operator instruction queued in the API and later executed by the
 - `continue`
 - `retry`
 - Free-form text typed by the operator.
-- Internal control payloads such as pause, resume, restart, shutdown, create tmux session, or rename tmux session.
+- Internal control payloads such as pause, resume, restart, shutdown, create a tmux or atch session, or rename a tmux session.
 
 ### Dashboard
 
@@ -87,8 +87,8 @@ Recommended:
 
 Required:
 
-- Linux or another environment where tmux is available.
-- tmux installed.
+- Linux or another environment where the configured session backend is available.
+- tmux installed when monitoring tmux; atch installed when monitoring atch.
 - Python 3.12 or newer if running manually.
 - Git if cloning the repository directly.
 - Network access to the API server URL.
@@ -100,7 +100,7 @@ Optional:
 
 ### Security Assumptions
 
-WhipAI can send text into tmux sessions. Treat the API server and dashboard as trusted internal tools.
+WhipAI can send text into tmux and atch sessions. Treat the API server and dashboard as trusted internal tools.
 
 Do not expose the API server directly to the public internet without adding authentication, authorization, TLS, and access controls.
 
@@ -227,6 +227,7 @@ On Debian or Ubuntu:
 ```bash
 sudo apt update
 sudo apt install -y tmux python3.12 python3.12-venv git curl
+# Install atch as well when using the atch backend.
 ```
 
 Create at least one tmux session to monitor:
@@ -249,6 +250,7 @@ export API_URL="http://192.168.1.100:8000"
 export MACHINE_ID="worker-01"
 export INTERVAL=2
 export COMMAND_POLL_INTERVAL=5
+export SESSION_BACKENDS="tmux,atch"
 
 python3 src/main.py
 ```
@@ -273,6 +275,7 @@ Environment=API_URL=http://192.168.1.100:8000
 Environment=MACHINE_ID=worker-01
 Environment=INTERVAL=2
 Environment=COMMAND_POLL_INTERVAL=5
+Environment=SESSION_BACKENDS=tmux,atch
 ExecStart=/home/andy/whipdahermes_dev/apps/machine-agent/.venv/bin/python src/main.py
 Restart=always
 RestartSec=5
@@ -317,6 +320,7 @@ docker run -d \
   -e API_URL="http://192.168.1.100:8000" \
   -e INTERVAL=2 \
   -e COMMAND_POLL_INTERVAL=5 \
+  -e SESSION_BACKENDS="tmux,atch" \
   -e TMUX_SOCKET="/host-tmux/default" \
   -v /tmp/tmux-1000:/host-tmux \
   whipai-machine-agent
@@ -340,6 +344,7 @@ tmux display-message -p '#{socket_path}'
 | `MACHINE_ID` | No | hostname | Unique machine identifier shown in the dashboard. |
 | `INTERVAL` | No | `2` | Seconds between heartbeat cycles. |
 | `COMMAND_POLL_INTERVAL` | No | `5` | Seconds between command polling cycles. |
+| `SESSION_BACKENDS` | No | `tmux` | Comma-separated backends to monitor: `tmux`, `atch`, or both. |
 | `TMUX_SOCKET` | No | `/tmp/tmux-<uid>/default` | tmux socket path used by the agent. |
 
 ### API Server
@@ -428,7 +433,7 @@ Use:
 
 ### CLI Preview
 
-The CLI preview shows the latest captured text from the selected tmux pane. It is refreshed through API polling.
+The CLI preview shows the latest captured text from the selected tmux pane or atch log. It is refreshed through API polling.
 
 The preview is not a live terminal emulator. It is a recent snapshot sent by the machine agent during heartbeat.
 
@@ -440,13 +445,15 @@ To send a custom command:
 2. Type a command in the `Command Actions` text area.
 3. Click `Send` or press `Ctrl+Enter`.
 
-The machine agent executes the payload with:
+The machine agent executes the payload with the selected backend:
 
 ```text
 tmux send-keys -t <session_id> <payload> Enter
+# or
+printf '%s\n' "$payload" | atch push <session_name>
 ```
 
-Use caution. The command is sent as input to the selected tmux session.
+Use caution. The command is sent as input to the selected session.
 
 ### Template Actions
 
@@ -467,7 +474,7 @@ Settings -> Quick Templates
 Each template has:
 
 - Label: button text shown in the dashboard.
-- Payload: text sent to the tmux session.
+- Payload: text sent to the selected session.
 
 ### Command History
 
@@ -501,6 +508,10 @@ The dashboard asks for a session name. If blank, it uses a generated name. The r
 
 The new session appears after the next successful heartbeat.
 
+### Create, Nudge, or Kill an atch Session
+
+Set `SESSION_BACKENDS=tmux,atch` on the worker agent, then use `New atch` on the machine card. The dashboard labels every row as `TMUX` or `ATCH` and offers commands, nudge configuration, and the appropriate kill action for both backends. Rename is tmux-only because atch does not provide a comparable rename operation.
+
 ### Rename a tmux Session
 
 On a session row, click `Rename`.
@@ -519,13 +530,13 @@ The name must start with a letter or number.
 
 Click the remove button on a machine card.
 
-This removes the machine record from the API database, but it does not stop the machine agent and does not kill tmux sessions. If the machine agent is still running, the machine may reappear on the next heartbeat.
+This removes the machine record from the API database, but it does not stop the machine agent and does not kill tmux or atch sessions. If the machine agent is still running, the machine may reappear on the next heartbeat.
 
 ### Remove a Session from the Displayed List
 
 Click the remove button on a session row.
 
-This removes the session from the API database, but it does not kill the tmux session. If the tmux session still exists, it may reappear on the next heartbeat.
+This removes the session from the API database, but it does not kill the underlying session. If it still exists, it may reappear on the next heartbeat.
 
 ### Cleanup Stale Sessions
 
@@ -692,12 +703,13 @@ Common causes:
 - Machine agent is not running.
 - tmux is not installed.
 - tmux socket path is wrong.
+- atch is not installed when `SESSION_BACKENDS` includes `atch`.
 
 ### Machine Shows as Stale
 
 A machine is stale when the API server has not received a heartbeat within `STALE_TIMEOUT_SECONDS`.
 
-Checks:
+For tmux, check:
 
 - Is the agent running?
 - Can the agent reach the API?
@@ -732,6 +744,8 @@ Common causes:
 - Agent runs as a different user than the tmux sessions.
 - `TMUX_SOCKET` points at the wrong socket.
 - Docker container cannot access the host tmux socket mount.
+- `SESSION_BACKENDS` does not include the backend you expect.
+- For atch, `atch list` must show the running session and `atch tail <session>` must be readable by the agent user.
 
 ### Commands Stay Pending or Accepted
 
@@ -741,16 +755,15 @@ Checks:
 - Confirm `COMMAND_POLL_INTERVAL` is set.
 - Check agent logs for command fetch or delivery errors.
 - Confirm the selected session still exists.
-- Confirm the tmux target name matches the session shown in the dashboard.
+- Confirm the selected session still exists in its backend (`tmux list-panes -a` or `atch list`).
 
 ### Command Fails
 
 Common causes:
 
-- tmux session was closed after the dashboard snapshot.
-- tmux command returned a non-zero exit code.
-- tmux binary is not installed.
-- The agent cannot access the tmux socket.
+- The session was closed after the dashboard snapshot.
+- The tmux or atch command returned a non-zero exit code.
+- The required backend binary is not installed or accessible to the agent user.
 - Payload is invalid for a control command.
 
 ### CLI Preview Is Delayed
