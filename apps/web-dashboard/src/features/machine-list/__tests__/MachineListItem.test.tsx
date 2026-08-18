@@ -130,4 +130,13 @@ describe("MachineListItem", () => {
     expect(useSettingsStore.getState().nudgesBySession["machine-1:A"].nudgesSent).toBe(0);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
+
+  it("labels atch sessions and limits them to monitoring actions during phase 1", () => {
+    renderWithClient(<MachineListItem machineId="machine-1" session={{ ...session, backend: "atch" }} />);
+
+    expect(screen.getByText("ATCH")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Nudge this")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Rename" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Kill tmux" })).not.toBeInTheDocument();
+  });
 });

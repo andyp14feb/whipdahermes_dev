@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 class SessionSnapshot(BaseModel):
     session_id: str
+    backend: str = "tmux"
     label: str
     preview: str | None = None
     seconds_since_change: int

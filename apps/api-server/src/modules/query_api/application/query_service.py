@@ -84,6 +84,7 @@ class QueryService:
                 {
                     "machine_id": session.machine_id,
                     "session_id": session.session_id,
+                    "backend": session.backend,
                     "label": session.label,
                     "status": status,
                     "seconds_since_change": self._seconds_since_change(session, machine),
@@ -106,6 +107,7 @@ class QueryService:
         return {
             "machine_id": session.machine_id,
             "session_id": session.session_id,
+            "backend": session.backend,
             "label": session.label,
             "status": status,
             "seconds_since_change": self._seconds_since_change(session, machine),

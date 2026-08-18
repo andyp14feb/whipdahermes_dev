@@ -167,6 +167,7 @@ class TestSQLSessionRepo:
 
         fetched = repo.get("vm-1", "s-1")
         assert fetched is not None
+        assert fetched.backend == "tmux"
         assert fetched.ai_assessment is None
 
         repo.update_assessment(
@@ -183,6 +184,7 @@ class TestSQLSessionRepo:
         conn = sqlite3.connect(db_path)
         columns = {row[1] for row in conn.execute("PRAGMA table_info(sessions)")}
         conn.close()
+        assert "backend" in columns
         db_path.unlink(missing_ok=True)
 
         assert {"ai_assessment", "ai_assessment_reason", "ai_assessed_at"} <= columns

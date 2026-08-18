@@ -8,6 +8,7 @@ from functools import partial
 
 from heartbeat.heartbeat_client import HeartbeatClient
 from heartbeat.scheduler import HeartbeatScheduler
+from capture.atch_capture import capture_sessions as capture_atch_sessions
 from capture.tmux_capture import capture_panes
 from parse.capture_parser import parse_sessions
 from command.command_poller import CommandPoller
@@ -26,7 +27,14 @@ def main() -> None:
     control_state.start_updates()
 
     client = HeartbeatClient(config.api_url)
-    capture_fn = partial(capture_panes, config.tmux_socket)
+    capture_fns = []
+    if "tmux" in config.session_backends:
+        capture_fns.append(partial(capture_panes, config.tmux_socket))
+    if "atch" in config.session_backends:
+        capture_fns.append(capture_atch_sessions)
+
+    def capture_fn():
+        return [session for provider in capture_fns for session in provider()]
     heartbeat_scheduler = HeartbeatScheduler(config, client, capture_fn, parse_sessions)
 
     poller = CommandPoller(config.api_url)

@@ -70,6 +70,6 @@ def capture_panes(tmux_socket: str | None = None) -> list[dict]:
             logger.error("Failed to capture pane %s: %s", target, exc)
             continue
 
-        panes.append({"target": target, "text": capture.stdout, "cwd": cwd.strip() or None})
+        panes.append({"backend": "tmux", "target": target, "text": capture.stdout, "cwd": cwd.strip() or None})
 
     return panes

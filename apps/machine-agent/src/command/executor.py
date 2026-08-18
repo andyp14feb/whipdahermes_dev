@@ -81,6 +81,7 @@ RENAME_SESSION_PREFIX = "__whipai__:rename_session:"
 KILL_SESSION_PREFIX = "__whipai__:kill_session:"
 CONTROL_NAMESPACE_PREFIX = "__whipai__:"
 CONTROL_NAMESPACE_ALIASES = ("__whipai__:", "**whipai**:")
+TMUX_SESSION_ID_PREFIX = "tmux:"
 
 
 def _is_valid_tmux_session_name(name: str) -> bool:
@@ -93,6 +94,13 @@ def _is_valid_tmux_target(name: str) -> bool:
 
 def _tmux_session_name_from_target(target: str) -> str:
     return TMUX_PANE_TARGET_SUFFIX_RE.sub("", target)
+
+
+def _tmux_target_from_session_id(session_id: str) -> str:
+    """Accept new backend-qualified IDs while remaining compatible with legacy IDs."""
+    if session_id.startswith(TMUX_SESSION_ID_PREFIX):
+        return session_id[len(TMUX_SESSION_ID_PREFIX) :]
+    return session_id
 
 
 def _canonical_control_payload(payload: str) -> str:
@@ -144,6 +152,7 @@ class CommandExecutor:
             logger.warning("rename_session rejected for command_id=%s: %s", command.command_id, reason)
             return ExecutionResult(command_id=command.command_id, delivered=False, failure_reason=reason)
         current_name, new_name = parts
+        current_name = _tmux_target_from_session_id(current_name)
         if not _is_valid_tmux_target(current_name):
             reason = f"invalid current session target: {current_name!r}"
             logger.warning("rename_session rejected for command_id=%s: %s", command.command_id, reason)
@@ -170,7 +179,7 @@ class CommandExecutor:
 
     def _execute_kill_session(self, command: Command) -> ExecutionResult:
         kill_target = command.payload[len(KILL_SESSION_PREFIX) :]
-        session_name = _tmux_session_name_from_target(kill_target)
+        session_name = _tmux_session_name_from_target(_tmux_target_from_session_id(kill_target))
         if not _is_valid_tmux_target(session_name):
             reason = f"invalid kill session target: {kill_target!r}"
             logger.warning("kill_session rejected for command_id=%s: %s", command.command_id, reason)
@@ -226,7 +235,7 @@ class CommandExecutor:
 
         try:
             subprocess.run(
-                build_tmux_command(["send-keys", "-t", command.session_id, command.payload, "Enter"], self.tmux_socket),
+                build_tmux_command(["send-keys", "-t", _tmux_target_from_session_id(command.session_id), command.payload, "Enter"], self.tmux_socket),
                 capture_output=True,
                 text=True,
                 check=True,

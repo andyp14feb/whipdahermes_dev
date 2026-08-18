@@ -75,6 +75,7 @@ class SessionService:
             session = Session(
                 session_id=snap.session_id,
                 machine_id=str(machine_id),
+                backend=snap.backend,
                 label=snap.label,
                 status=initial_status,
                 seconds_since_change=seconds_since_change,

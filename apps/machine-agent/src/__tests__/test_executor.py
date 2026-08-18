@@ -39,6 +39,22 @@ def test_execute_uses_configured_tmux_socket():
     )
 
 
+def test_execute_unwraps_backend_qualified_tmux_session_id():
+    executor = CommandExecutor()
+    command = Command(command_id="cmd-qualified", session_id="tmux:sess:0.0", payload="continue")
+
+    with patch("command.executor.subprocess.run") as run:
+        result = executor.execute(command)
+
+    assert result.delivered is True
+    run.assert_called_once_with(
+        ["tmux", "send-keys", "-t", "sess:0.0", "continue", "Enter"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+
 def test_execute_reports_called_process_error():
     executor = CommandExecutor()
     command = Command(command_id="cmd-1", session_id="missing", payload="continue")

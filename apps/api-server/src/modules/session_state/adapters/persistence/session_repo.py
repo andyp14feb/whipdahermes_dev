@@ -33,6 +33,7 @@ class SQLSessionRepo(ISessionRepo):
 
         session_table = SessionModel.__tablename__
         required_columns = {
+            "backend": "TEXT NOT NULL DEFAULT 'tmux'",
             "ai_assessment": "TEXT",
             "ai_assessment_reason": "TEXT",
             "ai_assessed_at": "TEXT",
@@ -60,6 +61,7 @@ class SQLSessionRepo(ISessionRepo):
                     CREATE TABLE sessions (
                         machine_id VARCHAR NOT NULL,
                         session_id VARCHAR NOT NULL,
+                        backend TEXT NOT NULL DEFAULT 'tmux',
                         label VARCHAR NOT NULL,
                         status VARCHAR NOT NULL,
                         seconds_since_change INTEGER NOT NULL,
@@ -76,11 +78,11 @@ class SQLSessionRepo(ISessionRepo):
                 cursor.execute(
                     """
                     INSERT OR REPLACE INTO sessions (
-                        machine_id, session_id, label, status, seconds_since_change,
+                        machine_id, session_id, backend, label, status, seconds_since_change,
                         last_seen_at, cwd, ai_assessment, ai_assessment_reason, ai_assessed_at
                     )
                     SELECT
-                        machine_id, session_id, label, status, seconds_since_change,
+                        machine_id, session_id, backend, label, status, seconds_since_change,
                         last_seen_at, cwd, ai_assessment, ai_assessment_reason, ai_assessed_at
                     FROM sessions_legacy
                     """

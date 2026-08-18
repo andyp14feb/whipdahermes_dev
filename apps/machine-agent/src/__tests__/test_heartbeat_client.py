@@ -32,8 +32,9 @@ def test_post_heartbeat_success():
             "machine_id": "vm-1",
             "sessions": [
                 {
-                    "session_id": "miniwa:0.0",
-                    "label": "miniwa",
+                        "session_id": "miniwa:0.0",
+                        "backend": "tmux",
+                        "label": "miniwa",
                     "preview": "hello",
                     "cwd": "/tmp",
                     "diff_pct": 0.0,

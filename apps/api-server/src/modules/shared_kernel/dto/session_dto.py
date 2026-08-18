@@ -6,6 +6,7 @@ from pydantic import BaseModel
 class SessionDTO(BaseModel):
     machine_id: str
     session_id: str
+    backend: str = "tmux"
     label: str
     status: str
     seconds_since_change: int

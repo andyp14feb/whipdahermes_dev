@@ -12,11 +12,25 @@ class AgentConfig:
     interval: int = 2
     command_poll_interval: int = 5
     tmux_socket: str | None = None
+    session_backends: tuple[str, ...] = ("tmux",)
 
 
 def _default_tmux_socket() -> str:
-    uid = os.getuid()
+    uid = getattr(os, "getuid", os.getpid)()
     return f"/tmp/tmux-{uid}/default"
+
+
+SUPPORTED_SESSION_BACKENDS = {"tmux", "atch"}
+
+
+def _load_session_backends(raw: str) -> tuple[str, ...]:
+    backends = tuple(dict.fromkeys(item.strip().lower() for item in raw.split(",") if item.strip()))
+    if not backends:
+        raise SystemExit("SESSION_BACKENDS must include at least one backend")
+    unsupported = sorted(set(backends) - SUPPORTED_SESSION_BACKENDS)
+    if unsupported:
+        raise SystemExit(f"SESSION_BACKENDS contains unsupported backend(s): {', '.join(unsupported)}")
+    return backends
 
 
 def load_config() -> AgentConfig:
@@ -24,7 +38,11 @@ def load_config() -> AgentConfig:
     api_url = os.getenv("API_URL", "").strip()
     interval_raw = os.getenv("INTERVAL", "2").strip()
     command_poll_interval_raw = os.getenv("COMMAND_POLL_INTERVAL", "5").strip()
-    tmux_socket = os.getenv("TMUX_SOCKET", _default_tmux_socket()).strip() or None
+    configured_tmux_socket = os.getenv("TMUX_SOCKET")
+    tmux_socket = (
+        configured_tmux_socket if configured_tmux_socket is not None else _default_tmux_socket()
+    ).strip() or None
+    session_backends = _load_session_backends(os.getenv("SESSION_BACKENDS", "tmux"))
 
     if not machine_id or not api_url:
         raise SystemExit("API_URL must be set")
@@ -51,4 +69,5 @@ def load_config() -> AgentConfig:
         interval=interval,
         command_poll_interval=command_poll_interval,
         tmux_socket=tmux_socket,
+        session_backends=session_backends,
     )

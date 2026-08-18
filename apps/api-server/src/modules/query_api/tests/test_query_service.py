@@ -121,6 +121,7 @@ class TestQueryService:
         s1 = next(s for s in result["sessions"] if s["session_id"] == "s-1")
         s2 = next(s for s in result["sessions"] if s["session_id"] == "s-2")
         assert s1["label"] == "Session 1"
+        assert s1["backend"] == "tmux"
         assert s1["status"] in ("active", "stable")
         assert s2["label"] == "Session 2"
 
@@ -204,6 +205,7 @@ class TestQueryService:
         assert result["machine_id"] == "vm-1"
         assert result["session_id"] == "s-1"
         assert result["label"] == "Session 1"
+        assert result["backend"] == "tmux"
         assert result["seconds_since_change"] == 10
         assert result["preview"] == "user@host:~$"
         assert result["cwd"] == "/home/user"

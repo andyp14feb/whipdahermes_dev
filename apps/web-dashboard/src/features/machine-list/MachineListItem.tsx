@@ -29,6 +29,8 @@ export function MachineListItem({ machineId, session }: MachineListItemProps) {
   );
   const [maxNudges, setMaxNudges] = useState(String(nudgeConfig?.maxNudges ?? 3));
   const [customPrompt, setCustomPrompt] = useState(nudgeConfig?.customPrompt ?? "");
+  const backend = session.backend ?? "tmux";
+  const supportsTmuxControls = backend === "tmux";
   const isSelected =
     selectedMachineId === machineId && selectedSessionId === session.session_id;
 
@@ -111,29 +113,38 @@ export function MachineListItem({ machineId, session }: MachineListItemProps) {
         className={`w-full rounded px-3 py-2 text-left transition-colors ${isSelected ? "theme-ring ring-1" : "hover:bg-gray-50 dark:hover:bg-gray-900"}`}
       >
         <div className="flex items-center justify-between gap-2">
-          <span className="truncate font-medium text-gray-800 dark:text-gray-100">{session.label}</span>
+          <span className="flex min-w-0 items-center gap-2 truncate font-medium text-gray-800 dark:text-gray-100">
+            <span className="truncate">{session.label}</span>
+            <span aria-hidden="true" className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wide ${
+              backend === "atch"
+                ? "bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300"
+                : "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300"
+            }`}>
+              {backend.toUpperCase()}
+            </span>
+          </span>
           <StatusSummary status={session.status} secondsSinceChange={session.seconds_since_change} />
         </div>
       </button>
       <div className="mt-2 space-y-2 px-3">
         <div className="flex flex-wrap items-center gap-2">
-          <label className="flex items-center gap-1 text-xs text-gray-700 dark:text-gray-300">
+          {supportsTmuxControls && <label className="flex items-center gap-1 text-xs text-gray-700 dark:text-gray-300">
             <input
               type="checkbox"
               checked={nudgeConfig?.enabled ?? false}
               onChange={(event) => setNudgeEnabled(sessionKey, event.target.checked)}
             />
             Nudge this
-          </label>
-          <Button type="button" variant="secondary" className="px-2 py-1 text-xs" onClick={() => setIsModalOpen(true)}>
+          </label>}
+          {supportsTmuxControls && <Button type="button" variant="secondary" className="px-2 py-1 text-xs" onClick={() => setIsModalOpen(true)}>
             Configure
-          </Button>
-          <Button type="button" variant="secondary" className="px-2 py-1 text-xs" onClick={handleRenameSession}>
+          </Button>}
+          {supportsTmuxControls && <Button type="button" variant="secondary" className="px-2 py-1 text-xs" onClick={handleRenameSession}>
             Rename
-          </Button>
-          <Button type="button" variant="secondary" className="px-2 py-1 text-xs" onClick={handleKillSession}>
+          </Button>}
+          {supportsTmuxControls && <Button type="button" variant="secondary" className="px-2 py-1 text-xs" onClick={handleKillSession}>
             Kill tmux
-          </Button>
+          </Button>}
           <button
             type="button"
             title="Remove session from list"
@@ -142,7 +153,7 @@ export function MachineListItem({ machineId, session }: MachineListItemProps) {
           >
             ×
           </button>
-          {nudgeConfig?.enabled && (
+          {supportsTmuxControls && nudgeConfig?.enabled && (
             <button
               type="button"
               className="text-xs text-blue-700 underline"
@@ -154,7 +165,7 @@ export function MachineListItem({ machineId, session }: MachineListItemProps) {
         </div>
         {actionFeedback && <p role="alert" className="text-xs text-red-600">{actionFeedback}</p>}
       </div>
-      <NudgeConfigModal
+      {supportsTmuxControls && <NudgeConfigModal
         machineId={machineId}
         sessionId={session.session_id}
         sessionLabel={session.label}
@@ -168,7 +179,7 @@ export function MachineListItem({ machineId, session }: MachineListItemProps) {
         onCustomPromptChange={setCustomPrompt}
         onClose={() => setIsModalOpen(false)}
         onSave={handleSave}
-      />
+      />}
     </div>
   );
 }
