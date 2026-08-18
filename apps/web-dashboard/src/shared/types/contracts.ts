@@ -7,6 +7,8 @@ export type StatusValue =
   | "stale"
   | "unknown";
 
+export type SessionBackend = "tmux" | "atch";
+
 export interface Machine {
   machine_id: string;
   display_name: string;
@@ -16,8 +18,10 @@ export interface Machine {
 }
 
 export interface SessionListItem {
-  machine_id: string;
-  session_id: string;
+    machine_id: string;
+    session_id: string;
+    /** Omitted only by older API servers; those rows are tmux sessions. */
+    backend?: SessionBackend;
   label: string;
   status: StatusValue;
   seconds_since_change: number;
@@ -26,7 +30,8 @@ export interface SessionListItem {
 
 export interface SessionDetail {
   machine_id: string;
-  session_id: string;
+    session_id: string;
+    backend?: SessionBackend;
   label: string;
   status: StatusValue;
   seconds_since_change: number;

@@ -17,6 +17,7 @@ class SessionSnapshot:
     stable_counter: int
     seconds_since_change: int
     captured_at: str
+    backend: str = "tmux"
 
 
 @dataclass
@@ -57,14 +58,16 @@ def parse_sessions(
 
     for pane in panes:
         target = pane["target"]
+        backend = pane.get("backend", "tmux")
+        session_id = f"{backend}:{target}"
         text = pane["text"]
 
         cwd = pane.get("cwd")
-        label = extract_label(target)
+        label = pane.get("label") or extract_label(target)
 
-        old_text = state.previous_captures.get(target, "")
+        old_text = state.previous_captures.get(session_id, "")
         diff_pct = compute_diff_pct(old_text, text)
-        old_counter = state.previous_counters.get(target, 0)
+        old_counter = state.previous_counters.get(session_id, 0)
         stable_counter = compute_stable_counter(old_counter, diff_pct, threshold)
 
         if diff_pct > threshold:
@@ -76,7 +79,8 @@ def parse_sessions(
 
         snapshots.append(
             SessionSnapshot(
-                session_id=target,
+                session_id=session_id,
+                backend=backend,
                 label=label,
                 preview=preview,
                 cwd=cwd,
@@ -87,8 +91,8 @@ def parse_sessions(
             )
         )
 
-        new_captures[target] = text
-        new_counters[target] = stable_counter
+        new_captures[session_id] = text
+        new_counters[session_id] = stable_counter
 
     updated_state = CaptureState(
         previous_captures=new_captures,

@@ -5,7 +5,7 @@ import { Card } from "../../shared/ui/Card";
 import { SessionPreview } from "./SessionPreview";
 import { useAppStore } from "../../shared/state/appStore";
 import { Button } from "../../shared/ui/Button";
-import { fetchMachines, fetchSessions, killSession } from "../machine-list/machineList.api";
+import { fetchMachines, fetchSessions, killAtchSession, killSession } from "../machine-list/machineList.api";
 import { useSettingsStore } from "../../shared/state/settingsStore";
 import { StatusSummary } from "../status-summary/StatusSummary";
 import { assessSession, fetchSessionDetail } from "./sessionPreview.api";
@@ -58,6 +58,13 @@ export function SessionWindow({ index }: SessionWindowProps) {
     ? `${slot.machineId}::${slot.sessionId}`
     : "";
 
+  const selectedBackend = useMemo(() => {
+    const selectedSession = (sessionsQuery.data?.sessions ?? []).find(
+      (session) => session.machine_id === slot.machineId && session.session_id === slot.sessionId,
+    );
+    return selectedSession?.backend ?? sessionDetailQuery.data?.backend ?? "tmux";
+  }, [sessionDetailQuery.data?.backend, sessionsQuery.data?.sessions, slot.machineId, slot.sessionId]);
+
   const machineDisplayNameById = useMemo(() => {
     const map = new Map<string, string>();
     for (const machine of machinesQuery.data?.machines ?? []) {
@@ -73,9 +80,10 @@ export function SessionWindow({ index }: SessionWindowProps) {
         .map((session: SessionListItem) => {
           const machineName = machineDisplayNameById.get(session.machine_id) || session.machine_id;
           const sessionName = session.label || session.session_id;
+          const backend = session.backend ?? "tmux";
           return {
             value: `${session.machine_id}::${session.session_id}`,
-            label: `[${machineName}]--[${sessionName}]`,
+            label: `[${machineName}]--[${sessionName}] (${backend.toUpperCase()})`,
           };
         })
         .sort((left: { value: string; label: string }, right: { value: string; label: string }) => left.label.localeCompare(right.label, undefined, { sensitivity: "base" }));
@@ -115,22 +123,24 @@ export function SessionWindow({ index }: SessionWindowProps) {
 
   const handleKillSession = useCallback(async () => {
     if (!slot.machineId || !slot.sessionId) return;
-    if (!window.confirm(`Kill tmux session "${slot.sessionId}"? This stops the live tmux session, not just the dashboard row.`)) {
+    if (!window.confirm(`Kill ${selectedBackend} session "${slot.sessionId}"? This stops the live ${selectedBackend} session, not just the dashboard row.`)) {
       return;
     }
 
     try {
       setActionFeedback(null);
-      const response = await killSession(slot.machineId, slot.sessionId);
-      setActionFeedback(`Kill request queued (${response.command_id}). The next heartbeat confirms the tmux session is gone.`);
+      const response = selectedBackend === "atch"
+        ? await killAtchSession(slot.machineId, slot.sessionId)
+        : await killSession(slot.machineId, slot.sessionId);
+      setActionFeedback(`Kill request queued (${response.command_id}). The next heartbeat confirms the ${selectedBackend} session is gone.`);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["sessions"] }),
         queryClient.invalidateQueries({ queryKey: ["session-detail", slot.machineId, slot.sessionId] }),
       ]);
     } catch (error) {
-      setActionFeedback(error instanceof Error ? error.message : "Failed to request tmux session kill.");
+      setActionFeedback(error instanceof Error ? error.message : `Failed to request ${selectedBackend} session kill.`);
     }
-  }, [queryClient, slot.machineId, slot.sessionId]);
+  }, [queryClient, selectedBackend, slot.machineId, slot.sessionId]);
 
   const data = sessionDetailQuery.data;
 
@@ -170,7 +180,7 @@ export function SessionWindow({ index }: SessionWindowProps) {
           }}
           disabled={!slot.machineId || !slot.sessionId}
         >
-          Kill tmux
+          Kill {selectedBackend}
         </Button>
         {windowCount > 1 && (
           <Button
@@ -220,7 +230,7 @@ export function SessionWindow({ index }: SessionWindowProps) {
 
       <div className="grid gap-2 px-1 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
         <label htmlFor={`window-session-selector-${index}`} className="sr-only">
-          Watched tmux session
+          Watched session
         </label>
         <select
           id={`window-session-selector-${index}`}
@@ -237,7 +247,7 @@ export function SessionWindow({ index }: SessionWindowProps) {
             setWindowSelection(index, machineId, sessionId);
           }}
         >
-          <option value="">Select a tmux session</option>
+          <option value="">Select a session</option>
           {options.map((option: { value: string; label: string }) => (
             <option key={option.value} value={option.value}>
               {option.label}

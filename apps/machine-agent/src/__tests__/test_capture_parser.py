@@ -9,7 +9,8 @@ def test_parse_sessions_creates_snapshots(monkeypatch):
 
     assert len(snapshots) == 1
     snapshot = snapshots[0]
-    assert snapshot.session_id == "miniwa:0.0"
+    assert snapshot.session_id == "tmux:miniwa:0.0"
+    assert snapshot.backend == "tmux"
     assert snapshot.label == "miniwa"
     assert snapshot.preview == "hello world"
     assert snapshot.cwd == "/tmp/project"
@@ -17,8 +18,8 @@ def test_parse_sessions_creates_snapshots(monkeypatch):
     assert snapshot.stable_counter == 0
     assert snapshot.seconds_since_change == 0
     assert snapshot.captured_at == "2026-06-24T08:15:00Z"
-    assert state.previous_captures == {"miniwa:0.0": "hello world"}
-    assert state.previous_counters == {"miniwa:0.0": 0}
+    assert state.previous_captures == {"tmux:miniwa:0.0": "hello world"}
+    assert state.previous_counters == {"tmux:miniwa:0.0": 0}
 
 
 def test_parse_sessions_tracks_state_across_calls(monkeypatch):
@@ -33,16 +34,16 @@ def test_parse_sessions_tracks_state_across_calls(monkeypatch):
     assert second_snapshots[0].diff_pct == 0.0
     assert second_snapshots[0].stable_counter == 1
     assert second_snapshots[0].seconds_since_change == 3
-    assert second_state.previous_captures == {"miniwa:0.0": "steady output"}
-    assert second_state.previous_counters == {"miniwa:0.0": 1}
+    assert second_state.previous_captures == {"tmux:miniwa:0.0": "steady output"}
+    assert second_state.previous_counters == {"tmux:miniwa:0.0": 1}
 
 
 def test_parse_sessions_resets_stability_on_change(monkeypatch):
     monkeypatch.setattr("parse.capture_parser._now_utc_iso", lambda: "2026-06-24T08:15:00Z")
 
     initial_state = CaptureState(
-        previous_captures={"miniwa:0.0": "old output"},
-        previous_counters={"miniwa:0.0": 4},
+        previous_captures={"tmux:miniwa:0.0": "old output"},
+        previous_counters={"tmux:miniwa:0.0": 4},
     )
     panes = [{"target": "miniwa:0.0", "text": "new output", "cwd": None}]
     snapshots, state = parse_sessions(panes, initial_state, interval=5)
@@ -50,7 +51,7 @@ def test_parse_sessions_resets_stability_on_change(monkeypatch):
     assert snapshots[0].diff_pct > 0.0
     assert snapshots[0].stable_counter == 0
     assert snapshots[0].seconds_since_change == 0
-    assert state.previous_counters == {"miniwa:0.0": 0}
+    assert state.previous_counters == {"tmux:miniwa:0.0": 0}
 
 
 def test_parse_sessions_tracks_stability_per_pane_independently(monkeypatch):
@@ -58,12 +59,12 @@ def test_parse_sessions_tracks_stability_per_pane_independently(monkeypatch):
 
     initial_state = CaptureState(
         previous_captures={
-            "pane-a": "steady output",
-            "pane-b": "old output",
+            "tmux:pane-a": "steady output",
+            "tmux:pane-b": "old output",
         },
         previous_counters={
-            "pane-a": 3,
-            "pane-b": 4,
+            "tmux:pane-a": 3,
+            "tmux:pane-b": 4,
         },
     )
     panes = [
@@ -74,11 +75,24 @@ def test_parse_sessions_tracks_stability_per_pane_independently(monkeypatch):
     snapshots, state = parse_sessions(panes, initial_state, interval=3)
     by_id = {snapshot.session_id: snapshot for snapshot in snapshots}
 
-    assert by_id["pane-a"].stable_counter == 4
-    assert by_id["pane-a"].seconds_since_change == 12
-    assert by_id["pane-b"].stable_counter == 0
-    assert by_id["pane-b"].seconds_since_change == 0
-    assert state.previous_counters == {"pane-a": 4, "pane-b": 0}
+    assert by_id["tmux:pane-a"].stable_counter == 4
+    assert by_id["tmux:pane-a"].seconds_since_change == 12
+    assert by_id["tmux:pane-b"].stable_counter == 0
+    assert by_id["tmux:pane-b"].seconds_since_change == 0
+    assert state.previous_counters == {"tmux:pane-a": 4, "tmux:pane-b": 0}
+
+
+def test_parse_sessions_keeps_atch_and_tmux_sessions_distinct(monkeypatch):
+    monkeypatch.setattr("parse.capture_parser._now_utc_iso", lambda: "2026-06-24T08:15:00Z")
+    snapshots, _ = parse_sessions([
+        {"backend": "tmux", "target": "work:0.0", "text": "tmux", "cwd": "/tmp"},
+        {"backend": "atch", "target": "work", "label": "work", "text": "atch", "cwd": None},
+    ], CaptureState())
+
+    assert {(snapshot.backend, snapshot.session_id) for snapshot in snapshots} == {
+        ("tmux", "tmux:work:0.0"),
+        ("atch", "atch:work"),
+    }
 
 
 def test_parse_sessions_truncates_preview(monkeypatch):

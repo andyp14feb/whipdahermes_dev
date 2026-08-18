@@ -16,6 +16,7 @@ class Session(SQLModel, table=True):
 
     machine_id: str = Field(primary_key=True)
     session_id: str = Field(primary_key=True)
+    backend: str = "tmux"
     label: str
     status: str = "unknown"
     seconds_since_change: int = 0

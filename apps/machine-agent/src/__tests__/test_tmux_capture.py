@@ -24,7 +24,7 @@ def test_capture_panes_continues_after_single_pane_capture_failure(monkeypatch):
     monkeypatch.setattr(subprocess, "run", fake_run)
 
     assert capture_panes() == [
-        {"target": "pane-b", "text": "pane b output", "cwd": "/tmp/b"}
+        {"backend": "tmux", "target": "pane-b", "text": "pane b output", "cwd": "/tmp/b"}
     ]
     assert calls == [
         ["tmux", "list-panes", "-a", "-F", "#{session_name}:#{window_index}.#{pane_index}\t#{pane_current_path}"],
@@ -45,7 +45,7 @@ def test_capture_panes_uses_configured_tmux_socket(monkeypatch):
     monkeypatch.setattr(subprocess, "run", fake_run)
 
     assert capture_panes("/host-tmux/default") == [
-        {"target": "pane-a", "text": "pane a output", "cwd": "/tmp/a"}
+        {"backend": "tmux", "target": "pane-a", "text": "pane a output", "cwd": "/tmp/a"}
     ]
     assert calls == [
         ["tmux", "-S", "/host-tmux/default", "list-panes", "-a", "-F", "#{session_name}:#{window_index}.#{pane_index}\t#{pane_current_path}"],

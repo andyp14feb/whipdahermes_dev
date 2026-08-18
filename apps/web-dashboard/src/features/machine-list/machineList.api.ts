@@ -31,6 +31,17 @@ export function killSession(machineId: string, sessionId: string): Promise<{ com
     body: JSON.stringify(killSessionCommandBody(machineId, sessionId)),
   });
 }
+export function killAtchSession(machineId: string, sessionId: string): Promise<{ command_id: string; state: string; target: string }> {
+  return apiClient("/command", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      machine_id: machineId,
+      session_id: sessionId,
+      payload: `__whipai__:kill_atch_session:${sessionId}`,
+    }),
+  });
+}
 export function deleteMachine(machineId: string): Promise<{ status: string; machine_id: string }> {
   return apiClient(`/machines/${encodeURIComponent(machineId)}`, { method: "DELETE" });
 }
@@ -60,5 +71,16 @@ export function cleanupStaleSessions(thresholdSeconds?: number): Promise<{delete
   return apiClient<{deleted: number, message: string}>("/admin/session-cleanup", {
     method: "POST",
     body: JSON.stringify({ threshold_seconds: thresholdSeconds ?? 300 }),
+  });
+}
+export function enqueueCreateAtchSession(machineId: string, sessionName: string): Promise<{ command_id: string; state: string; target: string }> {
+  return apiClient("/command", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      machine_id: machineId,
+      session_id: `atch:${sessionName}`,
+      payload: `__whipai__:create_atch_session:${sessionName}`,
+    }),
   });
 }

@@ -43,6 +43,7 @@ services:
       INTERVAL: 2
       COMMAND_POLL_INTERVAL: 5
       TMUX_SOCKET: ${TMUX_SOCKET:-/host-tmux/default}
+      SESSION_BACKENDS: ${SESSION_BACKENDS:-tmux}
     volumes:
       - ${TMUX_HOST_DIR:-/tmp/tmux-1000}:/host-tmux
     depends_on:

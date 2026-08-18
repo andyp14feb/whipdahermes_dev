@@ -88,10 +88,20 @@ def test_load_config_defaults_tmux_socket(monkeypatch):
 
     config = load_config()
 
-    assert config.tmux_socket == f"/tmp/tmux-{os.getuid()}/default"
+    assert config.tmux_socket == f"/tmp/tmux-{getattr(os, 'getuid', os.getpid)()}/default"
 
 
 def test_agent_config_dataclass_defaults():
     config = AgentConfig(machine_id="vm-1", api_url="http://localhost:8000")
     assert config.interval == 2
     assert config.tmux_socket is None
+    assert config.session_backends == ("tmux",)
+
+
+def test_load_config_reads_multiple_session_backends(monkeypatch):
+    monkeypatch.setenv("MACHINE_ID", "vm-1")
+    monkeypatch.setenv("API_URL", "http://localhost:8000")
+    monkeypatch.setenv("TMUX_SOCKET", "/tmp/tmux-test")
+    monkeypatch.setenv("SESSION_BACKENDS", "tmux, atch,tmux")
+
+    assert load_config().session_backends == ("tmux", "atch")
