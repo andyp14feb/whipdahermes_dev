@@ -269,7 +269,7 @@ The compose stack starts:
 
 SQLite data is persisted under `./data/hcp.db`. The API server marks machines stale after `STALE_TIMEOUT_SECONDS` without a heartbeat and removes long-gone stale records after `CLEANUP_TIMEOUT_SECONDS`.
 
-The machine-agent image includes tmux. In minimal Docker-only testing it may report no sessions unless tmux sessions are available inside the container or a host tmux socket is mounted for local experimentation.
+The machine-agent image includes tmux and atch. In minimal Docker-only testing it may report no sessions unless tmux sessions are available inside the container or a host tmux socket is mounted for local experimentation. Enable atch monitoring with `SESSION_BACKENDS=tmux,atch`.
 
 To stop the stack:
 
