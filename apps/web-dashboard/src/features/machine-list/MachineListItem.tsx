@@ -6,7 +6,7 @@ import { useAppStore } from "../../shared/state/appStore";
 import { DEFAULT_NUDGE_PROMPT, useSettingsStore } from "../../shared/state/settingsStore";
 import { Button } from "../../shared/ui/Button";
 import { NudgeConfigModal } from "./NudgeConfigModal";
-import { deleteSession, enqueueRenameTmuxSession, killSession } from "./machineList.api";
+import { deleteSession, enqueueRenameTmuxSession, killAtchSession, killSession } from "./machineList.api";
 
 interface MachineListItemProps {
   machineId: string;
@@ -66,14 +66,16 @@ export function MachineListItem({ machineId, session }: MachineListItemProps) {
   };
 
   const handleKillSession = async () => {
-    if (!window.confirm(`Kill tmux session "${session.label}"? This stops the live tmux session, not just the dashboard row.`)) {
+    if (!window.confirm(`Kill ${backend} session "${session.label}"? This stops the live ${backend} session, not just the dashboard row.`)) {
       return;
     }
 
     try {
       setActionFeedback(null);
-      const response = await killSession(machineId, session.session_id);
-      setActionFeedback(`Kill request queued (${response.command_id}). The next heartbeat confirms the tmux session is gone.`);
+      const response = backend === "atch"
+        ? await killAtchSession(machineId, session.session_id)
+        : await killSession(machineId, session.session_id);
+      setActionFeedback(`Kill request queued (${response.command_id}). The next heartbeat confirms the ${backend} session is gone.`);
       await queryClient.invalidateQueries({ queryKey: ["sessions"] });
     } catch (error) {
       setActionFeedback(error instanceof Error ? error.message : "Failed to request tmux session kill.");
@@ -128,23 +130,23 @@ export function MachineListItem({ machineId, session }: MachineListItemProps) {
       </button>
       <div className="mt-2 space-y-2 px-3">
         <div className="flex flex-wrap items-center gap-2">
-          {supportsTmuxControls && <label className="flex items-center gap-1 text-xs text-gray-700 dark:text-gray-300">
+          <label className="flex items-center gap-1 text-xs text-gray-700 dark:text-gray-300">
             <input
               type="checkbox"
               checked={nudgeConfig?.enabled ?? false}
               onChange={(event) => setNudgeEnabled(sessionKey, event.target.checked)}
             />
             Nudge this
-          </label>}
-          {supportsTmuxControls && <Button type="button" variant="secondary" className="px-2 py-1 text-xs" onClick={() => setIsModalOpen(true)}>
+          </label>
+          <Button type="button" variant="secondary" className="px-2 py-1 text-xs" onClick={() => setIsModalOpen(true)}>
             Configure
-          </Button>}
+          </Button>
           {supportsTmuxControls && <Button type="button" variant="secondary" className="px-2 py-1 text-xs" onClick={handleRenameSession}>
             Rename
           </Button>}
-          {supportsTmuxControls && <Button type="button" variant="secondary" className="px-2 py-1 text-xs" onClick={handleKillSession}>
-            Kill tmux
-          </Button>}
+          <Button type="button" variant="secondary" className="px-2 py-1 text-xs" onClick={handleKillSession}>
+            Kill {backend}
+          </Button>
           <button
             type="button"
             title="Remove session from list"
@@ -153,7 +155,7 @@ export function MachineListItem({ machineId, session }: MachineListItemProps) {
           >
             ×
           </button>
-          {supportsTmuxControls && nudgeConfig?.enabled && (
+          {nudgeConfig?.enabled && (
             <button
               type="button"
               className="text-xs text-blue-700 underline"
@@ -165,7 +167,7 @@ export function MachineListItem({ machineId, session }: MachineListItemProps) {
         </div>
         {actionFeedback && <p role="alert" className="text-xs text-red-600">{actionFeedback}</p>}
       </div>
-      {supportsTmuxControls && <NudgeConfigModal
+      <NudgeConfigModal
         machineId={machineId}
         sessionId={session.session_id}
         sessionLabel={session.label}
@@ -179,7 +181,7 @@ export function MachineListItem({ machineId, session }: MachineListItemProps) {
         onCustomPromptChange={setCustomPrompt}
         onClose={() => setIsModalOpen(false)}
         onSave={handleSave}
-      />}
+      />
     </div>
   );
 }

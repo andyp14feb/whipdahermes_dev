@@ -77,11 +77,14 @@ TMUX_TARGET_RE = re.compile(r"^[^|]+$")
 TMUX_PANE_TARGET_SUFFIX_RE = re.compile(r":\d+\.\d+$")
 CONTROL_PAYLOAD_WHITESPACE_RE = re.compile(r"\s+")
 CREATE_SESSION_PREFIX = "__whipai__:create_session:"
+CREATE_ATCH_SESSION_PREFIX = "__whipai__:create_atch_session:"
 RENAME_SESSION_PREFIX = "__whipai__:rename_session:"
 KILL_SESSION_PREFIX = "__whipai__:kill_session:"
+KILL_ATCH_SESSION_PREFIX = "__whipai__:kill_atch_session:"
 CONTROL_NAMESPACE_PREFIX = "__whipai__:"
 CONTROL_NAMESPACE_ALIASES = ("__whipai__:", "**whipai**:")
 TMUX_SESSION_ID_PREFIX = "tmux:"
+ATCH_SESSION_ID_PREFIX = "atch:"
 
 
 def _is_valid_tmux_session_name(name: str) -> bool:
@@ -100,6 +103,12 @@ def _tmux_target_from_session_id(session_id: str) -> str:
     """Accept new backend-qualified IDs while remaining compatible with legacy IDs."""
     if session_id.startswith(TMUX_SESSION_ID_PREFIX):
         return session_id[len(TMUX_SESSION_ID_PREFIX) :]
+    return session_id
+
+
+def _atch_session_name_from_session_id(session_id: str) -> str:
+    if session_id.startswith(ATCH_SESSION_ID_PREFIX):
+        return session_id[len(ATCH_SESSION_ID_PREFIX) :]
     return session_id
 
 
@@ -142,6 +151,23 @@ class CommandExecutor:
             logger.error("tmux not installed for command_id=%s", command.command_id)
             return ExecutionResult(command_id=command.command_id, delivered=False, failure_reason="tmux not installed")
         logger.info("tmux new-session succeeded for command_id=%s session_name=%s", command.command_id, session_name)
+        return ExecutionResult(command_id=command.command_id, delivered=True, failure_reason=None)
+
+    def _execute_create_atch_session(self, command: Command) -> ExecutionResult:
+        session_name = command.payload[len(CREATE_ATCH_SESSION_PREFIX) :]
+        if not _is_valid_tmux_session_name(session_name):
+            reason = f"invalid session name: {session_name!r}"
+            logger.warning("create_atch_session rejected for command_id=%s: %s", command.command_id, reason)
+            return ExecutionResult(command_id=command.command_id, delivered=False, failure_reason=reason)
+        try:
+            subprocess.run(["atch", "start", "-q", session_name], capture_output=True, text=True, check=True)
+        except subprocess.CalledProcessError as exc:
+            logger.warning("atch start failed for command_id=%s: %s", command.command_id, exc)
+            return ExecutionResult(command_id=command.command_id, delivered=False, failure_reason=str(exc))
+        except FileNotFoundError:
+            logger.error("atch not installed for command_id=%s", command.command_id)
+            return ExecutionResult(command_id=command.command_id, delivered=False, failure_reason="atch not installed")
+        logger.info("atch start succeeded for command_id=%s session_name=%s", command.command_id, session_name)
         return ExecutionResult(command_id=command.command_id, delivered=True, failure_reason=None)
 
     def _execute_rename_session(self, command: Command) -> ExecutionResult:
@@ -200,6 +226,23 @@ class CommandExecutor:
         logger.info("tmux kill-session succeeded for command_id=%s session_name=%s", command.command_id, session_name)
         return ExecutionResult(command_id=command.command_id, delivered=True, failure_reason=None)
 
+    def _execute_kill_atch_session(self, command: Command) -> ExecutionResult:
+        session_name = _atch_session_name_from_session_id(command.payload[len(KILL_ATCH_SESSION_PREFIX) :])
+        if not _is_valid_tmux_session_name(session_name):
+            reason = f"invalid kill session target: {session_name!r}"
+            logger.warning("kill_atch_session rejected for command_id=%s: %s", command.command_id, reason)
+            return ExecutionResult(command_id=command.command_id, delivered=False, failure_reason=reason)
+        try:
+            subprocess.run(["atch", "kill", session_name], capture_output=True, text=True, check=True)
+        except subprocess.CalledProcessError as exc:
+            logger.warning("atch kill failed for command_id=%s: %s", command.command_id, exc)
+            return ExecutionResult(command_id=command.command_id, delivered=False, failure_reason=str(exc))
+        except FileNotFoundError:
+            logger.error("atch not installed for command_id=%s", command.command_id)
+            return ExecutionResult(command_id=command.command_id, delivered=False, failure_reason="atch not installed")
+        logger.info("atch kill succeeded for command_id=%s session_name=%s", command.command_id, session_name)
+        return ExecutionResult(command_id=command.command_id, delivered=True, failure_reason=None)
+
     def execute(self, command: Command) -> ExecutionResult:
         payload = _canonical_control_payload(command.payload)
         effective_command = command
@@ -222,16 +265,38 @@ class CommandExecutor:
         if payload.startswith(CREATE_SESSION_PREFIX):
             return self._execute_create_session(effective_command)
 
+        if payload.startswith(CREATE_ATCH_SESSION_PREFIX):
+            return self._execute_create_atch_session(effective_command)
+
         if payload.startswith(RENAME_SESSION_PREFIX):
             return self._execute_rename_session(effective_command)
 
         if payload.startswith(KILL_SESSION_PREFIX):
             return self._execute_kill_session(effective_command)
 
+        if payload.startswith(KILL_ATCH_SESSION_PREFIX):
+            return self._execute_kill_atch_session(effective_command)
+
         if _is_control_payload(command.payload):
             reason = f"unknown WhipAI control payload: {payload!r}"
             logger.warning("Control command rejected for command_id=%s: %s", command.command_id, reason)
             return ExecutionResult(command_id=command.command_id, delivered=False, failure_reason=reason)
+
+        if command.session_id.startswith(ATCH_SESSION_ID_PREFIX):
+            session_name = _atch_session_name_from_session_id(command.session_id)
+            try:
+                subprocess.run(
+                    ["atch", "push", session_name], input=f"{command.payload}\n",
+                    capture_output=True, text=True, check=True,
+                )
+            except subprocess.CalledProcessError as exc:
+                logger.warning("atch push failed for command_id=%s session_id=%s: %s", command.command_id, session_name, exc)
+                return ExecutionResult(command_id=command.command_id, delivered=False, failure_reason=str(exc))
+            except FileNotFoundError:
+                logger.error("atch not installed for command_id=%s session_id=%s", command.command_id, session_name)
+                return ExecutionResult(command_id=command.command_id, delivered=False, failure_reason="atch not installed")
+            logger.info("atch push succeeded for command_id=%s session_id=%s", command.command_id, session_name)
+            return ExecutionResult(command_id=command.command_id, delivered=True, failure_reason=None)
 
         try:
             subprocess.run(

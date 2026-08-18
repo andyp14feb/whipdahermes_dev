@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   cleanupStaleSessions,
   deleteMachine,
+  enqueueCreateAtchSession,
   enqueueCreateTmuxSession,
   fetchMachines,
   fetchSessions,
@@ -323,6 +324,36 @@ export function MachineList() {
     }
   };
 
+  const handleCreateAtchSession = async (machineId: string) => {
+    const requestedName = window
+      .prompt("New atch session name (blank for default)", "")
+      ?.trim() ?? "";
+    const sessionName = requestedName || defaultSessionName();
+    if (!safeName(sessionName)) {
+      setCreateError(
+        "Session name must start with a letter or number and contain only letters, numbers, dot, underscore, or hyphen.",
+      );
+      return;
+    }
+    setBusyMachineId(machineId);
+    setCreateError(null);
+    try {
+      const response = await enqueueCreateAtchSession(machineId, sessionName);
+      window.alert(
+        `Create atch session request queued (${response.command_id}). Ensure the machine agent has SESSION_BACKENDS=tmux,atch so it is monitored.`,
+      );
+      await queryClient.invalidateQueries({ queryKey: ["sessions"] });
+    } catch (error) {
+      setCreateError(
+        error instanceof Error
+          ? error.message
+          : "Failed to request atch session creation.",
+      );
+    } finally {
+      setBusyMachineId(null);
+    }
+  };
+
   const handleDeleteMachine = async (machineId: string) => {
     const confirmed = window.confirm(
       `Remove machine "${machineId}" from the displayed list only? This does not stop machine-agent or kill tmux sessions. It may reappear on the next heartbeat.`,
@@ -620,6 +651,15 @@ export function MachineList() {
                   onClick={() => handleCreateSession(machine.machine_id)}
                 >
                   New tmux
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="px-2 py-1 text-xs"
+                  disabled={busyMachineId === machine.machine_id}
+                  onClick={() => handleCreateAtchSession(machine.machine_id)}
+                >
+                  New atch
                 </Button>
                 <button
                   type="button"

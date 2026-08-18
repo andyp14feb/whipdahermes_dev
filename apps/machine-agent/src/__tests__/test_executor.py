@@ -324,6 +324,53 @@ def test_execute_kill_session_rejects_invalid_name():
     run.assert_not_called()
 
 
+def test_execute_creates_atch_session():
+    executor = CommandExecutor()
+    command = Command(
+        command_id="cmd-create-atch",
+        session_id="atch:worker",
+        payload="__whipai__:create_atch_session:worker",
+    )
+
+    with patch("command.executor.subprocess.run") as run:
+        result = executor.execute(command)
+
+    assert result.delivered is True
+    run.assert_called_once_with(
+        ["atch", "start", "-q", "worker"], capture_output=True, text=True, check=True,
+    )
+
+
+def test_execute_pushes_input_to_atch_session():
+    executor = CommandExecutor()
+    command = Command(command_id="cmd-push-atch", session_id="atch:worker", payload="continue")
+
+    with patch("command.executor.subprocess.run") as run:
+        result = executor.execute(command)
+
+    assert result.delivered is True
+    run.assert_called_once_with(
+        ["atch", "push", "worker"], input="continue\n", capture_output=True, text=True, check=True,
+    )
+
+
+def test_execute_kills_atch_session():
+    command = Command(
+        command_id="cmd-kill-atch",
+        session_id="atch:worker",
+        payload="__whipai__:kill_atch_session:atch:worker",
+    )
+    executor = CommandExecutor()
+
+    with patch("command.executor.subprocess.run") as run:
+        result = executor.execute(command)
+
+    assert result.delivered is True
+    run.assert_called_once_with(
+        ["atch", "kill", "worker"], capture_output=True, text=True, check=True,
+    )
+
+
 def test_execute_unknown_whipai_control_payload_is_not_sent_to_tmux():
     executor = CommandExecutor()
     command = Command(command_id="cmd-unknown-control", session_id="sess:0.0", payload="__whipai__:missing_action")

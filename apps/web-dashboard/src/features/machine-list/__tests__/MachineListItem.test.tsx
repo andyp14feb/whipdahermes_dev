@@ -131,12 +131,13 @@ describe("MachineListItem", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
-  it("labels atch sessions and limits them to monitoring actions during phase 1", () => {
+  it("labels atch sessions and exposes its supported controls", () => {
     renderWithClient(<MachineListItem machineId="machine-1" session={{ ...session, backend: "atch" }} />);
 
     expect(screen.getByText("ATCH")).toBeInTheDocument();
-    expect(screen.queryByLabelText("Nudge this")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Nudge this")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Configure" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Rename" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Kill tmux" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Kill atch" })).toBeInTheDocument();
   });
 });
