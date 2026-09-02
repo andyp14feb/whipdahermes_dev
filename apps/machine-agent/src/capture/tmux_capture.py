@@ -7,6 +7,7 @@ from capture.tmux_command import build_tmux_command
 logger = logging.getLogger(__name__)
 
 TMUX_SUBPROCESS_TIMEOUT_SECONDS = 5
+_last_warn_msg: str | None = None
 
 
 def _socket_missing(tmux_socket: str | None) -> bool:
@@ -45,7 +46,13 @@ def capture_panes(tmux_socket: str | None = None) -> list[dict]:
             timeout=TMUX_SUBPROCESS_TIMEOUT_SECONDS,
         )
     except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
-        logger.warning("tmux panes unavailable: %s", _format_tmux_error(exc, tmux_socket))
+        global _last_warn_msg
+        message = _format_tmux_error(exc, tmux_socket)
+        if message != _last_warn_msg:
+            logger.warning("tmux panes unavailable: %s", message)
+            _last_warn_msg = message
+        else:
+            logger.debug("tmux panes unavailable: %s", message)
         return []
 
     panes: list[dict] = []
