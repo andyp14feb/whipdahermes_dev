@@ -105,3 +105,22 @@ def test_load_config_reads_multiple_session_backends(monkeypatch):
     monkeypatch.setenv("SESSION_BACKENDS", "tmux, atch,tmux")
 
     assert load_config().session_backends == ("tmux", "atch")
+
+
+def test_load_config_default_state_dir(monkeypatch):
+    monkeypatch.setenv("MACHINE_ID", "vm-1")
+    monkeypatch.setenv("API_URL", "http://localhost:8000")
+    monkeypatch.delenv("STATE_DIR", raising=False)
+    monkeypatch.delenv("XDG_STATE_HOME", raising=False)
+
+    config = load_config()
+
+    assert config.state_dir.endswith("whipai")
+
+
+def test_load_config_reads_state_dir(monkeypatch):
+    monkeypatch.setenv("MACHINE_ID", "vm-1")
+    monkeypatch.setenv("API_URL", "http://localhost:8000")
+    monkeypatch.setenv("STATE_DIR", "/var/lib/whipai")
+
+    assert load_config().state_dir == "/var/lib/whipai"

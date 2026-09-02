@@ -13,11 +13,18 @@ class AgentConfig:
     command_poll_interval: int = 5
     tmux_socket: str | None = None
     session_backends: tuple[str, ...] = ("tmux",)
+    state_dir: str = ""
 
 
 def _default_tmux_socket() -> str:
     uid = getattr(os, "getuid", os.getpid)()
     return f"/tmp/tmux-{uid}/default"
+
+
+def _default_state_dir() -> str:
+    xdg_state = os.getenv("XDG_STATE_HOME", "").strip()
+    base = xdg_state or os.path.expanduser("~/.local/state")
+    return os.path.join(base, "whipai")
 
 
 SUPPORTED_SESSION_BACKENDS = {"tmux", "atch"}
@@ -43,6 +50,7 @@ def load_config() -> AgentConfig:
         configured_tmux_socket if configured_tmux_socket is not None else _default_tmux_socket()
     ).strip() or None
     session_backends = _load_session_backends(os.getenv("SESSION_BACKENDS", "tmux"))
+    state_dir = os.getenv("STATE_DIR", "").strip() or _default_state_dir()
 
     if not machine_id or not api_url:
         raise SystemExit("API_URL must be set")
@@ -70,4 +78,5 @@ def load_config() -> AgentConfig:
         command_poll_interval=command_poll_interval,
         tmux_socket=tmux_socket,
         session_backends=session_backends,
+        state_dir=state_dir,
     )

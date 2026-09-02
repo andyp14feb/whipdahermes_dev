@@ -7,7 +7,7 @@ const port = Number(process.env.PORT ?? 3000);
 const host = process.env.HOST ?? "0.0.0.0";
 const distDir = resolve(process.env.DIST_DIR ?? "dist");
 const apiProxyTarget = process.env.API_PROXY_TARGET ?? "http://localhost:8000";
-const apiPrefixes = ["/machines", "/sessions", "/command", "/commands", "/assess"];
+const apiPrefixes = ["/machines", "/sessions", "/command", "/commands", "/assess", "/server-info"];
 
 const mimeTypes = new Map([
   [".html", "text/html; charset=utf-8"],

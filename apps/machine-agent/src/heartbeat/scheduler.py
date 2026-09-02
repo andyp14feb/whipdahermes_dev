@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import random
 import time
 from pathlib import Path
@@ -22,7 +23,22 @@ class HeartbeatScheduler:
         self.client = client
         self.capture_fn = capture_fn
         self.parse_fn = parse_fn
-        self.state_path = Path(f"/tmp/whipai-capture-state-{self.config.machine_id}.json")
+        state_dir_raw = self.config.state_dir or os.path.join(
+            os.path.expanduser("~/.local/state"), "whipai"
+        )
+        state_dir = Path(state_dir_raw)
+        try:
+            state_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            logger.warning(
+                "Could not create state dir %s for machine_id=%s error=%s; falling back to /tmp",
+                state_dir,
+                self.config.machine_id,
+                exc,
+            )
+            state_dir = Path("/tmp")
+            state_dir.mkdir(parents=True, exist_ok=True)
+        self.state_path = state_dir / f"capture-state-{self.config.machine_id}.json"
         self.state = self._load_state()
         self.consecutive_failures = 0
 

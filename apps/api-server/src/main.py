@@ -41,6 +41,7 @@ from modules.command_router.adapters.persistence.command_repo import (
 from modules.command_router.application.command_service import CommandService
 from modules.command_router.command_router import create_command_router_module
 from modules.session_state.session_state import create_session_state_module
+from modules.server_info.adapters.http.server_info_router import create_server_info_router
 from modules.shared_kernel.config import Settings
 
 
@@ -152,6 +153,7 @@ app.include_router(create_query_api_router(query_service))
 app.include_router(create_assess_router(session_service, None))
 app.include_router(create_dashboard_settings_router(dashboard_settings_repo))
 app.include_router(create_background_nudger_router(background_nudger))
+app.include_router(create_server_info_router(settings.api_port))
 
 stale_detector = StaleDetector(
     machine_service=machine_service,
@@ -195,4 +197,4 @@ def health():
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host=settings.api_host, port=settings.api_port)

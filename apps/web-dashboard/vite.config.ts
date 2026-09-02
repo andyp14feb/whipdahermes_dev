@@ -7,16 +7,19 @@ const apiProxyTarget = process.env.API_PROXY_TARGET ?? "http://localhost:8000";
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
+    port: Number(process.env.PORT ?? 3000),
+    host: "0.0.0.0",
     proxy: {
       "/machines": apiProxyTarget,
       "/sessions": apiProxyTarget,
       "/command": apiProxyTarget,
       "/commands": apiProxyTarget,
       "/assess": apiProxyTarget,
+      "/server-info": apiProxyTarget,
     },
   },
   preview: {
-    port: 3000,
+    port: Number(process.env.PORT ?? 3000),
     host: "0.0.0.0",
     allowedHosts: true,
     proxy: {
@@ -25,6 +28,7 @@ export default defineConfig({
       "/command": apiProxyTarget,
       "/commands": apiProxyTarget,
       "/assess": apiProxyTarget,
+      "/server-info": apiProxyTarget,
     },
   },
 });

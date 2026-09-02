@@ -227,10 +227,12 @@ export function App() {
   const colorTheme = useSettingsStore((s) => s.colorTheme);
   const customColors = useSettingsStore((s) => s.customColors);
   const hydrateRemoteSettings = useSettingsStore((s) => s.hydrateRemoteSettings);
+  const hydrateServerInfo = useSettingsStore((s) => s.hydrateServerInfo);
 
   useEffect(() => {
     void hydrateRemoteSettings();
-  }, [hydrateRemoteSettings]);
+    void hydrateServerInfo();
+  }, [hydrateRemoteSettings, hydrateServerInfo]);
 
   useEffect(() => {
     const isDark = themeMode === "dark";

@@ -98,6 +98,7 @@ interface SettingsState extends Settings {
   incrementNudgeCount: (sessionKey: string) => void;
   clearNudgeConfig: (sessionKey: string) => void;
   hydrateRemoteSettings: () => Promise<void>;
+  hydrateServerInfo: () => Promise<void>;
   save: () => void;
   reset: () => void;
 }
@@ -117,7 +118,7 @@ export const DEFAULT_TEMPLATE_ACTIONS: TemplateAction[] = [
 ];
 
 const defaultSettings: Settings = {
-  workerApiUrl: "http://localhost:8000",
+  workerApiUrl: "",
   refreshIntervalMs: 2000,
   staleTimeoutSeconds: 60,
   requestTimeoutMs: 40000,
@@ -545,6 +546,21 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       persistCurrentSettings(get);
     } catch {
       // Local settings remain usable when the API is offline.
+    }
+  },
+  hydrateServerInfo: async () => {
+    if (get().workerApiUrl) {
+      return;
+    }
+    try {
+      const info = await apiClient<{ candidateUrls?: string[] }>("/server-info");
+      const url = info?.candidateUrls?.[0];
+      if (url) {
+        set({ workerApiUrl: url });
+        persistCurrentSettings(get);
+      }
+    } catch {
+      // Leave empty; user can fill it in manually.
     }
   },
   save: () => {

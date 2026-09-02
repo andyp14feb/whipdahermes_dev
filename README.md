@@ -261,10 +261,28 @@ From this repository root:
 docker compose up --build
 ```
 
+Or use the startup script, which checks for port conflicts before launching:
+
+```bash
+./start.sh            # interactive — asks before picking an alternative port
+./start.sh --auto     # non-interactive — accepts the first available suggestion
+./start.sh --no-build # skip image rebuild (use existing images)
+./start.sh --dry-run  # show what would happen without changing .env or starting compose
+./start.sh --help     # show all options
+```
+
+Options can be combined, and anything after `--` is passed through to `docker compose up`:
+
+```bash
+./start.sh --auto -- -d   # auto-pick ports, then run compose detached
+```
+
+The script reads `API_PORT` and `DASHBOARD_PORT` from `.env` (or falls back to `8000` and `3000`). If either port is in use, it finds the next available one and writes it back to `.env` before starting compose.
+
 The compose stack starts:
 
-- `api-server` on `http://localhost:8000`
-- `web-dashboard` on `http://localhost:3000`
+- `api-server` on `http://localhost:<API_PORT>` (default `8000`)
+- `web-dashboard` on `http://localhost:<DASHBOARD_PORT>` (default `3000`)
 - `machine-agent` with `MACHINE_ID` defaulting to the container hostname (or an explicit override) and `API_URL=http://api-server:8000`
 
 SQLite data is persisted under `./data/hcp.db`. The API server marks machines stale after `STALE_TIMEOUT_SECONDS` without a heartbeat and removes long-gone stale records after `CLEANUP_TIMEOUT_SECONDS`.
@@ -275,6 +293,14 @@ To stop the stack:
 
 ```bash
 docker compose down
+```
+
+Or use the stop script:
+
+```bash
+./stop.sh                # stop all containers
+./stop.sh --reset-ports  # stop and reset ports back to defaults (8000, 3000)
+./stop.sh --help         # show all options
 ```
 
 ## Multi-machine usage

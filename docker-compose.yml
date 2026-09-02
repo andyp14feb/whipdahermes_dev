@@ -5,10 +5,9 @@ services:
     init: true
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "${API_PORT:-8000}:8000"
     environment:
       API_HOST: 0.0.0.0
-      API_PORT: 8000
       DATABASE_URL: sqlite:////data/hcp.db
       STALE_TIMEOUT_SECONDS: 60
     volumes:
@@ -25,7 +24,7 @@ services:
     init: true
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "${DASHBOARD_PORT:-3000}:3000"
     environment:
       API_PROXY_TARGET: http://api-server:8000
     depends_on:
