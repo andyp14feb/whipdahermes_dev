@@ -13,6 +13,7 @@ class IMachineRegistryUpserter(Protocol):
         last_seen_at: str,
         session_count: int,
         db: object | None = None,
+        updates_enabled: bool = True,
     ) -> None: ...
 
 

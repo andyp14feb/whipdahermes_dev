@@ -8,6 +8,7 @@ logger = logging.getLogger(__name__)
 
 ATCH_SUBPROCESS_TIMEOUT_SECONDS = 5
 ATCH_TAIL_LINES = 200
+ATCH_TAIL_MAX_CHARS = 16384
 _STATUS_SUFFIX = re.compile(r"\s+\[(?:attached|stale|exited)\]\s*$", re.IGNORECASE)
 
 
@@ -52,5 +53,8 @@ def capture_sessions() -> list[dict]:
         except (FileNotFoundError, subprocess.TimeoutExpired, subprocess.CalledProcessError) as exc:
             logger.warning("Failed to capture atch session %s: %s", name, exc)
             continue
-        sessions.append({"backend": "atch", "target": name, "label": name, "text": tail.stdout, "cwd": None})
+        raw = tail.stdout or ""
+        if len(raw) > ATCH_TAIL_MAX_CHARS:
+            raw = raw[-ATCH_TAIL_MAX_CHARS:]
+        sessions.append({"backend": "atch", "target": name, "label": name, "text": raw, "cwd": None})
     return sessions

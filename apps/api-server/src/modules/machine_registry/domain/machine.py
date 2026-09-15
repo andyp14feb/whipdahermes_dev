@@ -11,6 +11,7 @@ class Machine(SQLModel, table=True):
     last_seen_at: str
     session_count: int = 0
     is_stale: bool = False
+    updates_enabled: bool = True
 
     def __init__(self, **data: object) -> None:
         machine_id = data.get("machine_id")

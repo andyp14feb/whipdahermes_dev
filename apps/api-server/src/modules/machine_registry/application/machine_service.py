@@ -17,12 +17,14 @@ class MachineService:
         last_seen_at: str,
         session_count: int,
         db: Any | None = None,
+        updates_enabled: bool = True,
     ) -> Machine:
         existing = self.repo.get(machine_id)
         if existing is not None:
             existing.last_seen_at = last_seen_at
             existing.session_count = session_count
             existing.is_stale = False
+            existing.updates_enabled = updates_enabled
             self.repo.upsert(existing, db=db)
             return existing
 
@@ -32,6 +34,7 @@ class MachineService:
             last_seen_at=last_seen_at,
             session_count=session_count,
             is_stale=False,
+            updates_enabled=updates_enabled,
         )
         self.repo.upsert(machine, db=db)
         return machine

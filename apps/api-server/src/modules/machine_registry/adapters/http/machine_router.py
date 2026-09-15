@@ -24,6 +24,7 @@ def create_machine_router(
                     "last_seen_at": machine.last_seen_at,
                     "session_count": machine.session_count,
                     "is_stale": machine.is_stale,
+                    "updates_enabled": getattr(machine, "updates_enabled", True),
                 }
                 for machine in machines
             ]

@@ -9,7 +9,12 @@ from pathlib import Path
 
 from capture.tmux_capture import capture_panes
 from command.executor import AgentControlState
-from parse.capture_parser import CaptureState, parse_sessions
+from parse.capture_parser import (
+    STATE_TEXT_MAX_CHARS,
+    CaptureState,
+    parse_sessions,
+    _truncate_state_text,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +87,10 @@ class HeartbeatScheduler:
             return CaptureState()
 
         return CaptureState(
-            previous_captures={str(key): str(value) for key, value in previous_captures.items()},
+            previous_captures={
+                str(key): _truncate_state_text(str(value), STATE_TEXT_MAX_CHARS)
+                for key, value in previous_captures.items()
+            },
             previous_counters={str(key): int(value) for key, value in previous_counters.items()},
         )
 
@@ -103,13 +111,22 @@ class HeartbeatScheduler:
             )
 
     def run_once(self) -> bool:
-        if not AgentControlState.get_instance().updates_enabled():
+        updates_enabled = AgentControlState.get_instance().updates_enabled()
+        if not updates_enabled:
             logger.info("Heartbeat updates paused for machine_id=%s", self.config.machine_id)
-            return True
+            # Keep last_seen fresh and advertise pause state to the API.
+            success = self.client.post_heartbeat(
+                self.config.machine_id, [], updates_enabled=False
+            )
+            if not success:
+                logger.error("Heartbeat post failed for machine_id=%s (paused)", self.config.machine_id)
+            return success
         panes = self.capture_fn()
         snapshots, self.state = self.parse_fn(panes, self.state, interval=self.config.interval)
         self._save_state()
-        success = self.client.post_heartbeat(self.config.machine_id, snapshots)
+        success = self.client.post_heartbeat(
+            self.config.machine_id, snapshots, updates_enabled=True
+        )
         if not success:
             logger.error("Heartbeat post failed for machine_id=%s", self.config.machine_id)
         return success
