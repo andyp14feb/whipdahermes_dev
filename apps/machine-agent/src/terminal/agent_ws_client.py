@@ -10,6 +10,9 @@ from terminal.tmux_live import TmuxLiveSession, is_atch_session
 
 logger = logging.getLogger(__name__)
 
+# Cap concurrent live tmux streams on this machine.
+MAX_LIVE_SESSIONS = 4
+
 
 def http_to_ws_url(api_url: str, path: str, token: str | None = None) -> str:
     parsed = urlparse(api_url.rstrip("/"))
@@ -20,7 +23,11 @@ def http_to_ws_url(api_url: str, path: str, token: str | None = None) -> str:
 
 
 class TerminalAgentClient:
-    """Outbound WebSocket client from machine-agent to api-server bridge."""
+    """Outbound WebSocket client from machine-agent to api-server bridge.
+
+    Multiplexes up to MAX_LIVE_SESSIONS simultaneous tmux live streams over a
+    single agent WebSocket connection.
+    """
 
     def __init__(
         self,
@@ -29,12 +36,14 @@ class TerminalAgentClient:
         tmux_socket: str | None,
         token: str | None = None,
         reconnect_seconds: float = 2.0,
+        max_live_sessions: int = MAX_LIVE_SESSIONS,
     ) -> None:
         self.api_url = api_url
         self.machine_id = machine_id
         self.tmux_socket = tmux_socket
         self.token = token or ""
         self.reconnect_seconds = reconnect_seconds
+        self.max_live_sessions = max_live_sessions
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self._ws = None
@@ -129,15 +138,17 @@ class TerminalAgentClient:
             self._resize(session_id, int(data.get("cols", 80)), int(data.get("rows", 24)))
 
     def _send(self, payload: dict) -> None:
+        # Hold the lock for the entire send — multiple TmuxLiveSession threads
+        # emit concurrently when several Lives are open.
         raw = json.dumps(payload)
         with self._ws_lock:
             ws = self._ws
-        if ws is None:
-            return
-        try:
-            ws.send(raw)
-        except Exception as exc:
-            logger.debug("terminal agent send failed: %s", exc)
+            if ws is None:
+                return
+            try:
+                ws.send(raw)
+            except Exception as exc:
+                logger.debug("terminal agent send failed: %s", exc)
 
     def _subscribe(self, session_id: str) -> None:
         if is_atch_session(session_id):
@@ -150,25 +161,51 @@ class TerminalAgentClient:
             )
             return
 
+        existing: TmuxLiveSession | None = None
         with self._sessions_lock:
             if session_id in self._sessions:
+                existing = self._sessions[session_id]
+            elif len(self._sessions) >= self.max_live_sessions:
+                self._send(
+                    {
+                        "type": "error",
+                        "session_id": session_id,
+                        "message": (
+                            f"Max {self.max_live_sessions} concurrent live terminals "
+                            f"per machine"
+                        ),
+                    }
+                )
                 return
-            live = TmuxLiveSession(
-                session_id=session_id,
-                tmux_socket=self.tmux_socket,
-                on_output=self._emit_output,
-                on_error=self._emit_error,
-                on_ready=self._emit_ready,
-                on_snapshot=self._emit_snapshot,
-            )
-            self._sessions[session_id] = live
-        live.start()
+            else:
+                live = TmuxLiveSession(
+                    session_id=session_id,
+                    tmux_socket=self.tmux_socket,
+                    on_output=self._emit_output,
+                    on_error=self._emit_error,
+                    on_ready=self._emit_ready,
+                    on_snapshot=self._emit_snapshot,
+                )
+                self._sessions[session_id] = live
+                live.start()
+                logger.info(
+                    "terminal agent subscribed session_id=%s active=%s/%s",
+                    session_id,
+                    len(self._sessions),
+                    self.max_live_sessions,
+                )
+                return
+
+        # Already streaming — refresh snapshot/ready for a new (or reconnected) viewer.
+        if existing is not None:
+            existing.refresh_for_viewer()
 
     def _unsubscribe(self, session_id: str) -> None:
         with self._sessions_lock:
             live = self._sessions.pop(session_id, None)
         if live:
             live.stop()
+            logger.info("terminal agent unsubscribed session_id=%s", session_id)
 
     def _input(self, session_id: str, data: str) -> None:
         with self._sessions_lock:

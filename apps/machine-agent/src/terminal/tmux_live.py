@@ -87,6 +87,15 @@ class TmuxLiveSession:
             logger.warning("send-keys failed session_id=%s: %s", self.session_id, exc)
             self.on_error(self.session_id, f"send-keys failed: {exc}")
 
+    def refresh_for_viewer(self) -> None:
+        """Re-emit snapshot + ready so a new viewer can catch up without restarting pipe-pane."""
+        if self._stop.is_set():
+            return
+        snapshot = self._capture_snapshot()
+        if snapshot is not None:
+            self.on_snapshot(self.session_id, snapshot)
+        self.on_ready(self.session_id)
+
     def resize(self, cols: int, rows: int) -> None:
         cols = max(20, min(int(cols), 500))
         rows = max(5, min(int(rows), 200))

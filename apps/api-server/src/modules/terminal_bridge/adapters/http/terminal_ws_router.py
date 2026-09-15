@@ -20,6 +20,14 @@ def _safe_json(raw: str) -> dict[str, Any] | None:
     return data if isinstance(data, dict) else None
 
 
+async def _fanout_json(browsers: list[WebSocket], payload: dict[str, Any]) -> None:
+    for browser in browsers:
+        try:
+            await browser.send_json(payload)
+        except Exception:
+            pass
+
+
 def create_terminal_ws_router() -> APIRouter:
     router = APIRouter(tags=["terminal"])
     hub = get_terminal_hub()
@@ -52,36 +60,37 @@ def create_terminal_ws_router() -> APIRouter:
                 if not session_id:
                     continue
 
-                browser = hub.get_browser(machine_id, session_id)
-                if browser is None:
+                browsers = hub.get_browsers(machine_id, session_id)
+                if not browsers:
                     continue
 
                 if msg_type == "output":
-                    await browser.send_json({"type": "output", "data": msg.get("data", "")})
+                    await _fanout_json(
+                        browsers, {"type": "output", "data": msg.get("data", "")}
+                    )
                 elif msg_type == "error":
-                    await browser.send_json(
-                        {"type": "error", "message": str(msg.get("message", "agent error"))}
+                    await _fanout_json(
+                        browsers,
+                        {
+                            "type": "error",
+                            "message": str(msg.get("message", "agent error")),
+                        },
                     )
                 elif msg_type == "ready":
-                    await browser.send_json({"type": "status", "status": "ready"})
+                    await _fanout_json(browsers, {"type": "status", "status": "ready"})
                 elif msg_type == "snapshot":
-                    await browser.send_json(
-                        {"type": "snapshot", "data": msg.get("data", "")}
+                    await _fanout_json(
+                        browsers, {"type": "snapshot", "data": msg.get("data", "")}
                     )
         except WebSocketDisconnect:
             logger.info("agent WS disconnected machine_id=%s", machine_id)
         finally:
             await hub.unregister_agent(machine_id, websocket)
             for session_id in hub.browser_sessions_for_machine(machine_id):
-                browser = hub.get_browser(machine_id, session_id)
-                if browser is None:
-                    continue
-                try:
-                    await browser.send_json(
-                        {"type": "status", "status": "agent_disconnected"}
-                    )
-                except Exception:
-                    pass
+                browsers = hub.get_browsers(machine_id, session_id)
+                await _fanout_json(
+                    browsers, {"type": "status", "status": "agent_disconnected"}
+                )
 
     @router.websocket("/ws/terminal/{machine_id}/{session_id:path}")
     async def browser_ws(websocket: WebSocket, machine_id: str, session_id: str) -> None:
@@ -102,7 +111,11 @@ def create_terminal_ws_router() -> APIRouter:
             return
 
         await websocket.accept()
-        await hub.register_browser(machine_id, session_id, websocket)
+        reject = await hub.register_browser(machine_id, session_id, websocket)
+        if reject:
+            await websocket.send_json({"type": "error", "message": reject})
+            await websocket.close(code=4408, reason="live capacity exceeded")
+            return
 
         agent = hub.get_agent(machine_id)
         if agent is None:
@@ -163,14 +176,15 @@ def create_terminal_ws_router() -> APIRouter:
                 session_id,
             )
         finally:
-            await hub.unregister_browser(machine_id, session_id, websocket)
-            agent = hub.get_agent(machine_id)
-            if agent is not None:
-                try:
-                    await agent.send_json(
-                        {"type": "unsubscribe", "session_id": session_id}
-                    )
-                except Exception:
-                    pass
+            last_viewer = await hub.unregister_browser(machine_id, session_id, websocket)
+            if last_viewer:
+                agent = hub.get_agent(machine_id)
+                if agent is not None:
+                    try:
+                        await agent.send_json(
+                            {"type": "unsubscribe", "session_id": session_id}
+                        )
+                    except Exception:
+                        pass
 
     return router
