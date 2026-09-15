@@ -136,15 +136,22 @@ export function LiveTerminal({
     window.addEventListener("resize", onResize);
 
     let resizeObserver: ResizeObserver | null = null;
+    let fitRaf = 0;
     if (typeof ResizeObserver !== "undefined" && containerRef.current) {
+      // Debounce: fit.fit() can change layout and re-trigger the observer (UI freeze).
       resizeObserver = new ResizeObserver(() => {
-        scheduleFit();
+        if (fitRaf) cancelAnimationFrame(fitRaf);
+        fitRaf = requestAnimationFrame(() => {
+          fitRaf = 0;
+          fitAndFocus(term, fit, wsRef.current);
+        });
       });
       resizeObserver.observe(containerRef.current);
     }
 
     return () => {
       window.removeEventListener("resize", onResize);
+      if (fitRaf) cancelAnimationFrame(fitRaf);
       resizeObserver?.disconnect();
       dataDisposable.dispose();
       try {
@@ -173,7 +180,7 @@ export function LiveTerminal({
     <div className="flex min-h-0 flex-col gap-2">
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-xs font-medium text-gray-600 dark:text-gray-300">
-          Live · {status}
+          Live - {status}
         </span>
         {errorMessage && (
           <span className="text-xs text-red-600" role="alert">

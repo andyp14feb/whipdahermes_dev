@@ -169,7 +169,7 @@ export function SessionWindow({ index }: SessionWindowProps) {
     }
     if (!acquireLiveSlot()) {
       setLiveCapToast(
-        `Max ${MAX_CONCURRENT_LIVE_TERMINALS} live terminals — close one first`,
+        `Max ${MAX_CONCURRENT_LIVE_TERMINALS} live terminals - close one first`,
       );
       return;
     }
@@ -258,7 +258,7 @@ export function SessionWindow({ index }: SessionWindowProps) {
               selectedBackend === "atch"
                 ? "Live terminal is tmux-only"
                 : !liveOpen && liveOpenCount >= MAX_CONCURRENT_LIVE_TERMINALS
-                  ? `Max ${MAX_CONCURRENT_LIVE_TERMINALS} live terminals — close one first`
+                  ? `Max ${MAX_CONCURRENT_LIVE_TERMINALS} live terminals - close one first`
                   : "Open live interactive terminal"
             }
           >
