@@ -50,6 +50,7 @@ class QueryService:
                     "last_seen_at": machine.last_seen_at,
                     "session_count": machine.session_count,
                     "is_stale": self._is_machine_stale(machine.last_seen_at),
+                    "updates_enabled": getattr(machine, "updates_enabled", True),
                 }
                 for machine in machines
             ]

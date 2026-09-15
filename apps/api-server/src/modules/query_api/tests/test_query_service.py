@@ -70,6 +70,7 @@ class TestQueryService:
                 "last_seen_at": NOW,
                 "session_count": 3,
                 "is_stale": False,
+            "updates_enabled": True,
             },
             {
                 "machine_id": "vm-2",
@@ -77,6 +78,7 @@ class TestQueryService:
                 "last_seen_at": NOW,
                 "session_count": 1,
                 "is_stale": False,
+            "updates_enabled": True,
             },
         ], key=lambda m: m["machine_id"])
         assert result_sorted == expected_sorted
