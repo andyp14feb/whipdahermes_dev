@@ -97,21 +97,32 @@ class TmuxLiveSession:
         self.on_ready(self.session_id)
 
     def resize(self, cols: int, rows: int) -> None:
+        """Resize tmux window then pane so cols/rows can actually apply."""
         cols = max(20, min(int(cols), 500))
         rows = max(5, min(int(rows), 200))
-        try:
-            subprocess.run(
-                build_tmux_command(
-                    ["resize-pane", "-t", self.target, "-x", str(cols), "-y", str(rows)],
-                    self.tmux_socket,
-                ),
-                capture_output=True,
-                text=True,
-                check=True,
-                timeout=5,
-            )
-        except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired) as exc:
-            logger.debug("resize-pane failed session_id=%s: %s", self.session_id, exc)
+        # Window resize first: a constrained layout may ignore pane-only resize.
+        commands = (
+            ["resize-window", "-t", self.target, "-x", str(cols), "-y", str(rows)],
+            ["resize-pane", "-t", self.target, "-x", str(cols), "-y", str(rows)],
+        )
+        for argv in commands:
+            try:
+                subprocess.run(
+                    build_tmux_command(argv, self.tmux_socket),
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                    timeout=5,
+                )
+            except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired) as exc:
+                logger.debug(
+                    "%s failed session_id=%s cols=%s rows=%s: %s",
+                    argv[0],
+                    self.session_id,
+                    cols,
+                    rows,
+                    exc,
+                )
 
     def _run(self) -> None:
         try:

@@ -3,6 +3,11 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
 import { buildLiveTerminalWsUrl } from "./liveTerminalUrl";
+import {
+  FATAL_CLOSE_CODES,
+  RESIZE_DEBOUNCE_MS,
+  reconnectDelayMs,
+} from "./liveTerminalReconnect";
 import { Button } from "../../shared/ui/Button";
 
 export interface LiveTerminalProps {
@@ -12,24 +17,34 @@ export interface LiveTerminalProps {
   onClose?: () => void;
 }
 
-type ConnStatus =
+export type ConnStatus =
   | "connecting"
   | "waiting_agent"
   | "ready"
+  | "reconnecting"
   | "agent_disconnected"
   | "error"
   | "closed";
 
-function fitAndFocus(term: Terminal, fit: FitAddon, ws?: WebSocket | null) {
-  try {
-    fit.fit();
-  } catch {
-    /* ignore fit races before layout */
-  }
-  term.focus();
-  const dims = fit.proposeDimensions();
-  if (dims && ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: "resize", cols: dims.cols, rows: dims.rows }));
+
+function statusLabel(status: ConnStatus): string {
+  switch (status) {
+    case "connecting":
+      return "connecting";
+    case "waiting_agent":
+      return "waiting for agent";
+    case "ready":
+      return "ready";
+    case "reconnecting":
+      return "reconnecting…";
+    case "agent_disconnected":
+      return "agent disconnected";
+    case "error":
+      return "error";
+    case "closed":
+      return "closed";
+    default:
+      return status;
   }
 }
 
@@ -68,94 +83,201 @@ export function LiveTerminal({
     termRef.current = term;
     fitRef.current = fit;
 
-    const wsUrl = buildLiveTerminalWsUrl(machineId, sessionId);
-    const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
-    setStatus("connecting");
-    setErrorMessage(null);
+    let disposed = false;
+    let intentionalClose = false;
+    let reconnectAttempt = 0;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let resizeTimer: ReturnType<typeof setTimeout> | null = null;
+    let lastSentCols = 0;
+    let lastSentRows = 0;
+    let fitRaf = 0;
 
-    // Fit after layout so cols/rows match the visible host (avoids caret at bottom).
+    const clearReconnectTimer = () => {
+      if (reconnectTimer != null) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+      }
+    };
+
+    const clearResizeTimer = () => {
+      if (resizeTimer != null) {
+        clearTimeout(resizeTimer);
+        resizeTimer = null;
+      }
+    };
+
+    const sendResizeDebounced = (cols: number, rows: number) => {
+      if (!cols || !rows) return;
+      if (cols === lastSentCols && rows === lastSentRows) return;
+      clearResizeTimer();
+      resizeTimer = setTimeout(() => {
+        resizeTimer = null;
+        const ws = wsRef.current;
+        if (!ws || ws.readyState !== WebSocket.OPEN) return;
+        if (cols === lastSentCols && rows === lastSentRows) return;
+        lastSentCols = cols;
+        lastSentRows = rows;
+        try {
+          ws.send(JSON.stringify({ type: "resize", cols, rows }));
+        } catch {
+          /* ignore send races during close */
+        }
+      }, RESIZE_DEBOUNCE_MS);
+    };
+
+    const fitAndFocus = () => {
+      try {
+        fit.fit();
+      } catch {
+        /* ignore fit races before layout */
+      }
+      term.focus();
+      const dims = fit.proposeDimensions();
+      if (dims) {
+        sendResizeDebounced(dims.cols, dims.rows);
+      }
+    };
+
     const scheduleFit = () => {
       requestAnimationFrame(() => {
-        fitAndFocus(term, fit, wsRef.current);
+        if (!disposed) fitAndFocus();
       });
     };
-    scheduleFit();
 
-    ws.onopen = () => {
-      scheduleFit();
-    };
-
-    ws.onmessage = (event) => {
-      let msg: { type?: string; data?: string; message?: string; status?: string };
+    const openSocket = () => {
+      if (disposed || intentionalClose) return;
+      clearReconnectTimer();
       try {
-        msg = JSON.parse(String(event.data));
+        wsRef.current?.close();
       } catch {
-        term.write(String(event.data));
-        return;
+        /* ignore */
       }
 
-      if (msg.type === "output" && typeof msg.data === "string") {
-        term.write(msg.data);
-      } else if (msg.type === "snapshot" && typeof msg.data === "string") {
-        term.reset();
-        term.write(msg.data.replace(/\n/g, "\r\n"));
+      const wsUrl = buildLiveTerminalWsUrl(machineId, sessionId);
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+
+      if (reconnectAttempt > 0) {
+        setStatus("reconnecting");
+      } else {
+        setStatus("connecting");
+        setErrorMessage(null);
+      }
+
+      ws.onopen = () => {
+        if (disposed) return;
+        reconnectAttempt = 0;
+        setErrorMessage(null);
+        setStatus((prev) =>
+          prev === "reconnecting" || prev === "closed" || prev === "error"
+            ? "connecting"
+            : prev,
+        );
+        // Force resize after reconnect (tmux stream may have restarted).
+        lastSentCols = 0;
+        lastSentRows = 0;
         scheduleFit();
-      } else if (msg.type === "error") {
-        setStatus("error");
-        setErrorMessage(msg.message || "Terminal error");
-        term.writeln(`\r\n\x1b[31m${msg.message || "Terminal error"}\x1b[0m`);
-      } else if (msg.type === "status") {
-        const next = (msg.status || "connecting") as ConnStatus;
-        setStatus(next);
-        if (next === "ready") {
-          scheduleFit();
+      };
+
+      ws.onmessage = (event) => {
+        if (disposed) return;
+        let msg: { type?: string; data?: string; message?: string; status?: string };
+        try {
+          msg = JSON.parse(String(event.data));
+        } catch {
+          term.write(String(event.data));
+          return;
         }
-      }
-    };
 
-    ws.onerror = () => {
-      setStatus("error");
-      setErrorMessage("WebSocket error");
-    };
+        if (msg.type === "output" && typeof msg.data === "string") {
+          term.write(msg.data);
+        } else if (msg.type === "snapshot" && typeof msg.data === "string") {
+          term.reset();
+          term.write(msg.data.replace(/\n/g, "\r\n"));
+          scheduleFit();
+        } else if (msg.type === "error") {
+          setStatus("error");
+          setErrorMessage(msg.message || "Terminal error");
+          term.writeln(`\r\n\x1b[31m${msg.message || "Terminal error"}\x1b[0m`);
+        } else if (msg.type === "status") {
+          const next = (msg.status || "connecting") as ConnStatus;
+          setStatus(next);
+          if (next === "ready") {
+            setErrorMessage(null);
+            scheduleFit();
+          }
+        }
+      };
 
-    ws.onclose = () => {
-      setStatus((prev) => (prev === "error" ? prev : "closed"));
-      wsRef.current = null;
+      ws.onerror = () => {
+        if (disposed || intentionalClose) return;
+        setErrorMessage((prev) => prev ?? "WebSocket error");
+      };
+
+      ws.onclose = (ev) => {
+        if (disposed) return;
+        wsRef.current = null;
+        if (intentionalClose) {
+          setStatus("closed");
+          return;
+        }
+        if (FATAL_CLOSE_CODES.has(ev.code)) {
+          setStatus("error");
+          setErrorMessage((prev) => prev || ev.reason || `Closed (${ev.code})`);
+          return;
+        }
+        setStatus("reconnecting");
+        clearReconnectTimer();
+        const delay = reconnectDelayMs(reconnectAttempt);
+        reconnectAttempt += 1;
+        reconnectTimer = setTimeout(() => {
+          reconnectTimer = null;
+          if (!disposed && !intentionalClose) {
+            openSocket();
+          }
+        }, delay);
+      };
     };
 
     const dataDisposable = term.onData((data) => {
-      if (ws.readyState === WebSocket.OPEN) {
+      const ws = wsRef.current;
+      if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: "input", data }));
       }
     });
 
-    const onResize = () => {
-      fitAndFocus(term, fit, wsRef.current);
+    const onWindowResize = () => {
+      fitAndFocus();
     };
-    window.addEventListener("resize", onResize);
+    window.addEventListener("resize", onWindowResize);
 
     let resizeObserver: ResizeObserver | null = null;
-    let fitRaf = 0;
     if (typeof ResizeObserver !== "undefined" && containerRef.current) {
       // Debounce: fit.fit() can change layout and re-trigger the observer (UI freeze).
       resizeObserver = new ResizeObserver(() => {
         if (fitRaf) cancelAnimationFrame(fitRaf);
         fitRaf = requestAnimationFrame(() => {
           fitRaf = 0;
-          fitAndFocus(term, fit, wsRef.current);
+          if (!disposed) fitAndFocus();
         });
       });
       resizeObserver.observe(containerRef.current);
     }
 
+    openSocket();
+    scheduleFit();
+
     return () => {
-      window.removeEventListener("resize", onResize);
+      disposed = true;
+      intentionalClose = true;
+      clearReconnectTimer();
+      clearResizeTimer();
+      window.removeEventListener("resize", onWindowResize);
       if (fitRaf) cancelAnimationFrame(fitRaf);
       resizeObserver?.disconnect();
       dataDisposable.dispose();
       try {
-        ws.close();
+        wsRef.current?.close();
       } catch {
         /* ignore */
       }
@@ -171,16 +293,33 @@ export function LiveTerminal({
     const term = termRef.current;
     const fit = fitRef.current;
     if (!term || !fit) return;
-    requestAnimationFrame(() => {
-      fitAndFocus(term, fit, wsRef.current);
+    const id = requestAnimationFrame(() => {
+      try {
+        fit.fit();
+      } catch {
+        /* ignore */
+      }
+      term.focus();
+      const dims = fit.proposeDimensions();
+      const ws = wsRef.current;
+      if (dims && ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(
+          JSON.stringify({ type: "resize", cols: dims.cols, rows: dims.rows }),
+        );
+      }
     });
+    return () => cancelAnimationFrame(id);
   }, [heightPx]);
 
   return (
     <div className="flex min-h-0 flex-col gap-2">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs font-medium text-gray-600 dark:text-gray-300">
-          Live - {status}
+        <span
+          className="text-xs font-medium text-gray-600 dark:text-gray-300"
+          data-testid="live-terminal-status"
+          data-status={status}
+        >
+          Live — {statusLabel(status)}
         </span>
         {errorMessage && (
           <span className="text-xs text-red-600" role="alert">

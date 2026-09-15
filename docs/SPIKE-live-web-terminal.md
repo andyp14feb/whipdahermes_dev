@@ -1,4 +1,4 @@
-# SPIKE: Live Web Terminal (P0 → P1)
+# SPIKE: Live Web Terminal (P0 → P2)
 
 Interactive tmux pane in the browser via **xterm.js + WebSocket**, bridged through the API to the machine-agent.
 
@@ -111,15 +111,37 @@ Prereq: at least **4 distinct tmux sessions** on the same machine (or mix machin
 10. While 4 Lives are open, confirm heartbeat still updates machine list / session status and **Command** panel still queues commands.
 11. Atch session → Live remains disabled / rejected.
 
-## P2 blockers / follow-ups
+## P2 polish (done)
+
+| Item | Behavior |
+|------|----------|
+| Browser WS reconnect | Auto-retry with exponential backoff + jitter (0.5s → 15s). Status shows `reconnecting…` then hub/agent statuses (`connecting` / `waiting for agent` / `ready`). Fatal close codes `4401` (token) and `4403` (atch) do not retry. |
+| Agent WS reconnect | Outbound WS reconnects with exponential backoff (1s → 30s). Remembers `_desired_sessions` across drops; on open re-subscribes them. Hub still re-sends `subscribe` for waiting browsers (duplicate subscribe → `refresh_for_viewer`). |
+| Resize sync | xterm `fit` → debounced `resize` WS (150ms, skip unchanged cols/rows). Agent runs `resize-window` then `resize-pane`. ResizeObserver stays rAF-debounced (do not reintroduce fit loop freeze from pre-`f718c33`). |
+| UX leftovers (#11) | Max-4 Live rejection still shows toast; caret stays on typing cell after fit/focus. |
+| Status hardening | LiveTerminal surfaces: `connecting`, `waiting_agent`, `reconnecting`, `ready`, `agent_disconnected`, `error` (+ message), `closed`. Errors clear when a new socket opens / status becomes `ready`. |
+
+### Verify reconnect
+
+1. Open Live on a tmux session until status is `ready`.
+2. Kill/restart the API process (or block the browser WS briefly via DevTools → Network offline then online).
+3. Status should flip to `reconnecting…`, then `connecting` / `waiting for agent` / `ready` without clicking Live again.
+4. Type again — input should reach tmux.
+
+### Verify resize
+
+1. Open Live; note tmux pane size (`tmux display -p -t <target> '#{pane_width}x#{pane_height}'`).
+2. Drag the SessionWindow resize handle taller/wider (or resize the browser).
+3. After ~150ms debounce, pane width/height should track xterm cols/rows.
+4. Rapidly resize — UI must stay responsive (no fit-loop freeze).
+
+## Remaining blockers / follow-ups (P3+)
 
 - Snapshot poll + pipe-pane can flicker; prefer tmux control mode (`tmux -C`) or a single reliable stream.
 - Hub is in-memory (single API process only); no multi-API sticky routing.
 - Token is shared secret, not per-user session auth.
-- Resize maps to `resize-pane` (pane size), not necessarily the outer client size.
 - Special keys: relies on xterm `onData` + `send-keys -l`; some sequences may need key-name mapping.
-- Agent WS reconnect storm under flaky networks.
 - Production TLS / cookie auth / CSRF for WS.
 - Dashboard build needs token baked or a small settings field for token.
-- Atch live still out of scope.
+- Atch live still out of scope (P3).
 - Session window React `key={index}` can shuffle local Live state when removing a middle window.
