@@ -1,1 +1,1 @@
-"""Live tmux terminal streaming (P0 spike)."""
+"""Live terminal streaming for tmux (pipe-pane) and atch (PTY attach)."""

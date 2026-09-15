@@ -251,14 +251,13 @@ export function SessionWindow({ index }: SessionWindowProps) {
             disabled={
               !slot.machineId
               || !slot.sessionId
-              || selectedBackend === "atch"
             }
             aria-describedby={liveCapToast ? `live-cap-toast-${index}` : undefined}
             title={
-              selectedBackend === "atch"
-                ? "Live terminal is tmux-only"
-                : !liveOpen && liveOpenCount >= MAX_CONCURRENT_LIVE_TERMINALS
-                  ? `Max ${MAX_CONCURRENT_LIVE_TERMINALS} live terminals - close one first`
+              !liveOpen && liveOpenCount >= MAX_CONCURRENT_LIVE_TERMINALS
+                ? `Max ${MAX_CONCURRENT_LIVE_TERMINALS} live terminals - close one first`
+                : selectedBackend === "atch"
+                  ? "Open live interactive atch terminal"
                   : "Open live interactive terminal"
             }
           >

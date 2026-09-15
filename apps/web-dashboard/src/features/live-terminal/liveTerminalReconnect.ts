@@ -4,7 +4,7 @@ export const RESIZE_DEBOUNCE_MS = 150;
 export const RECONNECT_BASE_MS = 500;
 export const RECONNECT_MAX_MS = 15000;
 
-/** Close codes that should not auto-retry (auth / unsupported). */
+/** Close codes that should not auto-retry (auth). 4403 kept for legacy clients. */
 export const FATAL_CLOSE_CODES = new Set([4401, 4403]);
 
 export function reconnectDelayMs(

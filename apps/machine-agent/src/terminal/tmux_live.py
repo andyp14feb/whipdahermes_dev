@@ -52,9 +52,10 @@ class TmuxLiveSession:
 
     def start(self) -> None:
         if is_atch_session(self.session_id):
+            # Atch Live is handled by AtchLiveSession; this class is tmux-only.
             self.on_error(
                 self.session_id,
-                "Live terminal is not supported for atch sessions (tmux only).",
+                "TmuxLiveSession cannot attach atch sessions; use AtchLiveSession.",
             )
             return
         self._thread = threading.Thread(

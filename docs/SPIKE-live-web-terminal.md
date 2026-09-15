@@ -20,9 +20,11 @@ Machine Agent (outbound WS)
        ↕
 tmux: capture-pane snapshot + pipe-pane stream
       send-keys -l for keystrokes
+atch: openpty+Popen + `atch -E -q -r winch attach <session>`
+      PTY I/O + TIOCSWINSZ resize; initial snapshot via `atch tail`
 ```
 
-- **Atch**: no live PTY — API and agent reject with a clear error.
+- **Atch True Live (P3)**: attach-under-PTY is supported for `atch:` sessions.
 - Existing heartbeat / snapshot / `POST /command` poll path is unchanged.
 
 ## Auth
@@ -39,7 +41,7 @@ Shared token via env `WHIPAI_TERMINAL_TOKEN` (query `token=` or header `X-WhipAI
 |-------|-------|----------|
 | Dashboard | 4 concurrent Live mounts | Extra **Live** buttons disabled until a Live is closed |
 | API hub | 4 distinct `session_id`s per `machine_id` | 5th unique session rejected with error; same session may have multiple viewers |
-| Machine agent | 4 concurrent `TmuxLiveSession`s | Extra subscribe returns error; WS sends are thread-safe |
+| Machine agent | 4 concurrent live sessions (tmux and/or atch) | Extra subscribe returns error; WS sends are thread-safe |
 
 Heartbeat, snapshot polling, and command poll/execute paths are independent of the live terminal WS and keep working while Lives are open.
 
@@ -74,7 +76,7 @@ SESSION_BACKENDS=atch,tmux \
 python -m main
 ```
 
-Note: Live terminal is **tmux-only**, but agent monitoring should keep `SESSION_BACKENDS=atch,tmux` so atch sessions remain visible after restarts (avoid tmux-only regressions).
+Note: Live works for **tmux and atch**. Agent monitoring should keep `SESSION_BACKENDS=atch,tmux` so both backends stay visible after restarts (never restart the worker tmux-only).
 
 If using Docker only for api+dashboard: set `WHIPAI_TERMINAL_TOKEN` in `.env`, rebuild **only** those two services if needed. Do not compose-down CMS or unrelated stacks.
 
@@ -95,7 +97,7 @@ Via Vite proxy (dashboard origin): `ws://localhost:3003/ws/terminal/...`
 4. Click **Live**.
 5. Type in the xterm pane — characters should appear in the real tmux pane (`tmux attach -t ...`).
 6. Output from the real pane (e.g. `echo hello` in tmux) should stream into the browser.
-7. Select an **atch** session → Live disabled / error: not supported.
+7. Select an **atch** session → Live should also reach `ready`; type and confirm stream (True Live PTY attach).
 
 ## Test steps (multi Live — P1, up to 4)
 
@@ -111,13 +113,13 @@ Prereq: at least **4 distinct tmux sessions** on the same machine (or mix machin
 8. Close Live on one window → the 5th window’s Live becomes available; open it and confirm stream works.
 9. Optional: open Live on the **same** session in two windows → both should receive the same output (hub fan-out).
 10. While 4 Lives are open, confirm heartbeat still updates machine list / session status and **Command** panel still queues commands.
-11. Atch session → Live remains disabled / rejected.
+11. Atch session → Live works the same way (PTY attach); prefer a disposable `atch start …` smoke session.
 
 ## P2 polish (done)
 
 | Item | Behavior |
 |------|----------|
-| Browser WS reconnect | Auto-retry with exponential backoff + jitter (0.5s → 15s). Status shows `reconnecting…` then hub/agent statuses (`connecting` / `waiting for agent` / `ready`). Fatal close codes `4401` (token) and `4403` (atch) do not retry. |
+| Browser WS reconnect | Auto-retry with exponential backoff + jitter (0.5s → 15s). Status shows `reconnecting…` then hub/agent statuses (`connecting` / `waiting for agent` / `ready`). Fatal close code `4401` (token) does not retry (`4403` kept legacy-only). |
 | Agent WS reconnect | Outbound WS reconnects with exponential backoff (1s → 30s). Remembers `_desired_sessions` across drops; on open re-subscribes them. Hub still re-sends `subscribe` for waiting browsers (duplicate subscribe → `refresh_for_viewer`). |
 | Resize sync | xterm `fit` → debounced `resize` WS (150ms, skip unchanged cols/rows). Agent runs `resize-window` then `resize-pane`. ResizeObserver stays rAF-debounced (do not reintroduce fit loop freeze from pre-`f718c33`). |
 | UX leftovers (#11) | Max-4 Live rejection still shows toast; caret stays on typing cell after fit/focus. |
@@ -137,13 +139,23 @@ Prereq: at least **4 distinct tmux sessions** on the same machine (or mix machin
 3. After ~150ms debounce, pane width/height should track xterm cols/rows.
 4. Rapidly resize — UI must stay responsive (no fit-loop freeze).
 
-## Remaining blockers / follow-ups (P3+)
+## P3: Atch True Live (done)
+
+| Item | Behavior |
+|------|----------|
+| Agent | `AtchLiveSession` spawns `atch -E -q -r winch attach <name>` under openpty+Popen; reads/writes master FD; resize via `TIOCSWINSZ`. |
+| Detach char | Disabled (`-E`) so browser `Ctrl-\` does not detach the agent attach client. |
+| API / UI | 4403 atch ban removed; Live button enabled for atch backends. |
+| Snapshot | `atch tail -n 200` for viewer catch-up; attach replay streams as `output`. |
+| Ownership | Agent must run as the atch session owner (on G470: `andy`). |
+
+## Remaining blockers / follow-ups (P4+)
 
 - Snapshot poll + pipe-pane can flicker; prefer tmux control mode (`tmux -C`) or a single reliable stream.
 - Hub is in-memory (single API process only); no multi-API sticky routing.
 - Token is shared secret, not per-user session auth.
-- Special keys: relies on xterm `onData` + `send-keys -l`; some sequences may need key-name mapping.
+- Special keys: relies on xterm `onData` + `send-keys -l` (tmux) / raw PTY bytes (atch); some sequences may need key-name mapping.
 - Production TLS / cookie auth / CSRF for WS.
 - Dashboard build needs token baked or a small settings field for token.
-- Atch live still out of scope (P3).
+- Multi-attach: human `atch attach` clients share the session with the agent bridge — avoid disrupting prod hermes chats during smoke.
 - Session window React `key={index}` can shuffle local Live state when removing a middle window.

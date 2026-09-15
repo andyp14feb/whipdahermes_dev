@@ -100,18 +100,6 @@ def create_terminal_ws_router() -> APIRouter:
             await websocket.close(code=4401, reason="invalid terminal token")
             return
 
-        # Reject atch live at the API edge too (clear message).
-        if session_id.startswith("atch:"):
-            await websocket.accept()
-            await websocket.send_json(
-                {
-                    "type": "error",
-                    "message": "Live terminal is not supported for atch sessions (tmux only).",
-                }
-            )
-            await websocket.close(code=4403, reason="atch not supported")
-            return
-
         await websocket.accept()
         reject = await hub.register_browser(machine_id, session_id, websocket)
         if reject:

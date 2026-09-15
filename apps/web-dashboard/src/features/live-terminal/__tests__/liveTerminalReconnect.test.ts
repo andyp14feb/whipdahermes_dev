@@ -15,7 +15,7 @@ describe("liveTerminalReconnect", () => {
     expect(d20).toBe(RECONNECT_MAX_MS);
   });
 
-  it("treats auth and atch closes as fatal", () => {
+  it("treats auth (and legacy 4403) closes as fatal", () => {
     expect(FATAL_CLOSE_CODES.has(4401)).toBe(true);
     expect(FATAL_CLOSE_CODES.has(4403)).toBe(true);
     expect(FATAL_CLOSE_CODES.has(1006)).toBe(false);

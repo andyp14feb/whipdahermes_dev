@@ -7,11 +7,12 @@ import threading
 import time
 from urllib.parse import urlparse, urlunparse
 
+from terminal.atch_live import AtchLiveSession
 from terminal.tmux_live import TmuxLiveSession, is_atch_session
 
 logger = logging.getLogger(__name__)
 
-# Cap concurrent live tmux streams on this machine.
+# Cap concurrent live terminal streams on this machine.
 MAX_LIVE_SESSIONS = 4
 
 # Outbound WS reconnect backoff (avoids reconnect storms on flaky networks).
@@ -37,7 +38,7 @@ def reconnect_delay_seconds(attempt: int, base: float = RECONNECT_BASE_SECONDS, 
 class TerminalAgentClient:
     """Outbound WebSocket client from machine-agent to api-server bridge.
 
-    Multiplexes up to MAX_LIVE_SESSIONS simultaneous tmux live streams over a
+    Multiplexes up to MAX_LIVE_SESSIONS simultaneous tmux/atch live streams over a
     single agent WebSocket connection. Remembers desired session IDs across
     reconnects and re-subscribes them when the outbound WS comes back.
     """
@@ -63,7 +64,7 @@ class TerminalAgentClient:
         self._thread: threading.Thread | None = None
         self._ws = None
         self._ws_lock = threading.Lock()
-        self._sessions: dict[str, TmuxLiveSession] = {}
+        self._sessions: dict[str, TmuxLiveSession | AtchLiveSession] = {}
         self._sessions_lock = threading.Lock()
         # Survives WS drops so we can re-subscribe after reconnect.
         self._desired_sessions: set[str] = set()
@@ -193,17 +194,7 @@ class TerminalAgentClient:
                 logger.debug("terminal agent send failed: %s", exc)
 
     def _subscribe(self, session_id: str) -> None:
-        if is_atch_session(session_id):
-            self._send(
-                {
-                    "type": "error",
-                    "session_id": session_id,
-                    "message": "Live terminal is not supported for atch sessions (tmux only).",
-                }
-            )
-            return
-
-        existing: TmuxLiveSession | None = None
+        existing: TmuxLiveSession | AtchLiveSession | None = None
         with self._sessions_lock:
             self._desired_sessions.add(session_id)
             if session_id in self._sessions:
@@ -221,19 +212,29 @@ class TerminalAgentClient:
                 )
                 return
             else:
-                live = TmuxLiveSession(
-                    session_id=session_id,
-                    tmux_socket=self.tmux_socket,
-                    on_output=self._emit_output,
-                    on_error=self._emit_error,
-                    on_ready=self._emit_ready,
-                    on_snapshot=self._emit_snapshot,
-                )
+                if is_atch_session(session_id):
+                    live: TmuxLiveSession | AtchLiveSession = AtchLiveSession(
+                        session_id=session_id,
+                        on_output=self._emit_output,
+                        on_error=self._emit_error,
+                        on_ready=self._emit_ready,
+                        on_snapshot=self._emit_snapshot,
+                    )
+                else:
+                    live = TmuxLiveSession(
+                        session_id=session_id,
+                        tmux_socket=self.tmux_socket,
+                        on_output=self._emit_output,
+                        on_error=self._emit_error,
+                        on_ready=self._emit_ready,
+                        on_snapshot=self._emit_snapshot,
+                    )
                 self._sessions[session_id] = live
                 live.start()
                 logger.info(
-                    "terminal agent subscribed session_id=%s active=%s/%s",
+                    "terminal agent subscribed session_id=%s backend=%s active=%s/%s",
                     session_id,
+                    "atch" if is_atch_session(session_id) else "tmux",
                     len(self._sessions),
                     self.max_live_sessions,
                 )
