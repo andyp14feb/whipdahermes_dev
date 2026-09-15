@@ -35,6 +35,7 @@ export function SessionWindow({ index }: SessionWindowProps) {
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
   const [isPreviewSelectionHeld, setIsPreviewSelectionHeld] = useState(false);
   const [liveOpen, setLiveOpen] = useState(false);
+  const [liveCapToast, setLiveCapToast] = useState<string | null>(null);
   const holdsLiveSlotRef = useRef(false);
   const liveOpenCount = useLiveTerminalSlots((s) => s.openCount);
   const acquireLiveSlot = useLiveTerminalSlots((s) => s.acquire);
@@ -167,13 +168,13 @@ export function SessionWindow({ index }: SessionWindowProps) {
       return;
     }
     if (!acquireLiveSlot()) {
-      setActionFeedback(
-        `Max ${MAX_CONCURRENT_LIVE_TERMINALS} concurrent Live terminals. Close one before opening another.`,
+      setLiveCapToast(
+        `Max ${MAX_CONCURRENT_LIVE_TERMINALS} live terminals — close one first`,
       );
       return;
     }
     holdsLiveSlotRef.current = true;
-    setActionFeedback(null);
+    setLiveCapToast(null);
     setLiveOpen(true);
   }, [acquireLiveSlot]);
 
@@ -186,6 +187,13 @@ export function SessionWindow({ index }: SessionWindowProps) {
       }
     };
   }, [releaseLiveSlot]);
+
+  // Auto-dismiss Live cap toast.
+  useEffect(() => {
+    if (!liveCapToast) return;
+    const timer = globalThis.window.setTimeout(() => setLiveCapToast(null), 4500);
+    return () => globalThis.window.clearTimeout(timer);
+  }, [liveCapToast]);
 
   const data = sessionDetailQuery.data;
 
@@ -227,34 +235,46 @@ export function SessionWindow({ index }: SessionWindowProps) {
         >
           Kill {selectedBackend}
         </Button>
-        <Button
-          type="button"
-          variant="secondary"
-          className="px-2 py-1 text-xs"
-          onClick={(e) => {
-            e.stopPropagation();
-            if (liveOpen) {
-              closeLive();
-            } else {
-              openLive();
+        <span className="relative inline-flex">
+          <Button
+            type="button"
+            variant="secondary"
+            className="px-2 py-1 text-xs"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (liveOpen) {
+                closeLive();
+              } else {
+                openLive();
+              }
+            }}
+            disabled={
+              !slot.machineId
+              || !slot.sessionId
+              || selectedBackend === "atch"
             }
-          }}
-          disabled={
-            !slot.machineId
-            || !slot.sessionId
-            || selectedBackend === "atch"
-            || (!liveOpen && liveOpenCount >= MAX_CONCURRENT_LIVE_TERMINALS)
-          }
-          title={
-            selectedBackend === "atch"
-              ? "Live terminal is tmux-only"
-              : !liveOpen && liveOpenCount >= MAX_CONCURRENT_LIVE_TERMINALS
-                ? `Max ${MAX_CONCURRENT_LIVE_TERMINALS} concurrent Live terminals`
-                : "Open live interactive terminal"
-          }
-        >
-          {liveOpen ? "Live On" : "Live"}
-        </Button>
+            aria-describedby={liveCapToast ? `live-cap-toast-${index}` : undefined}
+            title={
+              selectedBackend === "atch"
+                ? "Live terminal is tmux-only"
+                : !liveOpen && liveOpenCount >= MAX_CONCURRENT_LIVE_TERMINALS
+                  ? `Max ${MAX_CONCURRENT_LIVE_TERMINALS} live terminals — close one first`
+                  : "Open live interactive terminal"
+            }
+          >
+            {liveOpen ? "Live On" : "Live"}
+          </Button>
+          {liveCapToast && (
+            <div
+              id={`live-cap-toast-${index}`}
+              role="status"
+              aria-live="polite"
+              className="absolute left-0 top-full z-30 mt-1 w-max max-w-[16rem] rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-950 shadow-lg dark:border-amber-600 dark:bg-amber-950 dark:text-amber-100"
+            >
+              {liveCapToast}
+            </div>
+          )}
+        </span>
         {windowCount > 1 && (
           <Button
             type="button"
