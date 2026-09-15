@@ -43,6 +43,8 @@ def create_terminal_ws_router() -> APIRouter:
 
         # Re-subscribe any browsers already waiting for this machine.
         for session_id in hub.browser_sessions_for_machine(machine_id):
+            browsers = hub.get_browsers(machine_id, session_id)
+            await _fanout_json(browsers, {"type": "status", "status": "connecting"})
             try:
                 await websocket.send_json({"type": "subscribe", "session_id": session_id})
             except Exception as exc:
