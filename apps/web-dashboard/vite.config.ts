@@ -16,6 +16,12 @@ export default defineConfig({
       "/commands": apiProxyTarget,
       "/assess": apiProxyTarget,
       "/server-info": apiProxyTarget,
+      "/ws": {
+        target: apiProxyTarget,
+        ws: true,
+      },
+      "/admin": apiProxyTarget,
+      "/health": apiProxyTarget,
     },
   },
   preview: {
@@ -29,6 +35,12 @@ export default defineConfig({
       "/commands": apiProxyTarget,
       "/assess": apiProxyTarget,
       "/server-info": apiProxyTarget,
+      "/ws": {
+        target: apiProxyTarget,
+        ws: true,
+      },
+      "/admin": apiProxyTarget,
+      "/health": apiProxyTarget,
     },
   },
 });

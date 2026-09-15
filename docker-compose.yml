@@ -10,6 +10,7 @@ services:
       API_HOST: 0.0.0.0
       DATABASE_URL: sqlite:////data/hcp.db
       STALE_TIMEOUT_SECONDS: 60
+      WHIPAI_TERMINAL_TOKEN: ${WHIPAI_TERMINAL_TOKEN:-}
     volumes:
       - ./data:/data
     healthcheck:
@@ -43,6 +44,7 @@ services:
       COMMAND_POLL_INTERVAL: 5
       TMUX_SOCKET: ${TMUX_SOCKET:-/host-tmux/default}
       SESSION_BACKENDS: ${SESSION_BACKENDS:-tmux}
+      WHIPAI_TERMINAL_TOKEN: ${WHIPAI_TERMINAL_TOKEN:-}
     volumes:
       - ${TMUX_HOST_DIR:-/tmp/tmux-1000}:/host-tmux
     depends_on:

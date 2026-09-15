@@ -10,6 +10,7 @@ import { useSettingsStore } from "../../shared/state/settingsStore";
 import { StatusSummary } from "../status-summary/StatusSummary";
 import { assessSession, fetchSessionDetail } from "./sessionPreview.api";
 import type { SessionListItem } from "../../shared/types/contracts";
+import { LiveTerminal } from "../live-terminal/LiveTerminal";
 
 interface SessionWindowProps {
   index: number;
@@ -29,6 +30,7 @@ export function SessionWindow({ index }: SessionWindowProps) {
   const queryClient = useQueryClient();
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
   const [isPreviewSelectionHeld, setIsPreviewSelectionHeld] = useState(false);
+  const [liveOpen, setLiveOpen] = useState(false);
   const isActive = activeWindowIndex === index;
 
   const sessionsQuery = useQuery({
@@ -182,6 +184,19 @@ export function SessionWindow({ index }: SessionWindowProps) {
         >
           Kill {selectedBackend}
         </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          className="px-2 py-1 text-xs"
+          onClick={(e) => {
+            e.stopPropagation();
+            setLiveOpen((open) => !open);
+          }}
+          disabled={!slot.machineId || !slot.sessionId || selectedBackend === "atch"}
+          title={selectedBackend === "atch" ? "Live terminal is tmux-only" : "Open live interactive terminal"}
+        >
+          {liveOpen ? "Live On" : "Live"}
+        </Button>
         {windowCount > 1 && (
           <Button
             type="button"
@@ -240,10 +255,12 @@ export function SessionWindow({ index }: SessionWindowProps) {
           onChange={(e) => {
             const value = e.target.value;
             if (!value) {
+              setLiveOpen(false);
               clearWindowSelection(index);
               return;
             }
             const [machineId, sessionId] = value.split("::");
+            setLiveOpen(false);
             setWindowSelection(index, machineId, sessionId);
           }}
         >
@@ -269,13 +286,22 @@ export function SessionWindow({ index }: SessionWindowProps) {
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-2">
-        <SessionPreview
-          machineId={slot.machineId}
-          sessionId={slot.sessionId}
-          heightPx={slot.heightPx}
-          onAutoAssess={handleAssess}
-          onSelectionHoldChange={setIsPreviewSelectionHeld}
-        />
+        {liveOpen && slot.machineId && slot.sessionId ? (
+          <LiveTerminal
+            machineId={slot.machineId}
+            sessionId={slot.sessionId}
+            heightPx={slot.heightPx}
+            onClose={() => setLiveOpen(false)}
+          />
+        ) : (
+          <SessionPreview
+            machineId={slot.machineId}
+            sessionId={slot.sessionId}
+            heightPx={slot.heightPx}
+            onAutoAssess={handleAssess}
+            onSelectionHoldChange={setIsPreviewSelectionHeld}
+          />
+        )}
         <div
           role="separator"
           aria-label={`Resize CLI preview for Window ${index + 1}`}

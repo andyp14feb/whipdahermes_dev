@@ -43,13 +43,21 @@ from modules.command_router.command_router import create_command_router_module
 from modules.session_state.session_state import create_session_state_module
 from modules.server_info.adapters.http.server_info_router import create_server_info_router
 from modules.shared_kernel.config import Settings
+from modules.terminal_bridge.adapters.http.terminal_ws_router import (
+    create_terminal_ws_router,
+)
 
 
 settings = Settings.load()
 app = FastAPI(title="WhipAI API Server", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:3003",
+        "http://127.0.0.1:3003",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -154,6 +162,7 @@ app.include_router(create_assess_router(session_service, None))
 app.include_router(create_dashboard_settings_router(dashboard_settings_repo))
 app.include_router(create_background_nudger_router(background_nudger))
 app.include_router(create_server_info_router(settings.api_port))
+app.include_router(create_terminal_ws_router())
 
 stale_detector = StaleDetector(
     machine_service=machine_service,
