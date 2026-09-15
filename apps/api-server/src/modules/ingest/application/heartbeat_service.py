@@ -29,7 +29,7 @@ class HeartbeatService:
             # No shared engine wired in (e.g. tests using fakes) — fall back to
             # each collaborator managing its own transaction/lock.
             try:
-                self.machine_registry.upsert_machine(machine_id, now)
+                self.machine_registry.upsert_from_heartbeat(machine_id, now, len(payload.sessions), updates_enabled=payload.updates_enabled)
             except APIError:
                 raise
             self.session_state.upsert_from_heartbeat(machine_id, payload.sessions)
@@ -37,7 +37,7 @@ class HeartbeatService:
 
         with sqlite_write_lock(), SQLSession(self.engine) as db:
             try:
-                self.machine_registry.upsert_machine(machine_id, now, db=db)
+                self.machine_registry.upsert_from_heartbeat(machine_id, now, len(payload.sessions), db=db, updates_enabled=payload.updates_enabled)
             except APIError:
                 raise
             candidates = self.session_state.write_heartbeat(machine_id, payload.sessions, db=db)

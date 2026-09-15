@@ -31,6 +31,14 @@ def _now_utc_iso() -> str:
 
 
 PREVIEW_MAX_CHARS = 2000
+# Keep diffs useful without ballooning capture-state.json / CPU.
+STATE_TEXT_MAX_CHARS = 8192
+
+def _truncate_state_text(text: str, max_chars: int = STATE_TEXT_MAX_CHARS) -> str:
+    if len(text) <= max_chars:
+        return text
+    return text[-max_chars:]
+
 
 
 def parse_sessions(
@@ -91,7 +99,7 @@ def parse_sessions(
             )
         )
 
-        new_captures[session_id] = text
+        new_captures[session_id] = _truncate_state_text(text)
         new_counters[session_id] = stable_counter
 
     updated_state = CaptureState(

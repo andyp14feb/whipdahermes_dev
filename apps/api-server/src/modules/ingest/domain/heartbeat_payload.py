@@ -18,3 +18,4 @@ class SessionSnapshot(BaseModel):
 class HeartbeatPayload(BaseModel):
     machine_id: str
     sessions: list[SessionSnapshot]
+    updates_enabled: bool = True

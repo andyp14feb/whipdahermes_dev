@@ -39,10 +39,16 @@ class HeartbeatClient:
 
         return True
 
-    def post_heartbeat(self, machine_id: str, sessions: list[SessionSnapshot]) -> bool:
+    def post_heartbeat(
+        self,
+        machine_id: str,
+        sessions: list[SessionSnapshot],
+        updates_enabled: bool = True,
+    ) -> bool:
         payload = {
             "machine_id": machine_id,
             "sessions": [asdict(session) for session in sessions],
+            "updates_enabled": updates_enabled,
         }
         url = self._url("heartbeat")
 

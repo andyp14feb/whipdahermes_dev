@@ -19,6 +19,17 @@ class SQLMachineRepo(IMachineRepo):
     def __init__(self, engine) -> None:
         self.engine = engine
         SQLModel.metadata.create_all(self.engine)
+        # Brownfield SQLite DBs created before updates_enabled — add column if missing.
+        try:
+            with self.engine.connect() as conn:
+                cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(machines)").fetchall()}
+                if "updates_enabled" not in cols:
+                    conn.exec_driver_sql(
+                        "ALTER TABLE machines ADD COLUMN updates_enabled BOOLEAN DEFAULT 1 NOT NULL"
+                    )
+                    conn.commit()
+        except Exception:
+            pass
 
     def upsert(self, machine: Machine, db: Session | None = None) -> None:
         if db is not None:

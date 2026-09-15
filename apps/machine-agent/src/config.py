@@ -12,7 +12,7 @@ class AgentConfig:
     interval: int = 2
     command_poll_interval: int = 5
     tmux_socket: str | None = None
-    session_backends: tuple[str, ...] = ("tmux",)
+    session_backends: tuple[str, ...] = ("atch", "tmux"),
     state_dir: str = ""
 
 
@@ -49,7 +49,7 @@ def load_config() -> AgentConfig:
     tmux_socket = (
         configured_tmux_socket if configured_tmux_socket is not None else _default_tmux_socket()
     ).strip() or None
-    session_backends = _load_session_backends(os.getenv("SESSION_BACKENDS", "tmux"))
+    session_backends = _load_session_backends(os.getenv("SESSION_BACKENDS", "atch,tmux"))
     state_dir = os.getenv("STATE_DIR", "").strip() or _default_state_dir()
 
     if not machine_id or not api_url:

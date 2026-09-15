@@ -95,7 +95,7 @@ def test_agent_config_dataclass_defaults():
     config = AgentConfig(machine_id="vm-1", api_url="http://localhost:8000")
     assert config.interval == 2
     assert config.tmux_socket is None
-    assert config.session_backends == ("tmux",)
+    assert config.session_backends == ("atch", "tmux")
 
 
 def test_load_config_reads_multiple_session_backends(monkeypatch):
