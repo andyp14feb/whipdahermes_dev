@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CommandPanel } from "../command-panel/CommandPanel";
 import { Card } from "../../shared/ui/Card";
@@ -11,6 +11,10 @@ import { StatusSummary } from "../status-summary/StatusSummary";
 import { assessSession, fetchSessionDetail } from "./sessionPreview.api";
 import type { SessionListItem } from "../../shared/types/contracts";
 import { LiveTerminal } from "../live-terminal/LiveTerminal";
+import {
+  MAX_CONCURRENT_LIVE_TERMINALS,
+  useLiveTerminalSlots,
+} from "../live-terminal/liveTerminalSlots";
 
 interface SessionWindowProps {
   index: number;
@@ -31,6 +35,10 @@ export function SessionWindow({ index }: SessionWindowProps) {
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
   const [isPreviewSelectionHeld, setIsPreviewSelectionHeld] = useState(false);
   const [liveOpen, setLiveOpen] = useState(false);
+  const holdsLiveSlotRef = useRef(false);
+  const liveOpenCount = useLiveTerminalSlots((s) => s.openCount);
+  const acquireLiveSlot = useLiveTerminalSlots((s) => s.acquire);
+  const releaseLiveSlot = useLiveTerminalSlots((s) => s.release);
   const isActive = activeWindowIndex === index;
 
   const sessionsQuery = useQuery({
@@ -144,6 +152,41 @@ export function SessionWindow({ index }: SessionWindowProps) {
     }
   }, [queryClient, selectedBackend, slot.machineId, slot.sessionId]);
 
+
+  const closeLive = useCallback(() => {
+    if (holdsLiveSlotRef.current) {
+      holdsLiveSlotRef.current = false;
+      releaseLiveSlot();
+    }
+    setLiveOpen(false);
+  }, [releaseLiveSlot]);
+
+  const openLive = useCallback(() => {
+    if (holdsLiveSlotRef.current) {
+      setLiveOpen(true);
+      return;
+    }
+    if (!acquireLiveSlot()) {
+      setActionFeedback(
+        `Max ${MAX_CONCURRENT_LIVE_TERMINALS} concurrent Live terminals. Close one before opening another.`,
+      );
+      return;
+    }
+    holdsLiveSlotRef.current = true;
+    setActionFeedback(null);
+    setLiveOpen(true);
+  }, [acquireLiveSlot]);
+
+  // Release live slot if this window unmounts while Live is open.
+  useEffect(() => {
+    return () => {
+      if (holdsLiveSlotRef.current) {
+        holdsLiveSlotRef.current = false;
+        releaseLiveSlot();
+      }
+    };
+  }, [releaseLiveSlot]);
+
   const data = sessionDetailQuery.data;
 
   return (
@@ -190,10 +233,25 @@ export function SessionWindow({ index }: SessionWindowProps) {
           className="px-2 py-1 text-xs"
           onClick={(e) => {
             e.stopPropagation();
-            setLiveOpen((open) => !open);
+            if (liveOpen) {
+              closeLive();
+            } else {
+              openLive();
+            }
           }}
-          disabled={!slot.machineId || !slot.sessionId || selectedBackend === "atch"}
-          title={selectedBackend === "atch" ? "Live terminal is tmux-only" : "Open live interactive terminal"}
+          disabled={
+            !slot.machineId
+            || !slot.sessionId
+            || selectedBackend === "atch"
+            || (!liveOpen && liveOpenCount >= MAX_CONCURRENT_LIVE_TERMINALS)
+          }
+          title={
+            selectedBackend === "atch"
+              ? "Live terminal is tmux-only"
+              : !liveOpen && liveOpenCount >= MAX_CONCURRENT_LIVE_TERMINALS
+                ? `Max ${MAX_CONCURRENT_LIVE_TERMINALS} concurrent Live terminals`
+                : "Open live interactive terminal"
+          }
         >
           {liveOpen ? "Live On" : "Live"}
         </Button>
@@ -255,12 +313,12 @@ export function SessionWindow({ index }: SessionWindowProps) {
           onChange={(e) => {
             const value = e.target.value;
             if (!value) {
-              setLiveOpen(false);
+              closeLive();
               clearWindowSelection(index);
               return;
             }
             const [machineId, sessionId] = value.split("::");
-            setLiveOpen(false);
+            closeLive();
             setWindowSelection(index, machineId, sessionId);
           }}
         >
@@ -291,7 +349,7 @@ export function SessionWindow({ index }: SessionWindowProps) {
             machineId={slot.machineId}
             sessionId={slot.sessionId}
             heightPx={slot.heightPx}
-            onClose={() => setLiveOpen(false)}
+            onClose={closeLive}
           />
         ) : (
           <SessionPreview
