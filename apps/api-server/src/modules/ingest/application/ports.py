@@ -7,8 +7,12 @@ from modules.ingest.domain.heartbeat_payload import SessionSnapshot
 
 
 class IMachineRegistryUpserter(Protocol):
-    def upsert_machine(
-        self, machine_id: MachineId, last_seen_at: str, db: object | None = None
+    def upsert_from_heartbeat(
+        self,
+        machine_id: MachineId,
+        last_seen_at: str,
+        session_count: int,
+        db: object | None = None,
     ) -> None: ...
 
 

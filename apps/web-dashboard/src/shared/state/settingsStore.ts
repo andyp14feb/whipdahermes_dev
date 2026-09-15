@@ -549,18 +549,27 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     }
   },
   hydrateServerInfo: async () => {
-    if (get().workerApiUrl) {
-      return;
-    }
     try {
-      const info = await apiClient<{ candidateUrls?: string[] }>("/server-info");
-      const url = info?.candidateUrls?.[0];
-      if (url) {
+      const info = await apiClient<{ candidateUrls?: string[]; port?: number }>("/server-info");
+      const urls = info?.candidateUrls ?? [];
+      const host =
+        typeof window !== "undefined" ? window.location.hostname : "";
+      const matching = host
+        ? urls.find((candidate) => {
+            try {
+              return new URL(candidate).hostname === host;
+            } catch {
+              return candidate.includes(host);
+            }
+          })
+        : undefined;
+      const url = matching ?? urls[0];
+      if (url && !get().workerApiUrl) {
         set({ workerApiUrl: url });
         persistCurrentSettings(get);
       }
     } catch {
-      // Leave empty; user can fill it in manually.
+      // Leave empty; Settings can derive from the open dashboard host/port.
     }
   },
   save: () => {

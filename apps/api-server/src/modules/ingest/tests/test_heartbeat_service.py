@@ -25,10 +25,12 @@ from modules.ingest.application.heartbeat_service import HeartbeatService
 
 class FakeMachineRegistry:
     def __init__(self) -> None:
-        self.calls: list[tuple[MachineId, str]] = []
+        self.calls: list[tuple[MachineId, str, int]] = []
 
-    def upsert_machine(self, machine_id: MachineId, last_seen_at: str) -> None:
-        self.calls.append((machine_id, last_seen_at))
+    def upsert_from_heartbeat(
+        self, machine_id: MachineId, last_seen_at: str, session_count: int, db=None
+    ) -> None:
+        self.calls.append((machine_id, last_seen_at, session_count))
 
 
 class FakeSessionUpserter:
@@ -42,7 +44,9 @@ class FakeSessionUpserter:
 
 
 class FakeFailingMachineRegistry:
-    def upsert_machine(self, machine_id: MachineId, last_seen_at: str) -> None:
+    def upsert_from_heartbeat(
+        self, machine_id: MachineId, last_seen_at: str, session_count: int, db=None
+    ) -> None:
         raise APIError(code="DB_ERROR", message="Database unavailable", status_code=500)
 
 
@@ -69,6 +73,7 @@ class TestHeartbeatService:
         assert accepted == 1
         assert len(registry.calls) == 1
         assert registry.calls[0][0] == MachineId("vm-1")
+        assert registry.calls[0][2] == 1
         assert len(upserter.calls) == 1
         assert upserter.calls[0][0] == MachineId("vm-1")
         assert upserter.calls[0][1] == [session]
@@ -108,6 +113,7 @@ class TestHeartbeatService:
 
         accepted = service.process_heartbeat(payload)
         assert accepted == 2
+        assert registry.calls[0][2] == 2
 
     def test_machine_registry_error_propagates(self) -> None:
         registry = FakeFailingMachineRegistry()

@@ -41,6 +41,28 @@ const labelClass = "block text-sm font-medium";
 const helperClass = "mt-1 text-xs";
 const colorFieldGroups: Array<"Surface" | "Text" | "Action"> = ["Surface", "Text", "Action"];
 
+
+const DASHBOARD_PORT_TO_API_PORT: Record<string, string> = {
+  "3003": "8004",
+  "3000": "8000",
+  "5173": "8000",
+  "4173": "8000",
+};
+
+/** Resolve the API URL workers should use from settings or the open dashboard host/port. */
+function resolveWorkerApiUrlForScript(configured: string): string {
+  const trimmed = configured.trim().replace(/\/$/, "");
+  if (trimmed) {
+    return trimmed;
+  }
+  if (typeof window === "undefined") {
+    return "http://127.0.0.1:8000";
+  }
+  const { protocol, hostname, port } = window.location;
+  const apiPort = DASHBOARD_PORT_TO_API_PORT[port] ?? (port || "8000");
+  return `${protocol}//${hostname}:${apiPort}`;
+}
+
 export function SettingsPage({ onClose }: SettingsPageProps) {
   const {
     workerApiUrl,
@@ -112,18 +134,24 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
     }
   }, [customColorPresets, selectedCustomPresetId]);
 
+  const effectiveWorkerApiUrl = resolveWorkerApiUrlForScript(workerApiUrl);
+
   const workerScript = `#!/usr/bin/env bash
 set -euo pipefail
 
-# ── WhipAI Worker Machine Agent ──
-# Generated from the dashboard settings at ${workerApiUrl}
+# --- WhipAI Worker Machine Agent ---
+# Generated from the dashboard at ${typeof window !== "undefined" ? window.location.origin : effectiveWorkerApiUrl}
+# Worker API_URL resolved to: ${effectiveWorkerApiUrl}
 
 REPO_URL="https://github.com/andyp14feb/whipdahermes_dev.git"
 WORKDIR="$(pwd)/whipdahermes_dev"
-API_URL="${workerApiUrl}"
+# Prefer explicit override when present: API_URL=http://host:port ./script.sh
+API_URL="\${API_URL:-${effectiveWorkerApiUrl}}"
 MACHINE_ID="worker-$(hostname -s)"
 INTERVAL=2
 COMMAND_POLL_INTERVAL=5
+# Prefer atch; keep tmux for legacy sessions
+SESSION_BACKENDS="atch,tmux"
 
 if [ ! -d "$WORKDIR/.git" ]; then
   git clone "$REPO_URL" "$WORKDIR"
@@ -146,8 +174,9 @@ export API_URL
 export MACHINE_ID
 export INTERVAL
 export COMMAND_POLL_INTERVAL
+export SESSION_BACKENDS
 
-echo "Starting WhipAI machine agent: MACHINE_ID=$MACHINE_ID API_URL=$API_URL"
+echo "Starting WhipAI machine agent: MACHINE_ID=$MACHINE_ID API_URL=$API_URL SESSION_BACKENDS=$SESSION_BACKENDS"
 python3 src/main.py`;
 
   const copyScript = useCallback(async () => {
@@ -607,14 +636,24 @@ python3 src/main.py`;
               style={themedFieldStyle}
               value={workerApiUrl}
               onChange={(e) => setWorkerApiUrl(e.target.value)}
-              placeholder="http://localhost:8000"
+              placeholder="http://100.x.x.x:8004 or leave blank to auto-detect"
             />
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <Button
+                variant="secondary"
+                onClick={() => setWorkerApiUrl(resolveWorkerApiUrlForScript(""))}
+              >
+                Use this dashboard host/port
+              </Button>
+              <span className={helperClass} style={themedHelperStyle}>
+                Script API_URL: <code>{effectiveWorkerApiUrl}</code>
+              </span>
+            </div>
             <p className={helperClass} style={themedHelperStyle}>
-              The URL that worker machine agents connect to when reporting heartbeats.
-              This does <strong>not</strong> affect dashboard data fetching, which always
-              uses the Vite dev proxy. To connect the dashboard directly to a remote
-              server, set <code>VITE_API_BASE_URL</code> in your <code>.env</code> and ensure the backend includes your dashboard origin
-              in its CORS allowlist.
+              Workers heartbeat to this API URL (host + API port). Leave blank to derive from the
+              dashboard you have open (e.g. UI <code>:3003</code> → API <code>:8004</code>).
+              Override at run time with <code>API_URL=...</code> when pasting the script.
+              This does <strong>not</strong> change dashboard data fetching (Vite/proxy).
             </p>
           </div>
 
@@ -787,7 +826,7 @@ python3 src/main.py`;
       <Card className="p-6">
         <h2 className="mb-4 text-lg font-semibold">Worker Machine Script</h2>
         <p className="mb-3 text-sm" style={themedHelperStyle}>
-          Copy and run this script on a worker machine that has git and tmux installed.
+          Copy and run this script on a worker machine that has git, atch, and/or tmux installed. SESSION_BACKENDS defaults to atch,tmux.
           It clones (or pulls) the repo from GitHub, sets up the Python environment,
           installs dependencies, and starts the machine agent connecting back to{" "}
           <code className="rounded px-1 py-0.5 text-xs" style={{ backgroundColor: "var(--theme-bg-soft)" }}>
