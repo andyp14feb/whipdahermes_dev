@@ -1,3 +1,4 @@
+import http from "node:http";
 import { createReadStream, existsSync, statSync } from "node:fs";
 import { createServer } from "node:http";
 import { extname, join, normalize, resolve } from "node:path";
@@ -7,7 +8,7 @@ const port = Number(process.env.PORT ?? 3000);
 const host = process.env.HOST ?? "0.0.0.0";
 const distDir = resolve(process.env.DIST_DIR ?? "dist");
 const apiProxyTarget = process.env.API_PROXY_TARGET ?? "http://localhost:8000";
-const apiPrefixes = ["/machines", "/sessions", "/command", "/commands", "/assess", "/server-info"];
+const apiPrefixes = ["/machines", "/sessions", "/command", "/commands", "/assess", "/server-info", "/health", "/admin"];
 
 const mimeTypes = new Map([
   [".html", "text/html; charset=utf-8"],
@@ -94,6 +95,51 @@ const server = createServer((req, res) => {
     "cache-control": filePath.endsWith("index.html") ? "no-cache" : "public, max-age=31536000, immutable",
   });
   createReadStream(filePath).pipe(res);
+});
+
+// Proxy WebSocket upgrades for live terminal (/ws/...)
+server.on("upgrade", (req, socket, head) => {
+  const pathname = (req.url ?? "").split("?")[0];
+  if (!pathname.startsWith("/ws")) {
+    socket.destroy();
+    return;
+  }
+  let target;
+  try {
+    target = new URL(apiProxyTarget);
+  } catch {
+    socket.destroy();
+    return;
+  }
+  const headers = { ...req.headers, host: target.host };
+  const proxyReq = http.request({
+    protocol: target.protocol,
+    hostname: target.hostname,
+    port: target.port || (target.protocol === "https:" ? 443 : 80),
+    path: req.url,
+    method: "GET",
+    headers,
+  });
+  proxyReq.on("upgrade", (proxyRes, proxySocket, proxyHead) => {
+    const lines = ["HTTP/1.1 101 Switching Protocols"];
+    for (const [key, value] of Object.entries(proxyRes.headers)) {
+      if (value === undefined) continue;
+      if (Array.isArray(value)) {
+        for (const v of value) lines.push(`${key}: ${v}`);
+      } else {
+        lines.push(`${key}: ${value}`);
+      }
+    }
+    socket.write(lines.join("\r\n") + "\r\n\r\n");
+    if (proxyHead && proxyHead.length) proxySocket.write(proxyHead);
+    if (head && head.length) socket.write(head);
+    proxySocket.pipe(socket);
+    socket.pipe(proxySocket);
+    proxySocket.on("error", () => socket.destroy());
+    socket.on("error", () => proxySocket.destroy());
+  });
+  proxyReq.on("error", () => socket.destroy());
+  proxyReq.end();
 });
 
 server.listen(port, host, () => {
