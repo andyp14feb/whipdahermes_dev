@@ -13,6 +13,8 @@ import termios
 import threading
 import time
 
+from capture.atch_capture import ATCH_TAIL_LINES, ATCH_TAIL_MAX_CHARS
+
 logger = logging.getLogger(__name__)
 
 ATCH_SESSION_ID_PREFIX = "atch:"
@@ -40,7 +42,7 @@ class AtchLiveSession:
 
     Spawns ``atch -E -q -r winch attach <session>`` under a PTY (openpty+Popen) so the
     raw byte stream matches a human attach client. Snapshot for new viewers
-    uses ``atch tail`` (bounded) — attach replay already streams via on_output
+    uses ``atch tail -n`` + ATCH_TAIL_MAX_CHARS (same as Non-Live capture) — attach replay streams via on_output
     on first connect.
     """
 
@@ -223,13 +225,16 @@ class AtchLiveSession:
     def _capture_tail_snapshot(self) -> str | None:
         try:
             result = subprocess.run(
-                [self.atch_bin, "tail", "-n", "200", self.name],
+                [self.atch_bin, "tail", "-n", str(ATCH_TAIL_LINES), self.name],
                 capture_output=True,
                 text=True,
                 check=True,
                 timeout=5,
             )
-            return result.stdout or ""
+            raw = result.stdout or ""
+            if len(raw) > ATCH_TAIL_MAX_CHARS:
+                raw = raw[-ATCH_TAIL_MAX_CHARS:]
+            return raw
         except FileNotFoundError:
             self.on_error(self.session_id, "atch binary not found")
             return None

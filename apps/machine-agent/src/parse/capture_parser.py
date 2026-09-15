@@ -30,7 +30,10 @@ def _now_utc_iso() -> str:
     return datetime.now(tz=timezone.utc).isoformat().replace("+00:00", "Z")
 
 
-PREVIEW_MAX_CHARS = 2000
+# Align Non-Live preview with atch capture/live snapshot budget.
+# Live atch snapshot uses atch tail -n + ATCH_TAIL_MAX_CHARS; old 2000-char
+# cap made Non-Live a strict suffix of Live and dropped most ANSI/TUI text.
+PREVIEW_MAX_CHARS = 16384
 # Keep diffs useful without ballooning capture-state.json / CPU.
 STATE_TEXT_MAX_CHARS = 8192
 
