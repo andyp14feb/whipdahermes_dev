@@ -652,3 +652,20 @@
 .theme-ring {
   --tw-ring-color: var(--theme-primary);
 }
+
+/* Live xterm host: keep screen/cursor layers sized to the container so the
+   blinking caret stays on the typing cell instead of drifting to the bottom. */
+.live-terminal-host {
+  position: relative;
+  width: 100%;
+}
+.live-terminal-host .xterm {
+  height: 100%;
+  padding: 0;
+}
+.live-terminal-host .xterm-viewport {
+  height: 100% !important;
+}
+.live-terminal-host .xterm-screen {
+  height: 100%;
+}

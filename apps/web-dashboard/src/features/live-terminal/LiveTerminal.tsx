@@ -20,6 +20,19 @@ type ConnStatus =
   | "error"
   | "closed";
 
+function fitAndFocus(term: Terminal, fit: FitAddon, ws?: WebSocket | null) {
+  try {
+    fit.fit();
+  } catch {
+    /* ignore fit races before layout */
+  }
+  term.focus();
+  const dims = fit.proposeDimensions();
+  if (dims && ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: "resize", cols: dims.cols, rows: dims.rows }));
+  }
+}
+
 export function LiveTerminal({
   machineId,
   sessionId,
@@ -38,18 +51,20 @@ export function LiveTerminal({
 
     const term = new Terminal({
       cursorBlink: true,
+      cursorStyle: "block",
       fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
       fontSize: 13,
       theme: {
         background: "#1e1e1e",
         foreground: "#d4d4d4",
+        cursor: "#d4d4d4",
+        cursorAccent: "#1e1e1e",
       },
       convertEol: true,
     });
     const fit = new FitAddon();
     term.loadAddon(fit);
     term.open(containerRef.current);
-    fit.fit();
     termRef.current = term;
     fitRef.current = fit;
 
@@ -59,11 +74,16 @@ export function LiveTerminal({
     setStatus("connecting");
     setErrorMessage(null);
 
+    // Fit after layout so cols/rows match the visible host (avoids caret at bottom).
+    const scheduleFit = () => {
+      requestAnimationFrame(() => {
+        fitAndFocus(term, fit, wsRef.current);
+      });
+    };
+    scheduleFit();
+
     ws.onopen = () => {
-      const dims = fit.proposeDimensions();
-      if (dims) {
-        ws.send(JSON.stringify({ type: "resize", cols: dims.cols, rows: dims.rows }));
-      }
+      scheduleFit();
     };
 
     ws.onmessage = (event) => {
@@ -80,6 +100,7 @@ export function LiveTerminal({
       } else if (msg.type === "snapshot" && typeof msg.data === "string") {
         term.reset();
         term.write(msg.data.replace(/\n/g, "\r\n"));
+        scheduleFit();
       } else if (msg.type === "error") {
         setStatus("error");
         setErrorMessage(msg.message || "Terminal error");
@@ -87,6 +108,9 @@ export function LiveTerminal({
       } else if (msg.type === "status") {
         const next = (msg.status || "connecting") as ConnStatus;
         setStatus(next);
+        if (next === "ready") {
+          scheduleFit();
+        }
       }
     };
 
@@ -107,16 +131,21 @@ export function LiveTerminal({
     });
 
     const onResize = () => {
-      fit.fit();
-      const dims = fit.proposeDimensions();
-      if (dims && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: "resize", cols: dims.cols, rows: dims.rows }));
-      }
+      fitAndFocus(term, fit, wsRef.current);
     };
     window.addEventListener("resize", onResize);
 
+    let resizeObserver: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined" && containerRef.current) {
+      resizeObserver = new ResizeObserver(() => {
+        scheduleFit();
+      });
+      resizeObserver.observe(containerRef.current);
+    }
+
     return () => {
       window.removeEventListener("resize", onResize);
+      resizeObserver?.disconnect();
       dataDisposable.dispose();
       try {
         ws.close();
@@ -129,6 +158,16 @@ export function LiveTerminal({
       wsRef.current = null;
     };
   }, [machineId, sessionId]);
+
+  // Re-fit when parent height changes (window resize handle).
+  useEffect(() => {
+    const term = termRef.current;
+    const fit = fitRef.current;
+    if (!term || !fit) return;
+    requestAnimationFrame(() => {
+      fitAndFocus(term, fit, wsRef.current);
+    });
+  }, [heightPx]);
 
   return (
     <div className="flex min-h-0 flex-col gap-2">
@@ -158,9 +197,12 @@ export function LiveTerminal({
       </div>
       <div
         ref={containerRef}
-        className="overflow-hidden rounded border border-gray-700 bg-[#1e1e1e]"
+        className="live-terminal-host overflow-hidden rounded border border-gray-700 bg-[#1e1e1e]"
         style={{ height: `${heightPx}px` }}
-        onClick={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          termRef.current?.focus();
+        }}
       />
     </div>
   );
