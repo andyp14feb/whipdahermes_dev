@@ -70,9 +70,11 @@ pip install -e .
 WHIPAI_TERMINAL_TOKEN=dev-terminal-token \
 MACHINE_ID=<your-machine-id> \
 API_URL=http://127.0.0.1:8004 \
-SESSION_BACKENDS=tmux \
+SESSION_BACKENDS=atch,tmux \
 python -m main
 ```
+
+Note: Live terminal is **tmux-only**, but agent monitoring should keep `SESSION_BACKENDS=atch,tmux` so atch sessions remain visible after restarts (avoid tmux-only regressions).
 
 If using Docker only for api+dashboard: set `WHIPAI_TERMINAL_TOKEN` in `.env`, rebuild **only** those two services if needed. Do not compose-down CMS or unrelated stacks.
 
