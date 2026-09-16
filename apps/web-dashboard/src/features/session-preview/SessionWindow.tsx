@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CommandPanel } from "../command-panel/CommandPanel";
 import { Card } from "../../shared/ui/Card";
@@ -10,6 +10,11 @@ import { useSettingsStore } from "../../shared/state/settingsStore";
 import { StatusSummary } from "../status-summary/StatusSummary";
 import { assessSession, fetchSessionDetail } from "./sessionPreview.api";
 import type { SessionListItem } from "../../shared/types/contracts";
+import { LiveTerminal } from "../live-terminal/LiveTerminal";
+import {
+  MAX_CONCURRENT_LIVE_TERMINALS,
+  useLiveTerminalSlots,
+} from "../live-terminal/liveTerminalSlots";
 
 interface SessionWindowProps {
   index: number;
@@ -29,6 +34,12 @@ export function SessionWindow({ index }: SessionWindowProps) {
   const queryClient = useQueryClient();
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
   const [isPreviewSelectionHeld, setIsPreviewSelectionHeld] = useState(false);
+  const [liveOpen, setLiveOpen] = useState(false);
+  const [liveCapToast, setLiveCapToast] = useState<string | null>(null);
+  const holdsLiveSlotRef = useRef(false);
+  const liveOpenCount = useLiveTerminalSlots((s) => s.openCount);
+  const acquireLiveSlot = useLiveTerminalSlots((s) => s.acquire);
+  const releaseLiveSlot = useLiveTerminalSlots((s) => s.release);
   const isActive = activeWindowIndex === index;
 
   const sessionsQuery = useQuery({
@@ -142,6 +153,48 @@ export function SessionWindow({ index }: SessionWindowProps) {
     }
   }, [queryClient, selectedBackend, slot.machineId, slot.sessionId]);
 
+
+  const closeLive = useCallback(() => {
+    if (holdsLiveSlotRef.current) {
+      holdsLiveSlotRef.current = false;
+      releaseLiveSlot();
+    }
+    setLiveOpen(false);
+  }, [releaseLiveSlot]);
+
+  const openLive = useCallback(() => {
+    if (holdsLiveSlotRef.current) {
+      setLiveOpen(true);
+      return;
+    }
+    if (!acquireLiveSlot()) {
+      setLiveCapToast(
+        `Max ${MAX_CONCURRENT_LIVE_TERMINALS} live terminals - close one first`,
+      );
+      return;
+    }
+    holdsLiveSlotRef.current = true;
+    setLiveCapToast(null);
+    setLiveOpen(true);
+  }, [acquireLiveSlot]);
+
+  // Release live slot if this window unmounts while Live is open.
+  useEffect(() => {
+    return () => {
+      if (holdsLiveSlotRef.current) {
+        holdsLiveSlotRef.current = false;
+        releaseLiveSlot();
+      }
+    };
+  }, [releaseLiveSlot]);
+
+  // Auto-dismiss Live cap toast.
+  useEffect(() => {
+    if (!liveCapToast) return;
+    const timer = globalThis.window.setTimeout(() => setLiveCapToast(null), 4500);
+    return () => globalThis.window.clearTimeout(timer);
+  }, [liveCapToast]);
+
   const data = sessionDetailQuery.data;
 
   return (
@@ -182,6 +235,45 @@ export function SessionWindow({ index }: SessionWindowProps) {
         >
           Kill {selectedBackend}
         </Button>
+        <span className="relative inline-flex">
+          <Button
+            type="button"
+            variant="secondary"
+            className="px-2 py-1 text-xs"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (liveOpen) {
+                closeLive();
+              } else {
+                openLive();
+              }
+            }}
+            disabled={
+              !slot.machineId
+              || !slot.sessionId
+            }
+            aria-describedby={liveCapToast ? `live-cap-toast-${index}` : undefined}
+            title={
+              !liveOpen && liveOpenCount >= MAX_CONCURRENT_LIVE_TERMINALS
+                ? `Max ${MAX_CONCURRENT_LIVE_TERMINALS} live terminals - close one first`
+                : selectedBackend === "atch"
+                  ? "Open live interactive atch terminal"
+                  : "Open live interactive terminal"
+            }
+          >
+            {liveOpen ? "Live On" : "Live"}
+          </Button>
+          {liveCapToast && (
+            <div
+              id={`live-cap-toast-${index}`}
+              role="status"
+              aria-live="polite"
+              className="absolute left-0 top-full z-30 mt-1 w-max max-w-[16rem] rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-950 shadow-lg dark:border-amber-600 dark:bg-amber-950 dark:text-amber-100"
+            >
+              {liveCapToast}
+            </div>
+          )}
+        </span>
         {windowCount > 1 && (
           <Button
             type="button"
@@ -240,10 +332,12 @@ export function SessionWindow({ index }: SessionWindowProps) {
           onChange={(e) => {
             const value = e.target.value;
             if (!value) {
+              closeLive();
               clearWindowSelection(index);
               return;
             }
             const [machineId, sessionId] = value.split("::");
+            closeLive();
             setWindowSelection(index, machineId, sessionId);
           }}
         >
@@ -269,13 +363,22 @@ export function SessionWindow({ index }: SessionWindowProps) {
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-2">
-        <SessionPreview
-          machineId={slot.machineId}
-          sessionId={slot.sessionId}
-          heightPx={slot.heightPx}
-          onAutoAssess={handleAssess}
-          onSelectionHoldChange={setIsPreviewSelectionHeld}
-        />
+        {liveOpen && slot.machineId && slot.sessionId ? (
+          <LiveTerminal
+            machineId={slot.machineId}
+            sessionId={slot.sessionId}
+            heightPx={slot.heightPx}
+            onClose={closeLive}
+          />
+        ) : (
+          <SessionPreview
+            machineId={slot.machineId}
+            sessionId={slot.sessionId}
+            heightPx={slot.heightPx}
+            onAutoAssess={handleAssess}
+            onSelectionHoldChange={setIsPreviewSelectionHeld}
+          />
+        )}
         <div
           role="separator"
           aria-label={`Resize CLI preview for Window ${index + 1}`}

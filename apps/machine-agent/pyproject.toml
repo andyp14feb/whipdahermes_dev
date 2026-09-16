@@ -5,6 +5,7 @@ description = "WhipAI machine agent heartbeat client and scheduler"
 requires-python = ">=3.12"
 dependencies = [
     "requests>=2.31",
+    "websocket-client>=1.8",
 ]
 
 [project.optional-dependencies]

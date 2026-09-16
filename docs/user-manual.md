@@ -344,7 +344,7 @@ tmux display-message -p '#{socket_path}'
 | `MACHINE_ID` | No | hostname | Unique machine identifier shown in the dashboard. |
 | `INTERVAL` | No | `2` | Seconds between heartbeat cycles. |
 | `COMMAND_POLL_INTERVAL` | No | `5` | Seconds between command polling cycles. |
-| `SESSION_BACKENDS` | No | `tmux` | Comma-separated backends to monitor: `tmux`, `atch`, or both. |
+| `SESSION_BACKENDS` | No | `atch,tmux` | Comma-separated backends to monitor: `tmux`, `atch`, or both. |
 | `TMUX_SOCKET` | No | `/tmp/tmux-<uid>/default` | tmux socket path used by the agent. |
 
 ### API Server

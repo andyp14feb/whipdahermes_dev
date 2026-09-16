@@ -14,6 +14,7 @@ class AgentConfig:
     tmux_socket: str | None = None
     session_backends: tuple[str, ...] = ("atch", "tmux"),
     state_dir: str = ""
+    terminal_token: str = ""
 
 
 def _default_tmux_socket() -> str:
@@ -51,6 +52,7 @@ def load_config() -> AgentConfig:
     ).strip() or None
     session_backends = _load_session_backends(os.getenv("SESSION_BACKENDS", "atch,tmux"))
     state_dir = os.getenv("STATE_DIR", "").strip() or _default_state_dir()
+    terminal_token = os.getenv("WHIPAI_TERMINAL_TOKEN", "").strip()
 
     if not machine_id or not api_url:
         raise SystemExit("API_URL must be set")
@@ -79,4 +81,5 @@ def load_config() -> AgentConfig:
         tmux_socket=tmux_socket,
         session_backends=session_backends,
         state_dir=state_dir,
+        terminal_token=terminal_token,
     )

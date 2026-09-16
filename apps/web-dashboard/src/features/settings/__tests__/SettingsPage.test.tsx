@@ -75,7 +75,10 @@ describe("SettingsPage", () => {
       expect.stringContaining('WORKDIR="$(pwd)/whipdahermes_dev"'),
     );
     expect(writeText).toHaveBeenCalledWith(
-      expect.stringContaining('API_URL="http://localhost:8000"'),
+      expect.stringContaining('API_URL="${API_URL:-http://localhost:8000}"'),
+    );
+    expect(writeText).toHaveBeenCalledWith(
+      expect.stringContaining('SESSION_BACKENDS="atch,tmux"'),
     );
     expect(screen.getByText("Copied!")).toBeInTheDocument();
   });

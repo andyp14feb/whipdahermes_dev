@@ -15,6 +15,7 @@ from command.command_poller import CommandPoller
 from command.executor import AgentControlState, CommandExecutor
 from command.command_reporter import CommandReporter
 from command.command_scheduler import CommandScheduler
+from terminal.agent_ws_client import TerminalAgentClient
 
 logger = logging.getLogger(__name__)
 
@@ -41,17 +42,25 @@ def main() -> None:
     executor = CommandExecutor(config.tmux_socket)
     reporter = CommandReporter(config.api_url)
     command_scheduler = CommandScheduler(config, poller, executor, reporter)
+    terminal_client = TerminalAgentClient(
+        api_url=config.api_url,
+        machine_id=config.machine_id,
+        tmux_socket=config.tmux_socket,
+        token=config.terminal_token,
+    )
 
     heartbeat_thread = threading.Thread(target=heartbeat_scheduler.run_forever, daemon=True)
     command_thread = threading.Thread(target=command_scheduler.run_forever, daemon=True)
     heartbeat_thread.start()
     command_thread.start()
+    terminal_client.start()
 
     try:
         heartbeat_thread.join()
         command_thread.join()
     except KeyboardInterrupt:
         logger.info("Shutting down...")
+        terminal_client.stop()
 
     if control_state.restart_requested():
         logger.info("Restarting machine agent process")
